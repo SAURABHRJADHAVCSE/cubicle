@@ -12,6 +12,7 @@ from app.engines.registry import get_engine
 from app.models.agent import Agent
 from app.models.task import Task
 from app.workers import app as celery_app
+from app.ws.events import emit_agent_status, emit_task_status
 
 logger = structlog.get_logger()
 
@@ -44,6 +45,8 @@ async def _execute_task_async(task_id: uuid.UUID) -> None:
         agent.status = "working"
         agent.current_task_id = task.id
         await session.commit()
+        emit_task_status(str(task.id), task.status)
+        emit_agent_status(str(agent.id), agent.status, agent.mood, str(task.id))
 
         try:
             engine = get_engine(agent)
@@ -71,6 +74,8 @@ async def _execute_task_async(task_id: uuid.UUID) -> None:
         agent.current_task_id = None
 
         await session.commit()
+        emit_task_status(str(task.id), task.status)
+        emit_agent_status(str(agent.id), agent.status, agent.mood, None)
         logger.info("execute_task_completed", task_id=str(task.id))
 
 
@@ -85,3 +90,6 @@ async def _mark_failed(
         agent.status = "idle"
         agent.current_task_id = None
     await session.commit()
+    emit_task_status(str(task.id), task.status)
+    if agent is not None:
+        emit_agent_status(str(agent.id), agent.status, agent.mood, None)
