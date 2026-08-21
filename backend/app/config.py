@@ -17,7 +17,12 @@ class Settings(BaseSettings):
     redis_url: str
 
     anthropic_api_key: str | None = None
-    ollama_base_url: str = "http://ollama:11434"
+    # Points at the host machine's own Ollama install via Docker Desktop's
+    # host.docker.internal DNS name — not a Docker Compose "ollama" service
+    # (none is defined; the user runs Ollama natively).
+    ollama_base_url: str = "http://host.docker.internal:11434"
+    embedding_model: str = "ollama/nomic-embed-text"
+    embedding_dimensions: int = 768
 
     workspaces_dir: str = "/workspaces"
 

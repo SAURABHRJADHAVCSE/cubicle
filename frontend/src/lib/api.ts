@@ -1,5 +1,6 @@
 import { API_URL } from "@/lib/constants";
 import type { Agent, AgentCreate, AgentUpdate } from "@/types/agent";
+import type { ChatRequest, ConversationMessage } from "@/types/chat";
 import type { Task, TaskCreate } from "@/types/task";
 
 export class ApiError extends Error {
@@ -48,5 +49,14 @@ export const api = {
     create: (payload: TaskCreate) =>
       request<Task>("/tasks", { method: "POST", body: JSON.stringify(payload) }),
     execute: (id: string) => request<Task>(`/tasks/${id}/execute`, { method: "POST" }),
+  },
+  chat: {
+    history: (agentId: string) =>
+      request<ConversationMessage[]>(`/agents/${agentId}/conversations`),
+    send: (agentId: string, payload: ChatRequest) =>
+      request<ConversationMessage>(`/agents/${agentId}/chat`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
   },
 };

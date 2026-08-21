@@ -47,6 +47,37 @@ async def test_execute_handles_cost_lookup_failure(monkeypatch: pytest.MonkeyPat
     assert result.cost_usd == 0.0
 
 
+async def test_chat_stream_yields_deltas(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_stream():
+        for content in ["Hel", "lo", None, "!"]:
+            yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=content))])
+
+    async def fake_acompletion(**kwargs):
+        assert kwargs["stream"] is True
+        return fake_stream()
+
+    monkeypatch.setattr(litellm_engine_module.litellm, "acompletion", fake_acompletion)
+
+    engine = LiteLLMEngine(model="claude-sonnet-4-5")
+    deltas = [d async for d in engine.chat_stream("hi", history=[])]
+
+    assert deltas == ["Hel", "lo", "!"]
+
+
+async def test_chat_concatenates_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_stream():
+        for content in ["a", "b", "c"]:
+            yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=content))])
+
+    async def fake_acompletion(**kwargs):
+        return fake_stream()
+
+    monkeypatch.setattr(litellm_engine_module.litellm, "acompletion", fake_acompletion)
+
+    engine = LiteLLMEngine(model="claude-sonnet-4-5")
+    assert await engine.chat("hi", history=[]) == "abc"
+
+
 def test_get_models_routes_by_provider() -> None:
     assert "claude-sonnet-4-5" in LiteLLMEngine(model="claude-sonnet-4-5").get_models()
     assert "llama3.2" in LiteLLMEngine(model="ollama/llama3.2").get_models()

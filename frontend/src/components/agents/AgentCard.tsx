@@ -6,7 +6,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { IdlePulse, ThinkingSpinner } from "@/components/common/Indicators";
 import { useDeleteAgent } from "@/hooks/useAgents";
+import { useUIStore } from "@/stores/uiStore";
 import type { Agent, AgentStatus } from "@/types/agent";
 
 const STATUS_VARIANT: Record<AgentStatus, "default" | "secondary" | "outline"> = {
@@ -23,9 +25,14 @@ function initials(name: string): string {
 
 export function AgentCard({ agent }: { agent: Agent }) {
   const deleteAgent = useDeleteAgent();
+  const selectAgent = useUIStore((s) => s.selectAgent);
 
   return (
-    <Card size="sm">
+    <Card
+      size="sm"
+      className="cursor-pointer transition-colors hover:bg-muted/50"
+      onClick={() => selectAgent(agent.id)}
+    >
       <CardContent className="flex items-center gap-3">
         <Avatar style={{ backgroundColor: agent.accent_color }}>
           <AvatarFallback
@@ -39,6 +46,8 @@ export function AgentCard({ agent }: { agent: Agent }) {
           <div className="flex items-center gap-2">
             <p className="truncate font-medium">{agent.name}</p>
             <Badge variant={STATUS_VARIANT[agent.status]}>{agent.status}</Badge>
+            {agent.status === "working" && <ThinkingSpinner />}
+            {agent.status === "idle" && <IdlePulse />}
           </div>
           <p className="truncate text-xs text-muted-foreground">
             {agent.role} &middot; {agent.engine_provider}
@@ -49,7 +58,10 @@ export function AgentCard({ agent }: { agent: Agent }) {
           variant="ghost"
           size="icon"
           aria-label={`Delete ${agent.name}`}
-          onClick={() => deleteAgent.mutate(agent.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            deleteAgent.mutate(agent.id);
+          }}
           disabled={deleteAgent.isPending}
         >
           <Trash2 className="size-4" />

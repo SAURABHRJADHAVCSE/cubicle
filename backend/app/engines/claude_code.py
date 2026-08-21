@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import shutil
+from collections.abc import AsyncIterator
 
 import structlog
 
@@ -76,11 +77,18 @@ class ClaudeCodeEngine(AgentEngine):
             cost_usd=result.get("total_cost_usd", 0.0),
         )
 
-    async def chat(self, message: str, history: list[dict]) -> str:
-        # Phase 2: each call is a stateless `--print` invocation. Multi-turn
-        # conversation continuity lands with the Chat API in a later phase.
-        result = await self.execute(message, context={})
-        return result.output
+    async def chat_stream(self, message: str, history: list[dict]) -> AsyncIterator[str]:
+        # `--print` is a stateless, single-shot invocation with no native
+        # session resumption wired up yet, so recent turns are folded into
+        # the prompt text itself to give the CLI some conversational context.
+        transcript = "\n".join(
+            f"{'User' if turn['role'] == 'user' else 'You'}: {turn['content']}"
+            for turn in history
+        )
+        prompt = f"{transcript}\nUser: {message}" if transcript else message
+
+        result = await self.execute(prompt, context={})
+        yield result.output
 
     async def is_available(self) -> bool:
         return shutil.which("claude") is not None

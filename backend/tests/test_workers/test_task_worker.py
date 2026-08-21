@@ -71,7 +71,7 @@ async def test_execute_task_success_updates_task_and_agent(
 
     stub = _StubEngine(result=EngineResult(output="all done", tokens_used=10, cost_usd=0.01))
     monkeypatch.setattr(task_worker_module, "get_engine", lambda a: stub)
-    monkeypatch.setattr(task_worker_module, "async_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
 
     await task_worker_module._execute_task_async(task.id)
 
@@ -91,7 +91,7 @@ async def test_execute_task_engine_failure_marks_task_failed(
 
     stub = _StubEngine(error=RuntimeError("boom"))
     monkeypatch.setattr(task_worker_module, "get_engine", lambda a: stub)
-    monkeypatch.setattr(task_worker_module, "async_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
 
     await task_worker_module._execute_task_async(task.id)
 
@@ -107,6 +107,6 @@ async def test_execute_task_missing_task_is_noop(
 ) -> None:
     import uuid
 
-    monkeypatch.setattr(task_worker_module, "async_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
 
     await task_worker_module._execute_task_async(uuid.uuid4())  # should not raise

@@ -83,6 +83,28 @@ async def test_execute_raises_on_invalid_json(monkeypatch: pytest.MonkeyPatch, t
         await engine.execute("say hi", context={})
 
 
+async def test_chat_stream_yields_full_reply_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    payload = json.dumps({"result": "hi there"})
+    captured_prompt = {}
+
+    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr):
+        captured_prompt["prompt"] = cmd[cmd.index("-p") + 1]
+        return _FakeProcess(returncode=0, stdout=payload.encode())
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    engine = ClaudeCodeEngine(working_dir=str(tmp_path))
+    history = [{"role": "user", "content": "hello"}, {"role": "agent", "content": "hi!"}]
+    deltas = [d async for d in engine.chat_stream("how are you?", history)]
+
+    assert deltas == ["hi there"]
+    assert "User: hello" in captured_prompt["prompt"]
+    assert "You: hi!" in captured_prompt["prompt"]
+    assert captured_prompt["prompt"].endswith("User: how are you?")
+
+
 async def test_is_available_checks_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(claude_code_module.shutil, "which", lambda name: "/usr/bin/claude")
     assert await ClaudeCodeEngine().is_available() is True

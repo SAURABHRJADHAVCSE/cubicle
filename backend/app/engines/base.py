@@ -1,6 +1,7 @@
 """Abstract interface every agent engine (CLI or API) must implement."""
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 
 from pydantic import BaseModel, Field
 
@@ -24,8 +25,22 @@ class AgentEngine(ABC):
         """Run a task and return a structured result."""
 
     @abstractmethod
+    def chat_stream(self, message: str, history: list[dict]) -> AsyncIterator[str]:
+        """Stream an interactive chat reply as incremental text deltas.
+
+        API engines (LiteLLM) yield true token-by-token deltas. CLI engines
+        can't stream mid-response (e.g. Claude Code CLI's `--print
+        --output-format json` returns one blob) — they yield the complete
+        reply as a single item once the subprocess finishes.
+        """
+
     async def chat(self, message: str, history: list[dict]) -> str:
-        """Send an interactive chat message and return the agent's reply."""
+        """Send an interactive chat message and return the full reply.
+
+        Convenience wrapper over chat_stream() for callers that don't need
+        incremental delivery.
+        """
+        return "".join([chunk async for chunk in self.chat_stream(message, history)])
 
     @abstractmethod
     async def is_available(self) -> bool:
