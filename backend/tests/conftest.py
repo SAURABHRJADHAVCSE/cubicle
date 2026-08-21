@@ -14,7 +14,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import engine
+from app.database import engine, get_db
 from app.main import app
 
 
@@ -36,8 +36,19 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest_asyncio.fixture
-async def client() -> AsyncGenerator[AsyncClient, None]:
-    """An async HTTP client bound directly to the FastAPI ASGI app."""
+async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    """An async HTTP client bound to the ASGI app, sharing db_session's
+    transaction so API-level writes roll back too (routes call `.commit()`,
+    which — joined onto an external transaction via a SAVEPOINT — only
+    releases the savepoint, it doesn't escape the outer rollback)."""
+
+    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
+    finally:
+        app.dependency_overrides.pop(get_db, None)

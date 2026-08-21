@@ -17,9 +17,15 @@ RUN uv sync --frozen
 
 FROM python:3.12-slim AS runtime
 
+# Node.js + npm are needed only to install the Claude Code CLI (`claude`),
+# which the ClaudeCodeEngine shells out to. NodeSource's setup_lts.x script
+# always resolves to whatever Node LTS is current at build time.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g @anthropic-ai/claude-code \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 WORKDIR /app
 
