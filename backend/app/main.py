@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 
-from app.api import health
+from app.api import agents, engines, health, tasks
 from app.config import get_settings
 from app.database import engine
 
@@ -49,3 +49,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.include_router(health.router)
+app.include_router(engines.router)
+app.include_router(agents.router)
+app.include_router(tasks.router)

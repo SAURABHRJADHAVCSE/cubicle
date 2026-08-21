@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
 
+    anthropic_api_key: str | None = None
+    ollama_base_url: str = "http://ollama:11434"
+
+    workspaces_dir: str = "/workspaces"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

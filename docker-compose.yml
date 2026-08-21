@@ -8,8 +8,30 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - ENV=${ENV:-development}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
     volumes:
       - ./backend/app:/app/app
+      - agent-workspaces:/workspaces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  cubicle-worker:
+    build: ./backend
+    command: celery -A app.workers worker -l info -Q tasks
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-cubicle}:${POSTGRES_PASSWORD:-cubicle}@postgres:5432/${POSTGRES_DB:-cubicle}
+      - REDIS_URL=redis://redis:6379/0
+      - ENV=${ENV:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+    volumes:
+      - ./backend/app:/app/app
+      - agent-workspaces:/workspaces
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,3 +65,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  agent-workspaces:
