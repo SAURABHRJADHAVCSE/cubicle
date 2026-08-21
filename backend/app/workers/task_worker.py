@@ -7,11 +7,12 @@ from datetime import datetime, timezone
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import async_session_factory
+from app.database import worker_session_factory
 from app.engines.registry import get_engine
 from app.models.agent import Agent
 from app.models.task import Task
 from app.workers import app as celery_app
+from app.workers.memory_worker import store_memory
 from app.ws.events import emit_agent_status, emit_task_status
 
 logger = structlog.get_logger()
@@ -25,7 +26,7 @@ def execute_task(task_id: str) -> None:
 
 async def _execute_task_async(task_id: uuid.UUID) -> None:
     """Load the task and its agent, run the engine, and persist the result."""
-    async with async_session_factory() as session:
+    async with worker_session_factory() as session:
         task = await session.get(Task, task_id)
         if task is None:
             logger.error("execute_task_missing_task", task_id=str(task_id))
@@ -76,6 +77,12 @@ async def _execute_task_async(task_id: uuid.UUID) -> None:
         await session.commit()
         emit_task_status(str(task.id), task.status)
         emit_agent_status(str(agent.id), agent.status, agent.mood, None)
+        store_memory.delay(
+            str(agent.id),
+            f"Task '{task.title}': {result.output}",
+            str(task.id),
+            "task",
+        )
         logger.info("execute_task_completed", task_id=str(task.id))
 
 

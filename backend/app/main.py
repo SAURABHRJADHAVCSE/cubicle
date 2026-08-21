@@ -9,7 +9,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agents, engines, health, tasks
+from app.api import agents, chat, engines, health, tasks
 from app.config import get_settings
 from app.database import engine
 from app.ws.manager import sio
@@ -62,6 +62,7 @@ app.include_router(health.router)
 app.include_router(engines.router)
 app.include_router(agents.router)
 app.include_router(tasks.router)
+app.include_router(chat.router)
 
 # Wraps `app` so both plain HTTP routes and Socket.io's /socket.io/ path are
 # served from one process; this is what uvicorn actually runs (see

@@ -18,4 +18,4 @@ app.conf.update(
 
 # Imported after `app` is defined so task_worker's `from app.workers import app`
 # resolves without a real circular-import failure; this registers the tasks.
-from app.workers import task_worker  # noqa: E402,F401
+from app.workers import memory_worker, task_worker  # noqa: E402,F401

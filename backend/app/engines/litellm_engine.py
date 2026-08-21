@@ -1,5 +1,7 @@
 """API-based agent engine: direct LLM calls via LiteLLM (Ollama, Anthropic, ...)."""
 
+from collections.abc import AsyncIterator
+
 import litellm
 import structlog
 
@@ -37,12 +39,15 @@ class LiteLLMEngine(AgentEngine):
         )
         return self._to_result(response)
 
-    async def chat(self, message: str, history: list[dict]) -> str:
+    async def chat_stream(self, message: str, history: list[dict]) -> AsyncIterator[str]:
         messages = [*history, {"role": "user", "content": message}]
         response = await litellm.acompletion(
-            model=self.model, messages=messages, api_base=self.api_base
+            model=self.model, messages=messages, api_base=self.api_base, stream=True
         )
-        return response.choices[0].message.content
+        async for chunk in response:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
 
     async def is_available(self) -> bool:
         if self.model.startswith("ollama/"):
