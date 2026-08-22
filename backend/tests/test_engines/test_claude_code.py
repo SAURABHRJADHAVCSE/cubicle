@@ -45,6 +45,31 @@ async def test_execute_parses_cli_json_output(monkeypatch: pytest.MonkeyPatch, t
     assert result.cost_usd == 0.02
 
 
+async def test_execute_falls_back_to_engine_working_dir_when_context_value_is_none(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    # Regression: task_worker.py always sets context["working_dir"], even
+    # to None when an agent has no working_directory configured. dict.get()
+    # with a default only falls back when the key is *absent*, not when
+    # it's present-but-None, so this used to reach os.makedirs(None, ...)
+    # and blow up with "expected str, bytes or os.PathLike object, not
+    # NoneType" — exactly reproduced here via the same context shape.
+    payload = json.dumps({"result": "done!"})
+    captured_cwd = {}
+
+    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr, env=None):
+        captured_cwd["cwd"] = cwd
+        return _FakeProcess(returncode=0, stdout=payload.encode())
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    engine = ClaudeCodeEngine(working_dir=str(tmp_path))
+    result = await engine.execute("say hi", context={"working_dir": None})
+
+    assert result.output == "done!"
+    assert captured_cwd["cwd"] == str(tmp_path)
+
+
 async def test_execute_prefers_total_tokens_when_present(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

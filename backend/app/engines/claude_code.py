@@ -55,7 +55,13 @@ class ClaudeCodeEngine(AgentEngine):
         self.working_dir = working_dir or "."
 
     async def execute(self, prompt: str, context: dict) -> EngineResult:
-        working_dir = context.get("working_dir", self.working_dir)
+        # `or`, not `context.get("working_dir", self.working_dir)`: the
+        # caller (task_worker.py) always sets this key, even when the
+        # agent's working_directory column is None — dict.get()'s default
+        # only kicks in when a key is *absent*, not when it's present with
+        # a None value, so that lookup was silently passing None through to
+        # os.makedirs() whenever an agent had no working directory set.
+        working_dir = context.get("working_dir") or self.working_dir
         os.makedirs(working_dir, exist_ok=True)
 
         cmd = ["claude", "--print", "--output-format", "json"]
