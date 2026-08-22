@@ -9,10 +9,12 @@ export function useTasks() {
   return useQuery({
     queryKey: TASKS_KEY,
     queryFn: api.tasks.list,
-    // Tasks can be mid-execution; poll so completions show up without a
-    // manual refresh even before the Socket.io event bridge is wired to
-    // this hook specifically.
-    refetchInterval: 4_000,
+    // No refetchInterval: useSocket() already invalidates this query on
+    // every task_status event, so polling on top of that just doubles up
+    // requests for no benefit. refetchOnWindowFocus is the only fallback
+    // left, as a cheap safety net for the rare case a socket connection
+    // silently dropped while the tab was in the background.
+    refetchOnWindowFocus: true,
   });
 }
 
