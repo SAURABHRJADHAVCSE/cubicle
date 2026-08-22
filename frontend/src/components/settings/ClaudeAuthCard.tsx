@@ -53,7 +53,7 @@ export function ClaudeAuthCard() {
     });
   }
 
-  const isConnected = status?.logged_in && status.auth_method !== "api_key";
+  const isConnected = Boolean(status?.connected);
   const awaitingCode = startAuth.isSuccess;
 
   return (

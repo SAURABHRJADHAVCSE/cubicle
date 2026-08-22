@@ -2,25 +2,33 @@
 UI can offer a "Connect Claude Code" button instead of a terminal command.
 
 `claude` is an Ink-based TUI: it renders nothing at all without a real
-pseudo-terminal (confirmed — piping it non-interactively just hangs with no
-output). So this spawns it with a PTY, scrapes the OAuth URL out of the
-raw ANSI stream once it prints one, then later writes the user-supplied
-authorization code back to the PTY as if they'd typed it.
+pseudo-terminal. So this spawns it with a PTY, scrapes the OAuth URL out of
+the raw ANSI stream once it prints one, and later writes the user-supplied
+authorization code back to the PTY as if they'd typed it (as two separate
+writes — code, then a lone \r a beat later — because a single "code\r"
+write let the input handler swallow the \r as part of a pasted-text burst
+instead of recognizing it as a distinct Enter keypress).
+
+Important: `claude setup-token` does NOT persist anything to disk or a
+keychain by itself — confirmed by inspecting the container filesystem
+after a successful run found nothing new. It prints the OAuth token to
+the terminal and tells the user to `export CLAUDE_CODE_OAUTH_TOKEN=...`
+themselves. So this module extracts that printed token and the caller
+(app/api/settings.py) is responsible for storing it (encrypted, in the
+`settings` table) and for the engine injecting it as an env var later.
 
 A background thread drains the PTY continuously for the whole session
-lifetime (not just while hunting for the URL). Without that, once nobody's
-reading, the kernel's pty buffer fills up as the CLI prints further
-output (progress spinners, a success message, etc.) — its own write()
-call then blocks, so it never reaches exit(), and `proc.wait()` on our
-side just times out no matter how long we wait. Confirmed as the actual
-cause of a real timeout, not a hypothetical.
+lifetime (not just while hunting for the URL) — otherwise, once nobody's
+reading, the kernel's pty buffer could fill up as the CLI prints further
+output and its own write() call would block. Failures log the drained
+buffer's tail so a real hang is actually diagnosable instead of guessed
+at from a bare timeout.
 
 Single global session (module-level state, no per-user scoping) — this is
 a self-hosted, single-operator admin action, not a multi-tenant flow.
 """
 
 import asyncio
-import json
 import os
 import pty
 import re
@@ -29,14 +37,51 @@ import subprocess
 import threading
 import time
 
+import structlog
+
+logger = structlog.get_logger()
+
 _URL_START_RE = re.compile(r"https://claude\.com/cai/oauth/authorize\?")
+
+# Matches ANSI OSC (hyperlinks), CSI (cursor movement/color), and charset-
+# select escape sequences, so a long value the TUI wrapped across visual
+# lines can be rejoined into one clean string.
+_ANSI_RE = re.compile(
+    r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"
+    r"|\x1b\[[0-9;?]*[a-zA-Z]"
+    r"|\x1b[()][A-Za-z0-9]"
+    r"|\x1b[=>]"
+)
+
+# \r + move-right + move-down-exactly-1-row: the TUI wrapping one long
+# value across two visual lines — the two halves are really one continuous
+# string, so this is dropped with no separator. A move-down of 2+ rows,
+# by contrast, is a real paragraph break (there's a blank line between
+# them on screen) and gets a space instead — see _PARAGRAPH_BREAK_RE below.
+# Distinguishing these is what makes token reassembly actually work; without
+# it there's no way to tell "wrapped mid-value" from "next sentence" once
+# escape codes are stripped and everything is flush against the last char.
+_LINE_WRAP_RE = re.compile(r"\r\x1b\[\d*C\x1b\[1B")
+_PARAGRAPH_BREAK_RE = re.compile(r"\r\x1b\[\d*C\x1b\[\d*B")
+# Same-row word positioning (`\x1b[<n>G` — "move to column n") separates
+# two on-screen words with no literal space character; put one back.
+_COLUMN_JUMP_RE = re.compile(r"\x1b\[\d+G")
+
+# Anchored on the CLI's own literal wording (observed directly from a real
+# successful run) rather than a bare token-shaped regex — a bare
+# `sk-ant-oat\d+-[A-Za-z0-9_-]+` charset match has no way to tell where the
+# token ends and the following sentence begins once escape codes/\r are
+# stripped and everything is flush against itself. Brittle to CLI wording
+# changes; the trade-off favors precision over that small robustness cost.
+_TOKEN_SECTION_RE = re.compile(r"Your OAuth token.*?:(.*?)Store this token", re.DOTALL)
+_TOKEN_SHAPE_RE = re.compile(r"sk-ant-oat\d+-[A-Za-z0-9_-]+")
+
 _lock = threading.Lock()
 _session: "_AuthSession | None" = None
 
 # Module-level so tests can substitute a fake command instead of the real
 # `claude` CLI.
 _SETUP_TOKEN_CMD = ["claude", "setup-token"]
-_AUTH_STATUS_CMD = ["claude", "auth", "status"]
 
 
 class _AuthSession:
@@ -108,6 +153,29 @@ def _extract_auth_url(buffer: str) -> str | None:
     return re.split(r"[\s\x07\x1b]", url_text)[0]
 
 
+def _strip_ansi(text: str) -> str:
+    # Order matters: resolve the two \r+cursor-motion cases (line-wrap vs.
+    # paragraph-break) before the generic ANSI/control-char cleanup, or the
+    # generic pass would eat the cursor-motion codes first and leave a
+    # bare \r with no way to tell which case it was.
+    text = _LINE_WRAP_RE.sub("", text)
+    text = _PARAGRAPH_BREAK_RE.sub(" ", text)
+    text = _COLUMN_JUMP_RE.sub(" ", text)
+    text = _ANSI_RE.sub("", text)
+    return text.replace("\r", " ").replace("\x0f", "")
+
+
+def _extract_oauth_token(buffer: str) -> str | None:
+    """Pull the printed OAuth token out of the raw PTY stream."""
+    cleaned = _strip_ansi(buffer)
+    section = _TOKEN_SECTION_RE.search(cleaned)
+    if not section:
+        return None
+    candidate = section.group(1).strip()
+    shape = _TOKEN_SHAPE_RE.fullmatch(candidate)
+    return shape.group(0) if shape else None
+
+
 def start_claude_auth(timeout: float = 20.0) -> str:
     """Spawn `claude setup-token` and return the OAuth URL it prints."""
     global _session
@@ -136,6 +204,7 @@ def start_claude_auth(timeout: float = 20.0) -> str:
             return url
         time.sleep(0.2)
 
+    logger.error("claude_auth_start_timeout_buffer", buffer=session.text()[-2000:])
     session.proc.kill()
     session.close()
     with _lock:
@@ -144,7 +213,7 @@ def start_claude_auth(timeout: float = 20.0) -> str:
     raise TimeoutError("claude setup-token did not print an auth URL in time")
 
 
-def submit_claude_auth_code(code: str, timeout: float = 90.0) -> None:
+def submit_claude_auth_code(code: str, timeout: float = 90.0) -> str:
     """Send the pasted authorization code to the waiting `claude setup-token`.
 
     90s, not a snappier default: exchanging the code for a token is a real
@@ -160,7 +229,19 @@ def submit_claude_auth_code(code: str, timeout: float = 90.0) -> None:
         raise RuntimeError("No Claude Code connection attempt in progress — start one first")
 
     try:
-        os.write(session.master_fd, (code.strip() + "\n").encode())
+        # Two separate writes, not one "code\r" blob: the logged buffer
+        # showed the code arriving and being echoed back masked (as ****),
+        # in both the \n and \r attempts — the *code* was received fine
+        # both times, but submit never fired either way. If the input
+        # handler treats a multi-byte burst as a single "paste" event, a
+        # trailing \r bundled into that same write could be swallowed as
+        # part of the pasted text instead of recognized as a distinct
+        # Enter keypress — which is exactly how a real user's paste
+        # (one burst) followed by pressing Enter (a separate keystroke,
+        # a beat later) would actually arrive.
+        os.write(session.master_fd, code.strip().encode())
+        time.sleep(0.15)
+        os.write(session.master_fd, b"\r")
     except OSError as exc:
         with _lock:
             if _session is session:
@@ -182,17 +263,32 @@ def submit_claude_auth_code(code: str, timeout: float = 90.0) -> None:
     with _lock:
         if _session is session:
             _session = None
-    session.close()
 
     if returncode is None:
+        logger.error("claude_auth_complete_timeout_buffer", buffer=session.text()[-2000:])
         session.proc.kill()
+        session.close()
         raise RuntimeError(
             "Timed out waiting for Claude to confirm the code — it may have expired. "
             "Try Connect again."
         )
 
+    buffer_tail = session.text()[-2000:]
+    session.close()
+
     if returncode != 0:
+        logger.error("claude_auth_complete_nonzero_exit_buffer", buffer=buffer_tail)
         raise RuntimeError(f"claude setup-token exited with code {returncode} — check the code and try again")
+
+    token = _extract_oauth_token(buffer_tail)
+    if not token:
+        logger.error("claude_auth_token_extraction_failed_buffer", buffer=buffer_tail)
+        raise RuntimeError(
+            "Claude confirmed the code but the token couldn't be read from its "
+            "output — this usually means the CLI changed its wording. Check the "
+            "server logs for the raw output."
+        )
+    return token
 
 
 def cancel_claude_auth() -> None:
@@ -212,37 +308,13 @@ def cancel_claude_auth() -> None:
     session.close()
 
 
-def get_claude_auth_status() -> dict:
-    """Report whether the CLI has a stored subscription session.
-
-    Runs with ANTHROPIC_API_KEY stripped, same as ClaudeCodeEngine's actual
-    subprocess calls — otherwise this would report "connected" via the API
-    key even with no subscription session stored.
-    """
-    try:
-        result = subprocess.run(
-            _AUTH_STATUS_CMD,
-            env=_strip_api_key(dict(os.environ)),
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        return json.loads(result.stdout)
-    except (subprocess.SubprocessError, json.JSONDecodeError, OSError) as exc:
-        return {"loggedIn": False, "authMethod": "none", "error": str(exc)}
-
-
 async def astart_claude_auth() -> str:
     return await asyncio.to_thread(start_claude_auth)
 
 
-async def asubmit_claude_auth_code(code: str) -> None:
-    await asyncio.to_thread(submit_claude_auth_code, code)
+async def asubmit_claude_auth_code(code: str) -> str:
+    return await asyncio.to_thread(submit_claude_auth_code, code)
 
 
 async def acancel_claude_auth() -> None:
     await asyncio.to_thread(cancel_claude_auth)
-
-
-async def aget_claude_auth_status() -> dict:
-    return await asyncio.to_thread(get_claude_auth_status)

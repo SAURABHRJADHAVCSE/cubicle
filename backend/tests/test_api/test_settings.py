@@ -1,5 +1,5 @@
 """Tests for the Claude Code connection settings API, with the underlying
-PTY/subprocess logic mocked out."""
+PTY/subprocess logic and encrypted storage mocked out."""
 
 import pytest
 from httpx import AsyncClient
@@ -7,15 +7,30 @@ from httpx import AsyncClient
 from app.api import settings as settings_module
 
 
-async def test_status_reports_logged_in(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_status():
-        return {"loggedIn": True, "authMethod": "oauth"}
+async def test_status_reports_not_connected_when_nothing_stored(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fake_get(session, key):
+        return None
 
-    monkeypatch.setattr(settings_module, "aget_claude_auth_status", fake_status)
+    monkeypatch.setattr(settings_module, "get_encrypted_setting", fake_get)
 
     resp = await client.get("/settings/claude-auth/status")
     assert resp.status_code == 200
-    assert resp.json() == {"logged_in": True, "auth_method": "oauth"}
+    assert resp.json() == {"connected": False}
+
+
+async def test_status_reports_connected_when_token_stored(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fake_get(session, key):
+        return "sk-ant-oat01-sometoken"
+
+    monkeypatch.setattr(settings_module, "get_encrypted_setting", fake_get)
+
+    resp = await client.get("/settings/claude-auth/status")
+    assert resp.status_code == 200
+    assert resp.json() == {"connected": True}
 
 
 async def test_start_returns_auth_url(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -39,14 +54,25 @@ async def test_start_conflict_returns_409(client: AsyncClient, monkeypatch: pyte
     assert resp.status_code == 409
 
 
-async def test_complete_success(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_complete(code: str):
+async def test_complete_success_stores_token(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fake_complete(code: str) -> str:
         assert code == "abc123"
+        return "sk-ant-oat01-realtoken"
+
+    stored = {}
+
+    async def fake_set(session, key, value):
+        stored["key"] = key
+        stored["value"] = value
 
     monkeypatch.setattr(settings_module, "asubmit_claude_auth_code", fake_complete)
+    monkeypatch.setattr(settings_module, "set_encrypted_setting", fake_set)
 
     resp = await client.post("/settings/claude-auth/complete", json={"code": "abc123"})
     assert resp.status_code == 204
+    assert stored == {"key": "claude_code_oauth_token", "value": "sk-ant-oat01-realtoken"}
 
 
 async def test_complete_bad_code_returns_400(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
