@@ -158,7 +158,7 @@ export function OnboardingWizard() {
         {step < STEPS.length - 1 ? (
           <Button onClick={() => setStep((s) => s + 1)}>Next</Button>
         ) : (
-          <Button render={<Link href="/" />}>Go to office</Button>
+          <Button render={<Link href="/" />} nativeButton={false}>Go to office</Button>
         )}
       </div>
     </div>

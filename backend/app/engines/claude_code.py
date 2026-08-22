@@ -18,9 +18,15 @@ _MODEL_CATALOG = ["claude-opus-4-6", "claude-sonnet-4-5", "claude-haiku-4-5"]
 class ClaudeCodeEngine(AgentEngine):
     """Runs a task by invoking the `claude` CLI as a subprocess.
 
-    Requires the `claude` binary on PATH and, for headless/Docker use,
-    ``ANTHROPIC_API_KEY`` set in the environment so the CLI authenticates
-    via the API directly instead of an interactive browser login.
+    Requires the `claude` binary on PATH. Deliberately strips
+    ``ANTHROPIC_API_KEY`` from the subprocess's environment: if it's
+    present, the CLI authenticates via pay-per-token API billing instead of
+    a Claude subscription. This project's Anthropic *API* engine
+    (LiteLLMEngine) still uses that key directly — only the `claude`
+    subprocess doesn't see it. For this engine to work at all, the
+    container needs a stored subscription session — run once per
+    deployment: `docker compose exec -it cubicle-api claude setup-token`
+    (persisted via the claude-cli-home volume, shared with cubicle-worker).
     """
 
     def __init__(
@@ -44,11 +50,17 @@ class ClaudeCodeEngine(AgentEngine):
             cmd += ["--model", self.model]
         cmd += ["-p", prompt]
 
+        # See class docstring: ANTHROPIC_API_KEY is intentionally excluded
+        # so the CLI falls back to its stored subscription session instead
+        # of switching to API-key billing.
+        subprocess_env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+
         process = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=working_dir,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=subprocess_env,
         )
         stdout, stderr = await process.communicate()
 

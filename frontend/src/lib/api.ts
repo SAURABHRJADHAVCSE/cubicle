@@ -1,6 +1,7 @@
 import { API_URL } from "@/lib/constants";
 import type { Agent, AgentCreate, AgentUpdate } from "@/types/agent";
 import type { ChatRequest, ConversationMessage } from "@/types/chat";
+import type { ClaudeAuthStart, ClaudeAuthStatus } from "@/types/settings";
 import type { Task, TaskCreate } from "@/types/task";
 
 export class ApiError extends Error {
@@ -58,5 +59,17 @@ export const api = {
         method: "POST",
         body: JSON.stringify(payload),
       }),
+  },
+  settings: {
+    claudeAuthStatus: () => request<ClaudeAuthStatus>("/settings/claude-auth/status"),
+    claudeAuthStart: () =>
+      request<ClaudeAuthStart>("/settings/claude-auth/start", { method: "POST" }),
+    claudeAuthComplete: (code: string) =>
+      request<void>("/settings/claude-auth/complete", {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      }),
+    claudeAuthCancel: () =>
+      request<void>("/settings/claude-auth/cancel", { method: "POST" }),
   },
 };

@@ -1,11 +1,13 @@
 "use client";
 
+import { Settings } from "lucide-react";
 import Link from "next/link";
 
 import { AgentList } from "@/components/agents/AgentList";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { OfficeScene } from "@/components/office/OfficeScene";
 import { TaskHistory } from "@/components/tasks/TaskHistory";
+import { Button } from "@/components/ui/button";
 import { useAgents } from "@/hooks/useAgents";
 import { useUIStore } from "@/stores/uiStore";
 
@@ -17,11 +19,16 @@ export default function Home() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <header className="flex items-center justify-between border-b px-6 py-4">
         <h1 className="font-heading text-lg font-semibold">Cubicle</h1>
-        {agents?.length === 0 && (
-          <Link href="/setup" className="text-sm text-primary underline underline-offset-4">
-            First time here? Run setup
-          </Link>
-        )}
+        <div className="flex items-center gap-4">
+          {agents?.length === 0 && (
+            <Link href="/setup" className="text-sm text-primary underline underline-offset-4">
+              First time here? Run setup
+            </Link>
+          )}
+          <Button variant="ghost" size="icon-sm" render={<Link href="/settings" />} nativeButton={false} aria-label="Settings">
+            <Settings className="size-4" />
+          </Button>
+        </div>
       </header>
 
       <OfficeScene />

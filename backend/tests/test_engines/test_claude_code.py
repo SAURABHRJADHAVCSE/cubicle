@@ -30,7 +30,7 @@ async def test_execute_parses_cli_json_output(monkeypatch: pytest.MonkeyPatch, t
         }
     )
 
-    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr):
+    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr, env=None):
         assert "claude" in cmd
         assert "-p" in cmd
         return _FakeProcess(returncode=0, stdout=payload.encode())
@@ -50,7 +50,7 @@ async def test_execute_prefers_total_tokens_when_present(
 ) -> None:
     payload = json.dumps({"result": "done!", "usage": {"total_tokens": 99}})
 
-    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr):
+    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr, env=None):
         return _FakeProcess(returncode=0, stdout=payload.encode())
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
@@ -62,7 +62,7 @@ async def test_execute_prefers_total_tokens_when_present(
 
 
 async def test_execute_raises_on_nonzero_exit(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr):
+    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr, env=None):
         return _FakeProcess(returncode=1, stdout=b"", stderr=b"auth error")
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
@@ -73,7 +73,7 @@ async def test_execute_raises_on_nonzero_exit(monkeypatch: pytest.MonkeyPatch, t
 
 
 async def test_execute_raises_on_invalid_json(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr):
+    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr, env=None):
         return _FakeProcess(returncode=0, stdout=b"not json")
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
@@ -89,7 +89,7 @@ async def test_chat_stream_yields_full_reply_once(
     payload = json.dumps({"result": "hi there"})
     captured_prompt = {}
 
-    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr):
+    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr, env=None):
         captured_prompt["prompt"] = cmd[cmd.index("-p") + 1]
         return _FakeProcess(returncode=0, stdout=payload.encode())
 
@@ -103,6 +103,25 @@ async def test_chat_stream_yields_full_reply_once(
     assert "User: hello" in captured_prompt["prompt"]
     assert "You: hi!" in captured_prompt["prompt"]
     assert captured_prompt["prompt"].endswith("User: how are you?")
+
+
+async def test_execute_strips_anthropic_api_key_from_subprocess_env(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-should-not-reach-cli")
+    payload = json.dumps({"result": "ok"})
+    captured_env = {}
+
+    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr, env=None):
+        captured_env.update(env or {})
+        return _FakeProcess(returncode=0, stdout=payload.encode())
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    engine = ClaudeCodeEngine(working_dir=str(tmp_path))
+    await engine.execute("say hi", context={})
+
+    assert "ANTHROPIC_API_KEY" not in captured_env
 
 
 async def test_is_available_checks_path(monkeypatch: pytest.MonkeyPatch) -> None:
