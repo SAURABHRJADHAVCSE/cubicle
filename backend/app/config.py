@@ -28,6 +28,12 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Derives the key used to encrypt settings values at rest (e.g. the
+    # Claude Code OAuth token) — see app/utils/encryption.py. Not set by
+    # default: encrypting secrets with a key that isn't actually secret
+    # defeats the point, so this must come from the user's own .env.
+    secret_key: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -7,19 +7,17 @@ interactive OAuth handshake). Broader settings CRUD is still V1.0 scope.
 """
 
 import structlog
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import get_db
 from app.schemas.settings import (
     ClaudeAuthCompleteRequest,
     ClaudeAuthStartResponse,
     ClaudeAuthStatusResponse,
 )
-from app.utils.claude_auth import (
-    acancel_claude_auth,
-    aget_claude_auth_status,
-    astart_claude_auth,
-    asubmit_claude_auth_code,
-)
+from app.utils.claude_auth import acancel_claude_auth, astart_claude_auth, asubmit_claude_auth_code
+from app.utils.secrets_store import CLAUDE_OAUTH_TOKEN_KEY, get_encrypted_setting, set_encrypted_setting
 
 logger = structlog.get_logger()
 
@@ -27,13 +25,10 @@ router = APIRouter(prefix="/settings/claude-auth", tags=["settings"])
 
 
 @router.get("/status", response_model=ClaudeAuthStatusResponse)
-async def claude_auth_status() -> ClaudeAuthStatusResponse:
-    """Whether the Claude Code CLI has a stored subscription session."""
-    status_data = await aget_claude_auth_status()
-    return ClaudeAuthStatusResponse(
-        logged_in=bool(status_data.get("loggedIn")),
-        auth_method=status_data.get("authMethod", "none"),
-    )
+async def claude_auth_status(db: AsyncSession = Depends(get_db)) -> ClaudeAuthStatusResponse:
+    """Whether a Claude Code OAuth token is stored."""
+    token = await get_encrypted_setting(db, CLAUDE_OAUTH_TOKEN_KEY)
+    return ClaudeAuthStatusResponse(connected=token is not None)
 
 
 @router.post("/start", response_model=ClaudeAuthStartResponse)
@@ -50,13 +45,19 @@ async def claude_auth_start() -> ClaudeAuthStartResponse:
 
 
 @router.post("/complete", status_code=status.HTTP_204_NO_CONTENT)
-async def claude_auth_complete(payload: ClaudeAuthCompleteRequest) -> None:
-    """Finish the OAuth flow with the code the user pasted back."""
+async def claude_auth_complete(
+    payload: ClaudeAuthCompleteRequest, db: AsyncSession = Depends(get_db)
+) -> None:
+    """Finish the OAuth flow with the code the user pasted back, and store
+    the resulting long-lived token (encrypted) for engines to use."""
     try:
-        await asubmit_claude_auth_code(payload.code)
+        token = await asubmit_claude_auth_code(payload.code)
     except RuntimeError as exc:
         logger.error("claude_auth_complete_failed", error=str(exc))
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    await set_encrypted_setting(db, CLAUDE_OAUTH_TOKEN_KEY, token)
+    logger.info("claude_auth_token_stored")
 
 
 @router.post("/cancel", status_code=status.HTTP_204_NO_CONTENT)

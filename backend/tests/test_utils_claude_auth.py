@@ -2,9 +2,7 @@
 
 start_claude_auth/submit_claude_auth_code are tested against a real PTY
 (pty.openpty is a real OS primitive, not worth mocking) but with a fake
-shell command standing in for the actual `claude` CLI — a small script
-that mimics its observed behavior: print garbled/doubled URL-ish output,
-read one line, exit 0 or 1 depending on what was sent.
+shell command standing in for the actual `claude` CLI.
 """
 
 import textwrap
@@ -14,8 +12,8 @@ import pytest
 from app.utils import claude_auth as claude_auth_module
 from app.utils.claude_auth import (
     _extract_auth_url,
+    _extract_oauth_token,
     cancel_claude_auth,
-    get_claude_auth_status,
     start_claude_auth,
     submit_claude_auth_code,
 )
@@ -25,6 +23,25 @@ SAMPLE_DOUBLED_URL = (
     "https://claude.com/cai/oauth/authorize?code=true&client_id=abc&state=XYZ"
     "https://claude.com/cai/oauth/authorize?code=true&client_id=ab\n"
     "Paste code here if prompted >"
+)
+
+# Captured verbatim from a real successful `claude setup-token` run — the
+# raw PTY bytes, including the ANSI cursor-motion codes that wrap the long
+# token across two visual lines mid-token.
+REAL_SUCCESS_BUFFER = (
+    "✓[4GLong-lived[15Gauthentication[30Gtoken[36Gcreated"
+    "[44Gsuccessfully!\r[1C[1B[K\r[1C[1BYour OAuth "
+    "token (valid for 1 year):[K\r[1C[1B[K\r[1C[1B"
+    "sk-ant-oat01-TJXcuK0YrlDMkV5V1nz_8yi64smMEQ23IXvLsyoe8Z9hfFYxa5QYT9es7vu-ksqU-h"
+    "\r[1C[1Bt5jSbhmiXDLC9MG5TmKA-XrjT1gAA\r[1C[2BStore[8Gthis"
+    "[13Gtoken[19Gsecurely.[29GYou[33Gwon't[39Gbe[42Gable"
+    "[47Gto[50Gsee[54Git[57Gagain.\r[1C[1B[K"
+    "\r[1C[1BUse[6Gthis[11Gtoken[17Gby[20Gsetting:"
+    "[29Gexport CLAUDE_CODE_OAUTH_TOKEN=<token>[K\r\r\n"
+)
+REAL_SUCCESS_TOKEN = (
+    "sk-ant-oat01-TJXcuK0YrlDMkV5V1nz_8yi64smMEQ23IXvLsyoe8Z9hfFYxa5QYT9es7vu-ksqU-h"
+    "t5jSbhmiXDLC9MG5TmKA-XrjT1gAA"
 )
 
 
@@ -37,8 +54,20 @@ def test_extract_auth_url_returns_none_when_absent() -> None:
     assert _extract_auth_url("nothing here") is None
 
 
+def test_extract_oauth_token_rejoins_line_wrapped_token() -> None:
+    assert _extract_oauth_token(REAL_SUCCESS_BUFFER) == REAL_SUCCESS_TOKEN
+
+
+def test_extract_oauth_token_returns_none_when_absent() -> None:
+    assert _extract_oauth_token("nothing here") is None
+
+
 @pytest.fixture
 def fake_setup_token_script(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    """A fake `claude setup-token` that prints a URL, reads a code, and on
+    the accepted code prints output shaped like the real success message
+    (so submit_claude_auth_code's token extraction has something to find).
+    """
     script = tmp_path / "fake_claude.sh"
     script.write_text(
         textwrap.dedent(
@@ -48,6 +77,9 @@ def fake_setup_token_script(tmp_path, monkeypatch: pytest.MonkeyPatch):
             echo "https://claude.com/cai/oauth/authorize?code=true&client_id=test"
             read code
             if [ "$code" = "good-code" ]; then
+              echo "Your OAuth token (valid for 1 year):"
+              echo "sk-ant-oat01-faketoken1234567890"
+              echo "Store this token securely."
               exit 0
             else
               exit 1
@@ -65,7 +97,8 @@ def test_start_and_complete_auth_flow_success(fake_setup_token_script) -> None:
     url = start_claude_auth(timeout=5)
     assert url == "https://claude.com/cai/oauth/authorize?code=true&client_id=test"
 
-    submit_claude_auth_code("good-code")  # should not raise
+    token = submit_claude_auth_code("good-code")
+    assert token == "sk-ant-oat01-faketoken1234567890"
 
 
 def test_complete_auth_flow_failure_raises(fake_setup_token_script) -> None:
@@ -127,6 +160,24 @@ def test_submit_after_child_already_exited_reports_its_exit_code(
     assert claude_auth_module._session is None
 
 
+def test_submit_raises_if_token_cannot_be_extracted(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Exits 0 (success) but with wording that doesn't match what we parse
+    # for — simulates a future CLI wording change.
+    script = tmp_path / "unparseable_claude.sh"
+    script.write_text(
+        '#!/bin/sh\necho "https://claude.com/cai/oauth/authorize?code=true"\n'
+        'read code\necho "All done, nothing to see here"\nexit 0\n'
+    )
+    script.chmod(0o755)
+    monkeypatch.setattr(claude_auth_module, "_SETUP_TOKEN_CMD", ["sh", str(script)])
+
+    start_claude_auth(timeout=5)
+    with pytest.raises(RuntimeError, match="token couldn't be read"):
+        submit_claude_auth_code("any-code")
+
+
 def test_start_twice_conflicts(fake_setup_token_script) -> None:
     start_claude_auth(timeout=5)
     with pytest.raises(RuntimeError, match="already in progress"):
@@ -155,23 +206,3 @@ def test_start_auth_timeout_raises(tmp_path, monkeypatch: pytest.MonkeyPatch) ->
 
     with pytest.raises(TimeoutError):
         start_claude_auth(timeout=0.5)
-
-
-def test_get_claude_auth_status_parses_json(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    script = tmp_path / "fake_status.sh"
-    script.write_text('#!/bin/sh\necho \'{"loggedIn": true, "authMethod": "oauth"}\'\n')
-    script.chmod(0o755)
-    monkeypatch.setattr(claude_auth_module, "_AUTH_STATUS_CMD", ["sh", str(script)])
-
-    status = get_claude_auth_status()
-    assert status == {"loggedIn": True, "authMethod": "oauth"}
-
-
-def test_get_claude_auth_status_handles_failure(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    script = tmp_path / "broken_status.sh"
-    script.write_text("#!/bin/sh\necho 'not json'\nexit 1\n")
-    script.chmod(0o755)
-    monkeypatch.setattr(claude_auth_module, "_AUTH_STATUS_CMD", ["sh", str(script)])
-
-    status = get_claude_auth_status()
-    assert status["loggedIn"] is False

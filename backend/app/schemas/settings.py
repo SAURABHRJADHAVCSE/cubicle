@@ -12,5 +12,4 @@ class ClaudeAuthCompleteRequest(BaseModel):
 
 
 class ClaudeAuthStatusResponse(BaseModel):
-    logged_in: bool
-    auth_method: str
+    connected: bool

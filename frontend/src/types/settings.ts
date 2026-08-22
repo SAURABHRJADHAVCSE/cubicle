@@ -1,6 +1,5 @@
 export interface ClaudeAuthStatus {
-  logged_in: boolean;
-  auth_method: string;
+  connected: boolean;
 }
 
 export interface ClaudeAuthStart {

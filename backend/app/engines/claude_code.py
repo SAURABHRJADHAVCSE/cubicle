@@ -8,25 +8,40 @@ from collections.abc import AsyncIterator
 
 import structlog
 
+from app.database import worker_session_factory
 from app.engines.base import AgentEngine, EngineResult
+from app.utils.secrets_store import CLAUDE_OAUTH_TOKEN_KEY, get_encrypted_setting
 
 logger = structlog.get_logger()
 
 _MODEL_CATALOG = ["claude-opus-4-6", "claude-sonnet-4-5", "claude-haiku-4-5"]
 
 
+async def _get_stored_oauth_token() -> str | None:
+    """Look up the Claude Code OAuth token connected via Settings.
+
+    Uses the NullPool-backed worker_session_factory rather than the
+    FastAPI-facing pooled one — this engine runs from both the API process
+    and Celery task bodies, and a pooled asyncpg connection checked out in
+    one and reused from the other's separate event loop breaks (see
+    app/database.py's docstring on that exact failure mode). NullPool has
+    nothing to go stale.
+    """
+    async with worker_session_factory() as session:
+        return await get_encrypted_setting(session, CLAUDE_OAUTH_TOKEN_KEY)
+
+
 class ClaudeCodeEngine(AgentEngine):
     """Runs a task by invoking the `claude` CLI as a subprocess.
 
-    Requires the `claude` binary on PATH. Deliberately strips
-    ``ANTHROPIC_API_KEY`` from the subprocess's environment: if it's
-    present, the CLI authenticates via pay-per-token API billing instead of
-    a Claude subscription. This project's Anthropic *API* engine
-    (LiteLLMEngine) still uses that key directly — only the `claude`
-    subprocess doesn't see it. For this engine to work at all, the
-    container needs a stored subscription session — run once per
-    deployment: `docker compose exec -it cubicle-api claude setup-token`
-    (persisted via the claude-cli-home volume, shared with cubicle-worker).
+    Requires the `claude` binary on PATH, and a Claude Code OAuth token
+    connected via Settings → Claude Code CLI (stored encrypted in the
+    `settings` table, injected here as CLAUDE_CODE_OAUTH_TOKEN). Deliberately
+    also strips ``ANTHROPIC_API_KEY`` from the subprocess's environment: if
+    it's present, the CLI authenticates via pay-per-token API billing
+    instead of the connected subscription. This project's Anthropic *API*
+    engine (LiteLLMEngine) still uses that key directly — only the `claude`
+    subprocess doesn't see it.
     """
 
     def __init__(
@@ -51,9 +66,12 @@ class ClaudeCodeEngine(AgentEngine):
         cmd += ["-p", prompt]
 
         # See class docstring: ANTHROPIC_API_KEY is intentionally excluded
-        # so the CLI falls back to its stored subscription session instead
+        # so the CLI falls back to the connected subscription token instead
         # of switching to API-key billing.
         subprocess_env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+        oauth_token = await _get_stored_oauth_token()
+        if oauth_token:
+            subprocess_env["CLAUDE_CODE_OAUTH_TOKEN"] = oauth_token
 
         process = await asyncio.create_subprocess_exec(
             *cmd,
