@@ -40,6 +40,7 @@ interface FormState {
   engineType: EngineType;
   engineProvider: string;
   engineModel: string;
+  engineCommand: string;
   allowedTools: string;
   workingDirectory: string;
   role: string;
@@ -53,12 +54,25 @@ const DEFAULT_STATE: FormState = {
   engineType: "api",
   engineProvider: "anthropic",
   engineModel: "",
+  engineCommand: "",
   allowedTools: "",
   workingDirectory: "",
   role: "",
 };
 
-const CLI_PROVIDERS = [{ value: "claude_code", label: "Claude Code" }];
+const CLI_PROVIDERS = [
+  { value: "claude_code", label: "Claude Code" },
+  { value: "opencode", label: "OpenCode" },
+  { value: "codex", label: "Codex" },
+  { value: "grok", label: "Grok" },
+  { value: "gemini", label: "Gemini" },
+  { value: "antigravity", label: "Antigravity" },
+  { value: "qwen", label: "Qwen" },
+];
+// Only these two have been run against a real install — the rest use
+// sourced-but-unverified default CLI flags (see backend generic_cli.py)
+// and may need the command override below if those flags are wrong.
+const VERIFIED_CLI_PROVIDERS = new Set(["claude_code", "opencode"]);
 const API_PROVIDERS = [
   { value: "anthropic", label: "Anthropic" },
   { value: "ollama", label: "Ollama (local)" },
@@ -117,6 +131,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
         engine_type: form.engineType,
         engine_provider: form.engineProvider,
         engine_model: form.engineModel.trim() || null,
+        engine_command: form.engineType === "cli" ? form.engineCommand.trim() || null : null,
         working_directory: form.engineType === "cli" ? form.workingDirectory.trim() || null : null,
         allowed_tools:
           form.engineType === "cli" && form.allowedTools.trim()
@@ -258,6 +273,24 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   value={form.allowedTools}
                   onChange={(e) => setForm((f) => ({ ...f, allowedTools: e.target.value }))}
                 />
+              </div>
+            )}
+
+            {form.engineType === "cli" && !VERIFIED_CLI_PROVIDERS.has(form.engineProvider) && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="agent-command">
+                  Command override (optional — this provider&apos;s default flags are unverified)
+                </Label>
+                <Input
+                  id="agent-command"
+                  placeholder={`${form.engineProvider} exec {prompt}`}
+                  value={form.engineCommand}
+                  onChange={(e) => setForm((f) => ({ ...f, engineCommand: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use <code>{"{prompt}"}</code> as the substitution point if the built-in default
+                  doesn&apos;t match this CLI&apos;s real flags.
+                </p>
               </div>
             )}
           </div>

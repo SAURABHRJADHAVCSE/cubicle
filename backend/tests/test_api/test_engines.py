@@ -7,5 +7,15 @@ async def test_list_engines_returns_expected_keys(client: AsyncClient) -> None:
     resp = await client.get("/engines")
     assert resp.status_code == 200
     body = resp.json()
-    assert set(body.keys()) == {"claude_code", "ollama", "anthropic_api"}
+    assert set(body.keys()) == {
+        "claude_code",
+        "opencode",
+        "ollama",
+        "anthropic_api",
+        "codex",
+        "grok",
+        "gemini",
+        "antigravity",
+        "qwen",
+    }
     assert all(isinstance(v, bool) for v in body.values())

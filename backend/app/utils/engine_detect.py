@@ -5,6 +5,7 @@ import shutil
 import httpx
 
 from app.config import get_settings
+from app.engines.generic_cli import PROVIDER_BINARIES
 
 
 async def check_ollama(base_url: str) -> bool:
@@ -18,14 +19,14 @@ async def check_ollama(base_url: str) -> bool:
 
 
 async def detect_engines() -> dict[str, bool]:
-    """Report availability of every engine Phase 2 supports.
-
-    Codex/Grok/Antigravity/Qwen/OpenCode and friends are V0.2 scope
-    (cubicle_spec.md §9) and are intentionally not probed here yet.
-    """
+    """Report availability of every engine Cubicle currently supports."""
     settings = get_settings()
-    return {
+    engines = {
         "claude_code": shutil.which("claude") is not None,
+        "opencode": shutil.which("opencode") is not None,
         "ollama": await check_ollama(settings.ollama_base_url),
         "anthropic_api": bool(settings.anthropic_api_key),
     }
+    for provider, binary in PROVIDER_BINARIES.items():
+        engines[provider] = shutil.which(binary) is not None
+    return engines

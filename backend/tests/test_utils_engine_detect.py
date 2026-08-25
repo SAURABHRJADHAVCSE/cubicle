@@ -52,4 +52,15 @@ async def test_detect_engines_reports_all_keys(monkeypatch: pytest.MonkeyPatch) 
 
     result = await engine_detect_module.detect_engines()
 
-    assert set(result.keys()) == {"claude_code", "ollama", "anthropic_api"}
+    assert set(result.keys()) == {
+        "claude_code",
+        "opencode",
+        "ollama",
+        "anthropic_api",
+        "codex",
+        "grok",
+        "gemini",
+        "antigravity",
+        "qwen",
+    }
+    assert all(v is False for k, v in result.items() if k != "ollama")
