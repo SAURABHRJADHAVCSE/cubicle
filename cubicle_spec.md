@@ -782,32 +782,32 @@ AGENT_TEMPLATES = [
 MVP. Office works. Agents do tasks. Chat works. Looks good.
 
 - [ ] Docker Compose: FastAPI + Next.js + Postgres + Redis + Caddy
-- [ ] Onboarding wizard (3-step: detect engines → config → demo task)
-- [ ] Add Agent dialog (identity, engine, briefing — 4 steps like MD)
-- [ ] Engine registry: Claude Code CLI + LiteLLM (Ollama/Anthropic)
-- [ ] Procedural voxel 3D office scene (React Three Fiber) with 4 desk positions
-- [ ] Agent status system: idle → working → done
-- [ ] Task creation and execution (single agent per task)
-- [ ] Structured result cards (not raw terminal)
-- [ ] Agent chat panel (text only)
-- [ ] WebSocket: agent state → frontend updates
-- [ ] Basic Lottie animations (typing, thinking, idle)
-- [ ] Mobile-responsive layout
-- [ ] PWA manifest
+- [x] Onboarding wizard (3-step: detect engines → config → demo task)
+- [x] Add Agent dialog (identity, engine, briefing — 4 steps like MD)
+- [x] Engine registry: Claude Code CLI + LiteLLM (Ollama/Anthropic)
+- [x] Procedural voxel 3D office scene (React Three Fiber) — scales with agent count, not a fixed 4 desks
+- [x] Agent status system: idle → working → done
+- [x] Task creation and execution (single agent per task)
+- [x] Structured result cards (not raw terminal)
+- [x] Agent chat panel (text only)
+- [x] WebSocket: agent state → frontend updates
+- [x] Basic typing/thinking/idle animations — Framer Motion, not literal Lottie (see `Indicators.tsx`'s own docstring: no Lottie asset exists to export without a design tool)
+- [x] Mobile-responsive layout
+- [x] PWA manifest
 
 ### V0.2 — Social + Multi-Engine (2-3 weeks)
 The differentiator. Office comes alive.
 
-- [ ] Social behavior scheduler (Celery Beat)
-- [ ] Speech bubble system (LLM-generated dialogue)
-- [ ] Agent personality system (traits, quirks, mood)
-- [ ] Social interactions: coffee break, desk visit, gossip, flirt
-- [ ] Celebration animation on task complete
-- [ ] End-of-day wind-down sequence
-- [ ] Multi-agent task routing (boss agent assigns subtasks)
-- [ ] Engine expansion: Codex, Grok, Gemini, OpenCode, Qwen
-- [ ] Per-agent engine override
-- [ ] Agent memory (pgvector semantic search)
+- [x] Social behavior scheduler (Celery Beat)
+- [x] Speech bubble system (LLM-generated dialogue)
+- [x] Agent personality system (traits, quirks, mood) — stored and now genuinely consumed by dialogue generation
+- [ ] Social interactions: coffee break ✅, desk visit ✅ — gossip and flirt triggers not built
+- [x] Celebration animation on task complete
+- [x] End-of-day wind-down sequence
+- [x] Multi-agent task routing (boss agent assigns subtasks)
+- [x] Engine expansion: Codex, Grok, Gemini, OpenCode, Qwen
+- [x] Per-agent engine override
+- [x] Agent memory (pgvector semantic search)
 - [ ] Task history with search
 
 ### V1.0 — Voice + Polish (3-4 weeks)
