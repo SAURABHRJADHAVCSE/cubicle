@@ -1,27 +1,32 @@
 "use client";
 
+import { AlertCircle, CheckCircle2, Clock3, GitBranch, LoaderCircle } from "lucide-react";
+
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TaskResult } from "@/components/tasks/TaskResult";
 import { useAgents } from "@/hooks/useAgents";
 import { formatRelativeTime } from "@/lib/utils";
 import type { Task, TaskStatus } from "@/types/task";
 
-// Same "what's the state" color language as AgentCard's STATUS_STYLES —
-// pending/assigned are neutral-in-progress, completed is the same green as
-// an idle agent, failed stays the existing destructive red, routed gets
-// its own violet since it's a genuinely different kind of state (dispatched
-// to subtasks, not executing itself).
-const STATUS_STYLES: Record<TaskStatus, string> = {
-  pending: "bg-muted text-muted-foreground",
-  assigned: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
-  in_progress: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
-  review: "bg-purple-500/15 text-purple-700 dark:text-purple-400",
-  completed: "bg-green-500/15 text-green-700 dark:text-green-400",
-  failed: "bg-destructive/10 text-destructive",
-  routed: "bg-violet-500/15 text-violet-700 dark:text-violet-400",
+const STATUS_STYLES: Record<TaskStatus, { label: string; className: string }> = {
+  pending: { label: "Queued", className: "bg-slate-800 text-slate-300 border border-slate-700" },
+  assigned: { label: "Assigned", className: "bg-blue-500/20 text-blue-300 border border-blue-500/30" },
+  in_progress: { label: "In progress", className: "bg-blue-500/20 text-blue-300 border border-blue-500/30" },
+  review: { label: "In review", className: "bg-purple-500/20 text-purple-300 border border-purple-500/30" },
+  completed: { label: "Completed", className: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" },
+  failed: { label: "Failed", className: "bg-rose-500/20 text-rose-300 border border-rose-500/30" },
+  routed: { label: "Routed", className: "bg-purple-500/20 text-purple-300 border border-purple-500/30" },
 };
+
+function StatusIcon({ status }: { status: TaskStatus }) {
+  if (status === "completed") return <CheckCircle2 className="size-3" />;
+  if (status === "failed") return <AlertCircle className="size-3" />;
+  if (status === "routed") return <GitBranch className="size-3" />;
+  if (["assigned", "in_progress"].includes(status)) {
+    return <LoaderCircle className="size-3 animate-spin" />;
+  }
+  return <Clock3 className="size-3" />;
+}
 
 function initials(name: string): string {
   return name.slice(0, 2).toUpperCase();
@@ -29,60 +34,66 @@ function initials(name: string): string {
 
 export function TaskCard({ task }: { task: Task }) {
   const { data: agents } = useAgents();
+  const status = STATUS_STYLES[task.status];
   const assignedAgents = task.assigned_agents
-    .map((id) => agents?.find((a) => a.id === id))
-    .filter((a): a is NonNullable<typeof a> => Boolean(a));
-
+    .map((id) => agents?.find((agent) => agent.id === id))
+    .filter((agent): agent is NonNullable<typeof agent> => Boolean(agent));
   const childTaskIds = Array.isArray(task.result_structured?.child_task_ids)
-    ? (task.result_structured!.child_task_ids as string[])
+    ? (task.result_structured.child_task_ids as string[])
     : null;
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-1.5">
-            {task.title}
+    <article className="rounded-xl border border-white/10 bg-slate-900/60 p-3 shadow-md transition-all hover:border-indigo-500/40 hover:bg-slate-900/80">
+      <div className="flex items-start justify-between gap-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h4 className="truncate text-xs font-semibold text-slate-100">{task.title}</h4>
             {task.priority > 0 && (
-              <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-400">
-                priority {task.priority}
-              </Badge>
+              <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-amber-300">
+                Priority
+              </span>
             )}
-          </CardTitle>
-          <Badge className={STATUS_STYLES[task.status]}>
-            {task.status.replace("_", " ")}
-          </Badge>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-          {assignedAgents.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <div className="flex -space-x-2">
-                {assignedAgents.map((agent) => (
-                  <Avatar key={agent.id} size="sm" className="ring-2 ring-card">
-                    <AvatarFallback style={{ backgroundColor: agent.accent_color, color: "white" }}>
-                      {initials(agent.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {assignedAgents.map((a) => a.name).join(", ")}
-              </p>
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground">{formatRelativeTime(task.created_at)}</p>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">{task.brief}</p>
-        {task.status === "routed" && childTaskIds ? (
-          <p className="text-sm text-muted-foreground">
-            Routed → {childTaskIds.length} subtask{childTaskIds.length === 1 ? "" : "s"} dispatched
+          </div>
+          <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-400">
+            {task.brief}
           </p>
-        ) : (
-          <TaskResult task={task} />
-        )}
-      </CardContent>
-    </Card>
+        </div>
+        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${status.className}`}>
+          <StatusIcon status={task.status} />
+          {status.label}
+        </span>
+      </div>
+
+      <div className="mt-2.5 flex items-center justify-between border-t border-white/5 pt-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex -space-x-1.5">
+            {assignedAgents.slice(0, 3).map((agent) => (
+              <Avatar key={agent.id} className="size-4.5 ring-1 ring-slate-800">
+                <AvatarFallback
+                  className="text-[7px] font-bold text-white"
+                  style={{ backgroundColor: agent.accent_color }}
+                >
+                  {initials(agent.name)}
+                </AvatarFallback>
+              </Avatar>
+            ))}
+          </div>
+          <span className="truncate text-[10px] text-slate-400">
+            {assignedAgents.map((agent) => agent.name).join(", ") || "Unassigned"}
+          </span>
+        </div>
+        <span className="shrink-0 text-[10px] text-slate-500">
+          {formatRelativeTime(task.created_at)}
+        </span>
+      </div>
+
+      {task.status === "routed" && childTaskIds ? (
+        <div className="mt-2 rounded-lg bg-purple-500/10 border border-purple-500/20 px-2.5 py-1.5 text-[10px] text-purple-300">
+          Split into {childTaskIds.length} subtask{childTaskIds.length === 1 ? "" : "s"}.
+        </div>
+      ) : (
+        <TaskResult task={task} />
+      )}
+    </article>
   );
 }

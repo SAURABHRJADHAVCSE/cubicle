@@ -25,8 +25,9 @@ interface OfficeCanvasProps {
 export function OfficeCanvas({ onContextLost }: OfficeCanvasProps) {
   return (
     <Canvas
-      dpr={1}
-      camera={{ fov: 42 }}
+      shadows
+      dpr={[1, 1.5]}
+      camera={{ fov: 38, near: 0.1, far: 100 }}
       className="!absolute inset-0"
       onCreated={({ gl }) => {
         gl.domElement.addEventListener(

@@ -19,114 +19,138 @@ export type BlockType =
   | "cubicle_wall";
 
 const BASE_COLORS: Record<BlockType, string> = {
-  oak: "#8f7044",
-  dark_oak: "#3c2712",
-  stone_brick: "#787878",
-  red_wool: "#a12727",
-  quartz: "#eee6e0",
-  glass: "#a4c2d3",
-  iron: "#d8d8d8",
-  dirt: "#543b27",
-  cactus: "#2b5319",
-  leaves: "#418023",
-  monitor_screen: "#1c3d2a",
-  sea_lantern: "#add5ce",
-  cake_side: "#825531",
-  cake_top: "#ffffff",
-  skin: "#e8b18a",
-  cubicle_wall: "#5e7c99",
+  oak: "#b88e5e",
+  dark_oak: "#3d2d24",
+  stone_brick: "#334155",
+  red_wool: "#9f1239",
+  quartz: "#f8fafc",
+  glass: "#38bdf8",
+  iron: "#64748b",
+  dirt: "#583e2e",
+  cactus: "#15803d",
+  leaves: "#16a34a",
+  monitor_screen: "#0f172a",
+  sea_lantern: "#38bdf8",
+  cake_side: "#b45309",
+  cake_top: "#f8fafc",
+  skin: "#f3a683",
+  cubicle_wall: "#475569",
 };
 
 /**
- * Draws a 16x16 pixel-art block texture on a <canvas>, ported from the
- * reference Minecraft-office scene the user supplied. NearestFilter (set
- * by the caller) is what gives it the blocky look — this function just
- * needs to produce a correctly-detailed 16x16 source image.
+ * Draws a detailed 32x32 pixel-art block texture on a <canvas>.
  */
 export function generateBlockTexture(type: BlockType): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
-  canvas.width = 16;
-  canvas.height = 16;
+  canvas.width = 32;
+  canvas.height = 32;
   const ctx = canvas.getContext("2d")!;
 
+  // Fill base color
   ctx.fillStyle = BASE_COLORS[type];
-  ctx.fillRect(0, 0, 16, 16);
+  ctx.fillRect(0, 0, 32, 32);
 
+  // Subtle pixel noise
   if (type !== "glass" && type !== "monitor_screen" && type !== "cake_top") {
-    for (let i = 0; i < 256; i++) {
-      const x = i % 16;
-      const y = Math.floor(i / 16);
-      const noise = Math.random() * 0.15;
-      ctx.fillStyle = Math.random() > 0.5 ? `rgba(0,0,0,${noise})` : `rgba(255,255,255,${noise})`;
+    for (let i = 0; i < 80; i++) {
+      const x = (i * 13) % 32;
+      const y = (i * 17) % 32;
+      const light = i % 2 === 0;
+      ctx.fillStyle = light ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
       ctx.fillRect(x, y, 1, 1);
     }
   }
 
-  if (type === "oak" || type === "dark_oak") {
+  if (type === "oak") {
+    // Warm wood plank lines
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.fillRect(0, 15, 32, 2);
+    ctx.fillRect(0, 31, 32, 1);
+    // Wood grain accents
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    ctx.fillRect(4, 4, 12, 1);
+    ctx.fillRect(18, 20, 10, 1);
+  } else if (type === "dark_oak") {
+    // Walnut wood plank lines
     ctx.fillStyle = "rgba(0,0,0,0.3)";
-    for (let y = 0; y < 16; y += 4) ctx.fillRect(0, y, 16, 1);
+    ctx.fillRect(0, 15, 32, 2);
+    ctx.fillRect(0, 31, 32, 1);
+    ctx.fillStyle = "rgba(255,255,255,0.05)";
+    ctx.fillRect(2, 6, 16, 1);
+    ctx.fillRect(14, 22, 12, 1);
+  } else if (type === "red_wool") {
+    // Woven velvet carpet / rug pattern
+    ctx.fillStyle = "#be123c";
+    for (let y = 0; y < 32; y += 4) {
+      for (let x = 0; x < 32; x += 4) {
+        if ((x + y) % 8 === 0) ctx.fillRect(x, y, 2, 2);
+      }
+    }
+    // Gold border trim effect
+    ctx.fillStyle = "rgba(253, 224, 71, 0.25)";
+    ctx.fillRect(0, 0, 32, 2);
+    ctx.fillRect(0, 30, 32, 2);
   } else if (type === "stone_brick") {
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(0, 7, 16, 1);
-    ctx.fillRect(0, 15, 16, 1);
-    ctx.fillRect(7, 0, 1, 7);
-    ctx.fillRect(15, 8, 1, 7);
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(0, 15, 32, 2);
+    ctx.fillRect(0, 31, 32, 1);
+    ctx.fillRect(15, 0, 2, 15);
+    ctx.fillRect(31, 16, 1, 15);
   } else if (type === "quartz") {
-    ctx.strokeStyle = "#dcd4ce";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, 16, 16);
+    ctx.strokeStyle = "rgba(255,255,255,0.4)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, 30, 30);
   } else if (type === "glass") {
-    ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
     ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, 16, 16);
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.fillRect(2, 2, 4, 4);
-    ctx.fillRect(7, 2, 2, 2);
-  } else if (type === "leaves") {
-    for (let i = 0; i < 40; i++) {
-      ctx.clearRect((Math.random() * 16) | 0, (Math.random() * 16) | 0, 1, 1);
-    }
-  } else if (type === "monitor_screen") {
-    ctx.fillStyle = "#1c3d2a";
-    ctx.fillRect(1, 1, 14, 14);
-    ctx.fillStyle = "#55b685";
-    ctx.fillRect(2, 2, 3, 1);
-    ctx.fillRect(2, 4, 6, 1);
-    ctx.fillRect(2, 6, 4, 1);
-    ctx.fillRect(2, 8, 7, 1);
-    ctx.fillRect(2, 10, 2, 1);
-  } else if (type === "iron") {
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, 16, 16);
-  } else if (type === "cactus") {
-    ctx.fillStyle = "#1c3d10";
-    for (let x = 2; x < 16; x += 4) ctx.fillRect(x, 0, 1, 16);
-  } else if (type === "sea_lantern") {
-    ctx.strokeStyle = "#5da49b";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, 16, 16);
+    ctx.strokeRect(1, 1, 30, 30);
+    // Diagonal glass sheen lines
     ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.fillRect(4, 4, 8, 8);
-  } else if (type === "cake_side") {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, 16, 5);
-    ctx.fillRect(2, 5, 2, 2);
-    ctx.fillRect(7, 5, 2, 4);
-    ctx.fillRect(12, 5, 3, 1);
-    ctx.fillStyle = "#a12727";
-    ctx.fillRect(3, 2, 2, 2);
-    ctx.fillRect(10, 1, 2, 2);
-  } else if (type === "skin") {
-    ctx.fillStyle = "rgba(0,0,0,0.15)";
-    ctx.fillRect(5, 9, 2, 2);
-    ctx.fillRect(9, 9, 2, 2);
+    ctx.beginPath();
+    ctx.moveTo(4, 4); ctx.lineTo(12, 4); ctx.lineTo(4, 12); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(14, 14); ctx.lineTo(22, 14); ctx.lineTo(14, 22); ctx.fill();
+  } else if (type === "monitor_screen") {
+    // Glowing IDE screen with syntax highlighting
+    ctx.fillStyle = "#020617";
+    ctx.fillRect(0, 0, 32, 32);
+
+    // Code lines
+    ctx.fillStyle = "#38bdf8"; // blue keyword
+    ctx.fillRect(3, 4, 6, 2);
+    ctx.fillStyle = "#a855f7"; // purple var
+    ctx.fillRect(10, 4, 10, 2);
+
+    ctx.fillStyle = "#22c55e"; // green string
+    ctx.fillRect(6, 9, 14, 2);
+
+    ctx.fillStyle = "#eab308"; // yellow fn
+    ctx.fillRect(6, 14, 8, 2);
+    ctx.fillStyle = "#38bdf8";
+    ctx.fillRect(15, 14, 10, 2);
+
+    ctx.fillStyle = "#ec4899"; // pink return
+    ctx.fillRect(6, 19, 12, 2);
+
+    ctx.fillStyle = "#38bdf8";
+    ctx.fillRect(3, 24, 4, 2);
+    // Cursor glow
+    ctx.fillStyle = "#60a5fa";
+    ctx.fillRect(8, 24, 2, 3);
+  } else if (type === "sea_lantern") {
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(2, 2, 28, 28);
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.fillRect(10, 10, 12, 12);
   } else if (type === "cubicle_wall") {
-    ctx.fillStyle = "rgba(255,255,255,0.1)";
-    for (let i = 0; i < 16; i += 2) {
-      ctx.fillRect(i, 0, 1, 16);
-      ctx.fillRect(0, i, 16, 1);
-    }
+    // Sleek dual tone office divider
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fillRect(0, 16, 32, 1);
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    ctx.fillRect(0, 0, 32, 2);
+    ctx.fillRect(0, 0, 2, 32);
+    ctx.fillRect(30, 0, 2, 32);
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -137,30 +161,28 @@ export function generateBlockTexture(type: BlockType): THREE.CanvasTexture {
   return texture;
 }
 
-/**
- * Bakes a wooden nameplate sign with text onto a canvas — plain
- * `ctx.font`/`fillText` against the browser's default system font, not
- * drei's <Text> (troika-three-text), which needs to fetch a font file
- * over the network for SDF glyph generation. This has no network
- * dependency at all: cheap, synchronous, works offline.
- */
-export function generateSignTexture(text: string, textColor = "#ffffff"): THREE.CanvasTexture {
+export function generateSignTexture(text: string, textColor = "#facc15"): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 64;
+  canvas.width = 256;
+  canvas.height = 128;
   const ctx = canvas.getContext("2d")!;
 
-  ctx.fillStyle = "#4a2f18";
-  ctx.fillRect(0, 0, 128, 64);
-  ctx.strokeStyle = "#2d1c0e";
-  ctx.lineWidth = 4;
-  ctx.strokeRect(0, 0, 128, 64);
+  // Dark plaque background with metallic border
+  ctx.fillStyle = "#1e293b";
+  ctx.fillRect(0, 0, 256, 128);
+  ctx.strokeStyle = "#475569";
+  ctx.lineWidth = 8;
+  ctx.strokeRect(4, 4, 248, 120);
+
+  ctx.strokeStyle = textColor;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(10, 10, 236, 108);
 
   ctx.fillStyle = textColor;
-  ctx.font = "bold 20px monospace";
+  ctx.font = "bold 32px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(text, 64, 34);
+  ctx.fillText(text, 128, 64);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.magFilter = THREE.NearestFilter;

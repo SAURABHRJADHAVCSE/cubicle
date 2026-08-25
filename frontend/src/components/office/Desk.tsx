@@ -31,47 +31,60 @@ export function Desk({ position, rotationY = 0 }: DeskProps) {
     [iron, monitorScreen],
   );
 
+  const quartz = getVoxelMaterial("quartz");
+
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
-      <mesh position={[0, 0.85, 0]} material={darkOak}>
+      {/* Desk Top */}
+      <mesh position={[0, 0.85, 0]} material={darkOak} castShadow receiveShadow>
         <boxGeometry args={[1.3, 0.08, 0.7]} />
       </mesh>
+      {/* Desk Legs */}
       {LEG_OFFSETS.map(([x, z]) => (
-        <mesh key={`${x}-${z}`} position={[x, 0.42, z]} material={iron}>
+        <mesh key={`${x}-${z}`} position={[x, 0.42, z]} material={iron} castShadow receiveShadow>
           <boxGeometry args={[0.06, 0.84, 0.06]} />
         </mesh>
       ))}
 
-      <mesh position={[0, 1.15, -0.25]} material={monitorMaterials}>
-        <boxGeometry args={[0.55, 0.35, 0.06]} />
+      {/* Monitor */}
+      <mesh position={[0, 1.15, -0.25]} material={monitorMaterials} castShadow>
+        <boxGeometry args={[0.58, 0.38, 0.06]} />
       </mesh>
-      <mesh position={[0, 0.98, -0.28]} material={iron}>
+      <mesh position={[0, 0.98, -0.28]} material={iron} castShadow>
         <boxGeometry args={[0.08, 0.14, 0.08]} />
       </mesh>
-      <mesh position={[0, 0.91, 0.15]} material={iron}>
-        <boxGeometry args={[0.35, 0.02, 0.14]} />
+      {/* Keyboard */}
+      <mesh position={[0, 0.9, 0.12]} material={iron} castShadow>
+        <boxGeometry args={[0.38, 0.02, 0.15]} />
       </mesh>
 
+      {/* Chair */}
       <group position={[0, 0, 0.85]}>
-        <mesh position={[0, 0.45, 0]} material={redWool}>
+        <mesh position={[0, 0.45, 0]} material={redWool} castShadow receiveShadow>
           <boxGeometry args={[0.42, 0.08, 0.42]} />
         </mesh>
-        <mesh position={[0, 0.7, 0.18]} material={redWool}>
+        <mesh position={[0, 0.7, 0.18]} material={redWool} castShadow receiveShadow>
           <boxGeometry args={[0.42, 0.45, 0.08]} />
         </mesh>
-        <mesh position={[0, 0.24, 0]} material={iron}>
+        <mesh position={[0, 0.24, 0]} material={iron} castShadow>
           <boxGeometry args={[0.07, 0.35, 0.07]} />
         </mesh>
-        <mesh position={[0, 0.05, 0]} material={stoneBrick}>
+        <mesh position={[0, 0.05, 0]} material={stoneBrick} castShadow receiveShadow>
           <boxGeometry args={[0.4, 0.06, 0.4]} />
         </mesh>
       </group>
 
-      <mesh position={[-0.55, 0.98, -0.28]} material={dirt}>
-        <boxGeometry args={[0.14, 0.14, 0.14]} />
+      {/* Plant */}
+      <mesh position={[-0.52, 0.98, -0.25]} material={dirt} castShadow>
+        <boxGeometry args={[0.12, 0.14, 0.12]} />
       </mesh>
-      <mesh position={[-0.55, 1.13, -0.28]} material={cactus}>
-        <boxGeometry args={[0.1, 0.22, 0.1]} />
+      <mesh position={[-0.52, 1.12, -0.25]} material={cactus} castShadow>
+        <boxGeometry args={[0.09, 0.2, 0.09]} />
+      </mesh>
+
+      {/* Coffee Mug */}
+      <mesh position={[0.48, 0.93, 0.1]} material={quartz} castShadow>
+        <boxGeometry args={[0.09, 0.12, 0.09]} />
       </mesh>
     </group>
   );

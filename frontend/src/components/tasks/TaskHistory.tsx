@@ -1,12 +1,12 @@
 "use client";
 
+import { ListTodo, Plus } from "lucide-react";
 import { useState } from "react";
-import { ListTodo } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
 import { TaskCard } from "@/components/tasks/TaskCard";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTasks } from "@/hooks/useTasks";
 
 export function TaskHistory() {
@@ -16,25 +16,43 @@ export function TaskHistory() {
   const sorted = [...(tasks ?? [])].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
+  const activeCount = sorted.filter((task) =>
+    ["assigned", "in_progress"].includes(task.status),
+  ).length;
 
   return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
-          <ListTodo className="size-4" />
-          Tasks {tasks ? `(${tasks.length})` : ""}
-        </h2>
-        <Button size="sm" onClick={() => setNewTaskOpen(true)}>
-          + New task
+    <div className="flex h-full min-h-0 flex-col gap-2.5">
+      <div className="flex items-center justify-between px-1 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-teal-500/20 text-teal-400 border border-teal-500/30">
+            <ListTodo className="size-3.5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-semibold text-slate-200">Task feed</h3>
+            <p className="text-[10px] text-slate-400">
+              {activeCount > 0 ? `${activeCount} active` : `${tasks?.length ?? 0} total tasks`}
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 rounded-lg border-white/10 bg-slate-800/80 px-2.5 text-xs text-slate-200 shadow-sm hover:bg-slate-700 hover:text-white"
+          onClick={() => setNewTaskOpen(true)}
+        >
+          <Plus className="size-3.5" />
+          New task
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-3 pr-2">
-          {isLoading && <p className="text-sm text-muted-foreground">Loading tasks…</p>}
+      <ScrollArea className="min-h-0 flex-1 soft-scrollbar">
+        <div className="flex flex-col gap-2.5 pr-2.5 pb-2">
+          {isLoading && (
+            <div className="h-28 animate-pulse rounded-xl bg-slate-800/50 border border-white/5" />
+          )}
           {sorted.length === 0 && !isLoading && (
-            <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-              No tasks yet. Start one to see your agents work.
+            <div className="rounded-xl border border-dashed border-white/10 bg-slate-900/40 p-4 text-center text-xs text-slate-400">
+              No tasks yet. Create a new task to get started.
             </div>
           )}
           {sorted.map((task) => (

@@ -1,7 +1,7 @@
 "use client";
 
+import { Send, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { TypingIndicator } from "@/components/common/Indicators";
@@ -15,10 +15,10 @@ import { useChatStream } from "@/hooks/useChatStream";
 import { useUIStore } from "@/stores/uiStore";
 
 export function ChatPanel() {
-  const selectedAgentId = useUIStore((s) => s.selectedAgentId);
-  const selectAgent = useUIStore((s) => s.selectAgent);
+  const selectedAgentId = useUIStore((state) => state.selectedAgentId);
+  const selectAgent = useUIStore((state) => state.selectAgent);
   const { data: agents } = useAgents();
-  const agent = agents?.find((a) => a.id === selectedAgentId);
+  const agent = agents?.find((item) => item.id === selectedAgentId);
 
   const { data: history } = useConversations(selectedAgentId);
   const sendMessage = useSendChatMessage(selectedAgentId);
@@ -43,27 +43,50 @@ export function ChatPanel() {
   const waitingForFirstToken = sendMessage.isPending && !streamingText;
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-background shadow-xl md:absolute md:inset-y-0 md:right-0 md:w-80 md:border-l">
-      <div className="flex items-center gap-2 border-b px-4 py-3">
-        <Avatar className="size-7" style={{ backgroundColor: agent?.accent_color }}>
+    <div className="fixed inset-0 z-40 flex flex-col bg-slate-950/95 shadow-2xl backdrop-blur-2xl md:absolute md:inset-y-0 md:right-0 md:w-[92%] md:max-w-[380px] md:border-l md:border-white/10 text-slate-100">
+      <div className="flex items-center gap-3 border-b border-white/10 bg-slate-900/80 px-4 py-3 backdrop-blur-xl">
+        <Avatar className="size-8 ring-2 ring-white/10 shadow-sm" style={{ backgroundColor: agent?.accent_color }}>
           <AvatarFallback
-            style={{ backgroundColor: agent?.accent_color, color: "white" }}
-            className="text-xs"
+            className="text-[11px] font-bold text-white"
+            style={{ backgroundColor: agent?.accent_color }}
           >
             {agent?.name.slice(0, 2).toUpperCase() ?? "?"}
           </AvatarFallback>
         </Avatar>
-        <div className="flex-1">
-          <p className="font-heading text-sm font-medium">{agent?.name ?? "Agent"}</p>
-          <p className="text-xs text-muted-foreground">{agent?.role}</p>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="truncate font-heading text-xs font-semibold text-slate-100">{agent?.name ?? "Agent"}</p>
+            <span className="size-1.5 rounded-full bg-emerald-400" />
+          </div>
+          <p className="truncate text-[10px] text-slate-400">Direct line · {agent?.role}</p>
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={() => selectAgent(null)} aria-label="Close chat">
+        <div className="mr-1 hidden items-center gap-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 text-[9px] font-bold text-indigo-300 sm:flex">
+          <Sparkles className="size-2.5" /> AI
+        </div>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+          onClick={() => selectAgent(null)}
+          aria-label="Close chat"
+        >
           <X className="size-4" />
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 px-4 py-3">
-        <div className="flex flex-col gap-2">
+      <ScrollArea className="flex-1 px-4 py-4 soft-scrollbar">
+        <div className="flex flex-col gap-2.5">
+          {history?.length === 0 && !streamingText && (
+            <div className="mx-auto mt-10 max-w-[230px] text-center">
+              <div className="mx-auto flex size-9 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                <Sparkles className="size-4" />
+              </div>
+              <p className="mt-3 text-xs font-semibold text-slate-200">Start a conversation</p>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                Ask for an update, discuss a task, or give {agent?.name ?? "this agent"} a new instruction.
+              </p>
+            </div>
+          )}
           {history?.map((message) => (
             <ChatMessage key={message.id} message={message} />
           ))}
@@ -84,16 +107,25 @@ export function ChatPanel() {
         </div>
       </ScrollArea>
 
-      <div className="flex gap-2 border-t p-3">
-        <Input
-          placeholder={`Message ${agent?.name ?? "agent"}…`}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-        />
-        <Button size="sm" onClick={handleSend} disabled={!draft.trim() || sendMessage.isPending}>
-          Send
-        </Button>
+      <div className="border-t border-white/10 bg-slate-900/90 p-3 backdrop-blur-xl">
+        <div className="flex gap-2 rounded-xl border border-white/10 bg-slate-800/80 p-1.5 pl-3 shadow-inner">
+          <Input
+            className="h-8 flex-1 border-0 bg-transparent px-0 text-xs text-slate-100 placeholder:text-slate-500 shadow-none focus-visible:ring-0"
+            placeholder={`Message ${agent?.name ?? "agent"}…`}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => event.key === "Enter" && handleSend()}
+          />
+          <Button
+            size="icon-sm"
+            className="rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 shadow-md"
+            onClick={handleSend}
+            disabled={!draft.trim() || sendMessage.isPending}
+            aria-label="Send message"
+          >
+            <Send className="size-3.5" />
+          </Button>
+        </div>
       </div>
     </div>
   );

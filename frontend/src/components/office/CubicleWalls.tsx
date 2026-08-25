@@ -28,13 +28,15 @@ export function CubicleWalls({ position, rotationY = 0 }: CubicleWallsProps) {
 
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
-      <mesh position={[0, WALL_HEIGHT / 2, BACK_Z]} material={backMat}>
+      <mesh position={[0, WALL_HEIGHT / 2, BACK_Z]} material={backMat} castShadow receiveShadow>
         <boxGeometry args={[SIDE_X * 2, WALL_HEIGHT, 0.12]} />
       </mesh>
       <mesh
         position={[-SIDE_X, WALL_HEIGHT / 2, (BACK_Z + FRONT_Z) / 2]}
         rotation={[0, Math.PI / 2, 0]}
         material={sideMat}
+        castShadow
+        receiveShadow
       >
         <boxGeometry args={[FRONT_Z - BACK_Z, WALL_HEIGHT, 0.12]} />
       </mesh>
@@ -42,6 +44,8 @@ export function CubicleWalls({ position, rotationY = 0 }: CubicleWallsProps) {
         position={[SIDE_X, WALL_HEIGHT / 2, (BACK_Z + FRONT_Z) / 2]}
         rotation={[0, Math.PI / 2, 0]}
         material={sideMat}
+        castShadow
+        receiveShadow
       >
         <boxGeometry args={[FRONT_Z - BACK_Z, WALL_HEIGHT, 0.12]} />
       </mesh>

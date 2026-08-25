@@ -31,100 +31,167 @@ interface AgentAvatarProps {
 
 export function AgentAvatar({ agent, position }: AgentAvatarProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const leftArmRef = useRef<THREE.Mesh>(null);
+  const rightArmRef = useRef<THREE.Mesh>(null);
+
   const animationState = useOfficeStore(
     (s) => s.agents[agent.id]?.animationState ?? "idle",
   );
   const ringColor = STATUS_COLORS[agent.status];
   const skinMat = getVoxelMaterial("skin");
+
   const shoeMat = useMemo(
-    () => new THREE.MeshLambertMaterial({ color: "#2b2b31" }),
+    () => new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.5 }),
     [],
   );
   const shirtMat = useMemo(
-    () => new THREE.MeshLambertMaterial({ color: agent.accent_color }),
+    () => new THREE.MeshStandardMaterial({ color: agent.accent_color, roughness: 0.4 }),
     [agent.accent_color],
   );
+  const hairMat = useMemo(
+    () => new THREE.MeshStandardMaterial({
+      color: ["#1e1b4b", "#451a03", "#78350f", "#334155", "#0f172a"][hashSeed(agent.id) % 5],
+      roughness: 0.7
+    }),
+    [agent.id],
+  );
+  const eyeMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#0f172a" }),
+    [],
+  );
+  const glassesMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#f8fafc", metalness: 0.8, roughness: 0.2 }),
+    [],
+  );
+  const headsetMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#38bdf8", metalness: 0.6, roughness: 0.3 }),
+    [],
+  );
 
-  // Chair seat top sits at world y≈0.49 (Desk.tsx: seat box at y=0.45,
-  // height 0.08) — the group origin below is that seat surface, so
-  // "hip"-relative offsets keep the avatar sitting ON the seat instead of
-  // dangling its legs down past it toward the floor.
   const SEAT_TOP_Y = 0.49;
   const SEAT_Z = 0.8;
   const seed = useMemo(() => hashSeed(agent.id), [agent.id]);
+  const hasGlasses = seed % 2 === 0;
+  const hasHeadset = seed % 3 === 0;
 
-  // Autonomous idle motion — not driven by the user or camera, purely a
-  // per-agent timer running on its own. Only kicks in when idle (not
-  // busy) and stays inside the cubicle's open interior (x within the
-  // ±0.85 walls, z between the desk and the doorway) so it can never
-  // clip through the cubicle partitions. This is deliberately scoped to
-  // "the character looks alive at its own desk," not room-scale walking
-  // (e.g. to the cafeteria) — that needs real pathfinding around cubicle
-  // walls/furniture, which is a bigger follow-up, not attempted here.
   useFrame(({ clock }, delta) => {
     if (!groupRef.current) return;
     const t = clock.elapsedTime;
-    switch (animationState) {
-      case "working":
-      case "walking":
-        // TODO(V0.2 social scheduler): "walking" should lerp toward
-        // targetPosition once real room-scale movement exists.
-        groupRef.current.position.set(0, SEAT_TOP_Y + Math.sin(t * 4) * 0.03, SEAT_Z);
-        groupRef.current.rotation.y = 0;
-        break;
-      case "celebrating": {
-        // Task-complete celebration: a bouncy jump (always upward, not a
-        // symmetric sway) combined with a continuous spin, for the ~3s
-        // window officeStore.triggerCelebration holds this state.
-        const jump = Math.abs(Math.sin(t * 6)) * 0.35;
-        groupRef.current.position.set(0, SEAT_TOP_Y + jump, SEAT_Z);
-        groupRef.current.rotation.y += delta * 6;
-        break;
+    const isWorking = animationState === "working";
+
+    if (isWorking) {
+      groupRef.current.position.set(0, SEAT_TOP_Y + Math.sin(t * 6) * 0.015, SEAT_Z - 0.05);
+      groupRef.current.rotation.y = 0;
+      if (leftArmRef.current && rightArmRef.current) {
+        leftArmRef.current.rotation.x = -Math.PI / 3 + Math.sin(t * 14) * 0.12;
+        rightArmRef.current.rotation.x = -Math.PI / 3 + Math.cos(t * 14) * 0.12;
       }
-      case "idle":
-      default:
-        groupRef.current.position.set(
-          Math.sin(t * 0.35 + seed) * 0.18,
-          SEAT_TOP_Y + Math.sin(t * 1.5 + seed) * 0.05,
-          SEAT_Z + Math.sin(t * 0.22 + seed * 1.3) * 0.25,
-        );
-        groupRef.current.rotation.y = Math.sin(t * 0.3 + seed) * 0.3;
-        break;
+    } else if (animationState === "celebrating") {
+      const jump = Math.abs(Math.sin(t * 8)) * 0.35;
+      groupRef.current.position.set(0, SEAT_TOP_Y + jump, SEAT_Z);
+      groupRef.current.rotation.y += delta * 6;
+    } else {
+      groupRef.current.position.set(
+        Math.sin(t * 0.4 + seed) * 0.08,
+        SEAT_TOP_Y + Math.sin(t * 1.5 + seed) * 0.02,
+        SEAT_Z + Math.sin(t * 0.3 + seed * 1.3) * 0.08,
+      );
+      groupRef.current.rotation.y = Math.sin(t * 0.3 + seed) * 0.2;
+      if (leftArmRef.current && rightArmRef.current) {
+        leftArmRef.current.rotation.x = Math.sin(t * 2 + seed) * 0.08;
+        rightArmRef.current.rotation.x = Math.cos(t * 2 + seed) * 0.08;
+      }
     }
   });
 
   return (
-    <group position={position}>
+    <group position={position} scale={1.12}>
+      {/* Seat glowing status ring */}
       <mesh position={[0, 0.02, SEAT_Z]} rotation={[-Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.3, 0.03, 8, 24]} />
-        <meshStandardMaterial color={ringColor} />
+        <torusGeometry args={[0.34, 0.04, 12, 32]} />
+        <meshStandardMaterial color={ringColor} emissive={ringColor} emissiveIntensity={0.6} />
       </mesh>
 
       <group ref={groupRef} position={[0, SEAT_TOP_Y, SEAT_Z]}>
-        <mesh position={[0, 0.21, 0]} material={shirtMat}>
+        {/* Torso */}
+        <mesh position={[0, 0.22, 0]} material={shirtMat} castShadow receiveShadow>
           <boxGeometry args={[0.32, 0.42, 0.2]} />
         </mesh>
-        <mesh position={[0, 0.55, 0]} material={skinMat}>
-          <boxGeometry args={[0.26, 0.26, 0.26]} />
+        {/* Collar / Tie accent */}
+        <mesh position={[0, 0.36, -0.105]} material={glassesMat}>
+          <boxGeometry args={[0.08, 0.12, 0.02]} />
         </mesh>
-        <mesh position={[-0.24, 0.19, 0]} material={shirtMat}>
-          <boxGeometry args={[0.1, 0.36, 0.12]} />
+
+        {/* Head */}
+        <mesh position={[0, 0.57, 0]} material={skinMat} castShadow receiveShadow>
+          <boxGeometry args={[0.3, 0.3, 0.3]} />
         </mesh>
-        <mesh position={[0.24, 0.19, 0]} material={shirtMat}>
-          <boxGeometry args={[0.1, 0.36, 0.12]} />
+
+        {/* Hair block */}
+        <mesh position={[0, 0.72, -0.02]} material={hairMat} castShadow>
+          <boxGeometry args={[0.32, 0.08, 0.32]} />
         </mesh>
-        {/* Seated legs are tucked under the torso, at/just below the seat
-            surface, rather than dangling down toward the floor. */}
-        <mesh position={[-0.09, -0.05, 0.05]} material={shoeMat}>
+
+        {/* Eyes */}
+        <mesh position={[-0.07, 0.58, -0.155]} material={eyeMat}>
+          <boxGeometry args={[0.04, 0.04, 0.02]} />
+        </mesh>
+        <mesh position={[0.07, 0.58, -0.155]} material={eyeMat}>
+          <boxGeometry args={[0.04, 0.04, 0.02]} />
+        </mesh>
+
+        {/* Glasses */}
+        {hasGlasses && (
+          <group position={[0, 0.58, -0.16]}>
+            <mesh position={[-0.07, 0, 0]} material={glassesMat}>
+              <boxGeometry args={[0.08, 0.06, 0.02]} />
+            </mesh>
+            <mesh position={[0.07, 0, 0]} material={glassesMat}>
+              <boxGeometry args={[0.08, 0.06, 0.02]} />
+            </mesh>
+            <mesh position={[0, 0, 0]} material={glassesMat}>
+              <boxGeometry args={[0.06, 0.02, 0.02]} />
+            </mesh>
+          </group>
+        )}
+
+        {/* Headset */}
+        {hasHeadset && (
+          <group position={[0, 0.62, 0]}>
+            <mesh position={[0, 0.14, 0]} material={headsetMat}>
+              <boxGeometry args={[0.34, 0.04, 0.1]} />
+            </mesh>
+            <mesh position={[-0.17, 0, 0]} material={headsetMat}>
+              <boxGeometry args={[0.04, 0.12, 0.1]} />
+            </mesh>
+            <mesh position={[0.17, 0, 0]} material={headsetMat}>
+              <boxGeometry args={[0.04, 0.12, 0.1]} />
+            </mesh>
+          </group>
+        )}
+
+        {/* Left Arm */}
+        <mesh ref={leftArmRef} position={[-0.22, 0.19, 0]} material={shirtMat} castShadow>
+          <boxGeometry args={[0.09, 0.36, 0.11]} />
+        </mesh>
+        {/* Right Arm */}
+        <mesh ref={rightArmRef} position={[0.22, 0.19, 0]} material={shirtMat} castShadow>
+          <boxGeometry args={[0.09, 0.36, 0.11]} />
+        </mesh>
+
+        {/* Seated Legs */}
+        <mesh position={[-0.09, -0.05, 0.05]} material={shoeMat} castShadow>
           <boxGeometry args={[0.12, 0.14, 0.18]} />
         </mesh>
-        <mesh position={[0.09, -0.05, 0.05]} material={shoeMat}>
+        <mesh position={[0.09, -0.05, 0.05]} material={shoeMat} castShadow>
           <boxGeometry args={[0.12, 0.14, 0.18]} />
         </mesh>
+
+        {/* Mood crown / celebrate indicator */}
         {agent.mood === "excited" && (
-          <mesh position={[0, 0.78, 0]}>
-            <coneGeometry args={[0.09, 0.16, 8]} />
-            <meshStandardMaterial color="#facc15" />
+          <mesh position={[0, 0.85, 0]}>
+            <coneGeometry args={[0.09, 0.18, 8]} />
+            <meshStandardMaterial color="#facc15" emissive="#facc15" emissiveIntensity={0.8} />
           </mesh>
         )}
       </group>

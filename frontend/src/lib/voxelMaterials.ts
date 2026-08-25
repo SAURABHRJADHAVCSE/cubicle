@@ -2,46 +2,62 @@ import * as THREE from "three";
 
 import { generateBlockTexture, generateSignTexture, type BlockType } from "@/lib/voxelTextures";
 
-const materialCache = new Map<BlockType, THREE.MeshLambertMaterial>();
+const materialCache = new Map<BlockType, THREE.MeshStandardMaterial>();
 
 const TRANSPARENT_TYPES = new Set<BlockType>(["glass", "leaves"]);
-const EMISSIVE_TYPES = new Set<BlockType>(["sea_lantern"]);
+const EMISSIVE_TYPES = new Set<BlockType>(["sea_lantern", "monitor_screen"]);
 
-/** Lazily builds + caches one shared material per block type — the canvas
- * texture only needs generating once regardless of how many desks/walls
- * use it. Not built at module scope so nothing touches the DOM canvas API
- * until a component actually renders (this module is only ever reached
- * from the ssr:false OfficeCanvas subtree, but staying lazy is cheap
- * insurance).
- */
-export function getVoxelMaterial(type: BlockType): THREE.MeshLambertMaterial {
+export function getVoxelMaterial(type: BlockType): THREE.MeshStandardMaterial {
   const cached = materialCache.get(type);
   if (cached) return cached;
 
   const map = generateBlockTexture(type);
-  const params: THREE.MeshLambertMaterialParameters = { map };
-  if (TRANSPARENT_TYPES.has(type)) params.transparent = true;
-  if (type === "glass") params.opacity = 0.4;
-  if (type === "leaves") params.alphaTest = 0.5;
-  if (EMISSIVE_TYPES.has(type)) {
-    params.emissive = new THREE.Color("#ffffee");
-    params.emissiveIntensity = 0.6;
+  const params: THREE.MeshStandardMaterialParameters = {
+    map,
+    roughness: 0.6,
+    metalness: 0.1,
+  };
+
+  if (type === "iron") {
+    params.metalness = 0.8;
+    params.roughness = 0.3;
+  } else if (type === "glass") {
+    params.roughness = 0.1;
+    params.metalness = 0.1;
+    params.transparent = true;
+    params.opacity = 0.5;
+  } else if (type === "quartz") {
+    params.roughness = 0.25;
+  } else if (type === "oak" || type === "dark_oak") {
+    params.roughness = 0.5;
+  } else if (type === "red_wool") {
+    params.roughness = 0.95;
+    params.metalness = 0.0;
   }
 
-  const material = new THREE.MeshLambertMaterial(params);
+  if (TRANSPARENT_TYPES.has(type) && type !== "glass") params.transparent = true;
+  if (type === "leaves") params.alphaTest = 0.5;
+
+  if (EMISSIVE_TYPES.has(type)) {
+    if (type === "sea_lantern") {
+      params.emissive = new THREE.Color("#38bdf8");
+      params.emissiveIntensity = 0.7;
+    } else if (type === "monitor_screen") {
+      params.emissive = new THREE.Color("#0284c7");
+      params.emissiveIntensity = 0.3;
+    }
+  }
+
+  const material = new THREE.MeshStandardMaterial(params);
   materialCache.set(type, material);
   return material;
 }
 
-/** A tiled variant of a cached material — clones the material + its
- * texture (so `.repeat` doesn't mutate the shared instance) for surfaces
- * that need the block pattern repeated across a larger area, e.g. floors.
- */
 export function getTiledVoxelMaterial(
   type: BlockType,
   repeatX: number,
   repeatY: number,
-): THREE.MeshLambertMaterial {
+): THREE.MeshStandardMaterial {
   const base = getVoxelMaterial(type);
   const material = base.clone();
   material.map = base.map!.clone();
@@ -50,8 +66,10 @@ export function getTiledVoxelMaterial(
   return material;
 }
 
-/** Nameplate sign material — not cached (text varies per call), but cheap
- * enough to build once per mount. */
-export function createSignMaterial(text: string, textColor?: string): THREE.MeshLambertMaterial {
-  return new THREE.MeshLambertMaterial({ map: generateSignTexture(text, textColor) });
+export function createSignMaterial(text: string, textColor?: string): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    map: generateSignTexture(text, textColor),
+    roughness: 0.3,
+    metalness: 0.4,
+  });
 }

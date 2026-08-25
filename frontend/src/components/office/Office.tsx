@@ -19,51 +19,38 @@ import { useOfficeStore } from "@/stores/officeStore";
 // Neutral warm tone, not stark white — a flat near-white background made
 // the whole scene look like it was floating in empty page space rather
 // than sitting on a ground.
-const BACKGROUND_COLOR = "#cfc9b8";
-const GROUND_COLOR = "#b7b09c";
+const BACKGROUND_COLOR = "#0b0f19";
+const GROUND_COLOR = "#111827";
 
-const FRONT_PADDING = 2.5; // breathing room between the open front edge (camera side) and the desks
-const DESK_BACK_PADDING = 1.5; // gap between the last desk row and the divider
-const DIVIDER_GAP = 1.4; // width of the fence/hedge divider strip
-const BACK_ZONE_DEPTH = 7; // shared depth of the cafeteria/cabin/rec strip
-const BACK_PADDING = 1.2; // gap between the back strip's furniture and the back edge
-// Widened significantly — the back strip now holds three side-by-side
-// zones (cafeteria, boss cabin, recreation) instead of one, and the desk
-// zone itself needs headroom to grow as more agents are added.
-const MIN_ROOM_WIDTH = 22;
+const FRONT_PADDING = 1.6;
+const DESK_BACK_PADDING = 1.1;
+const DIVIDER_GAP = 1.1;
+const BACK_ZONE_DEPTH = 5.8;
+const BACK_PADDING = 0.9;
+const MIN_ROOM_WIDTH = 16;
 
-/** Camera is intentionally fixed — no OrbitControls — so it can never be
- * dragged/zoomed to point anywhere awkward. A classic voxel-game 3/4
- * oblique angle (~55° from vertical) shows both the footprint and the
- * height of everything, which is what actually reads as "3D." */
 function CameraRig({ width, depth }: { width: number; depth: number }) {
   const { camera } = useThree();
   useEffect(() => {
-    const angleFromVertical = (55 * Math.PI) / 180;
-    const distance = depth * 0.85 + width * 0.25 + 2;
-    camera.position.set(
-      0,
-      distance * Math.cos(angleFromVertical),
-      distance * Math.sin(angleFromVertical),
-    );
-    camera.lookAt(0, 0.5, 0);
+    const distance = Math.max(width, depth) * 0.98;
+    camera.position.set(distance * 0.72, distance * 0.73, distance * 0.88);
+    camera.lookAt(0, 0.45, 0.25);
   }, [camera, width, depth]);
   return null;
 }
 
-/** Standalone lamp post — floor-standing (pole + lantern block + light). */
 function LampPost({ position }: { position: [number, number, number] }) {
   const dark = getVoxelMaterial("dark_oak");
   const lantern = getVoxelMaterial("sea_lantern");
   return (
     <group position={position}>
-      <mesh position={[0, 0.9, 0]} material={dark}>
+      <mesh position={[0, 0.9, 0]} material={dark} castShadow receiveShadow>
         <boxGeometry args={[0.1, 1.8, 0.1]} />
       </mesh>
       <mesh position={[0, 1.85, 0]} material={lantern}>
         <boxGeometry args={[0.35, 0.35, 0.35]} />
       </mesh>
-      <pointLight position={[0, 1.85, 0]} color="#ffffee" intensity={0.7} distance={9} />
+      <pointLight position={[0, 1.85, 0]} color="#38bdf8" intensity={1.2} distance={10} />
     </group>
   );
 }
@@ -85,9 +72,6 @@ export function Office() {
   const depth = FRONT_PADDING + deskZoneDepth + DIVIDER_GAP + BACK_ZONE_DEPTH + BACK_PADDING;
   const width = Math.max(deskExtent.width + FRONT_PADDING * 2, MIN_ROOM_WIDTH);
 
-  // Desks sit toward the open front edge (near the camera); the back
-  // strip (cafeteria / boss cabin / recreation) sits beyond a fence
-  // divider, split into three equal-width zones left to right.
   const deskZoneCenterZ = depth / 2 - FRONT_PADDING - deskZoneDepth / 2;
   const dividerZ = deskZoneCenterZ - deskZoneDepth / 2 - DIVIDER_GAP / 2;
   const backZoneBackEdge = -depth / 2 + BACK_PADDING;
@@ -117,6 +101,8 @@ export function Office() {
     [deskZoneDepth],
   );
   const dividerMat = getVoxelMaterial("oak");
+  const foundationMat = getVoxelMaterial("dark_oak");
+  const edgeMat = getVoxelMaterial("stone_brick");
 
   const fencePosts = useMemo(() => {
     const posts: number[] = [];
@@ -149,26 +135,48 @@ export function Office() {
   return (
     <>
       <color attach="background" args={[BACKGROUND_COLOR]} />
-      <fog attach="fog" args={[BACKGROUND_COLOR, 24, 48]} />
+      <fog attach="fog" args={[BACKGROUND_COLOR, 22, 48]} />
 
       <CameraRig width={width} depth={depth} />
 
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[width / 2, 12, -depth / 3]} intensity={0.6} />
+      <hemisphereLight args={["#93c5fd", "#1e1b4b", 1.2]} />
+      <ambientLight intensity={0.6} />
+      <directionalLight
+        position={[width / 2, 16, depth / 3]}
+        intensity={1.6}
+        color="#fff7ed"
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-bias={-0.0005}
+      />
+      <directionalLight position={[-width / 2, 10, -depth / 2]} intensity={0.7} color="#818cf8" />
 
       <mesh position={[0, -0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[width * 2.4, depth * 2.4]} />
-        <meshLambertMaterial color={GROUND_COLOR} />
+        <meshStandardMaterial color={GROUND_COLOR} roughness={0.9} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} material={floorMat}>
+      <mesh position={[0, -0.16, 0]} material={foundationMat} castShadow receiveShadow>
+        <boxGeometry args={[width + 0.35, 0.3, depth + 0.35]} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} material={floorMat} receiveShadow>
         <planeGeometry args={[width, depth]} />
       </mesh>
-      <mesh position={[0, 0.01, deskZoneCenterZ]} rotation={[-Math.PI / 2, 0, 0]} material={aisleMat}>
+      <mesh position={[0, 0.24, -depth / 2]} material={edgeMat} castShadow receiveShadow>
+        <boxGeometry args={[width, 0.48, 0.16]} />
+      </mesh>
+      <mesh position={[-width / 2, 0.18, 0]} material={edgeMat} castShadow receiveShadow>
+        <boxGeometry args={[0.16, 0.36, depth]} />
+      </mesh>
+      <mesh position={[width / 2, 0.18, 0]} material={edgeMat} castShadow receiveShadow>
+        <boxGeometry args={[0.16, 0.36, depth]} />
+      </mesh>
+      <mesh position={[0, 0.01, deskZoneCenterZ]} rotation={[-Math.PI / 2, 0, 0]} material={aisleMat} receiveShadow>
         <planeGeometry args={[1.8, deskZoneDepth]} />
       </mesh>
 
       {fencePosts.map((x) => (
-        <mesh key={x} position={[x, 0.45, dividerZ]} material={dividerMat}>
+        <mesh key={x} position={[x, 0.45, dividerZ]} material={dividerMat} castShadow receiveShadow>
           <boxGeometry args={[0.14, 0.9, 0.14]} />
         </mesh>
       ))}
@@ -189,8 +197,6 @@ export function Office() {
         dividerZ={dividerZ}
       />
 
-      {/* Boss cabin sits between the cafeteria and recreation zones —
-          flanked by neighbors instead of floating alone. */}
       <BossCabin position={[cabinCenterX, 0, tablesZ]} />
 
       <RecreationArea zoneCenterX={recCenterX} poolZ={tablesZ} tennisZ={(tablesZ + counterZ) / 2} />

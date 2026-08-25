@@ -9,7 +9,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sora);
+  --font-heading: var(--font-geist-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,30 +49,30 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --background: #eef2f8;
+  --foreground: #142033;
+  --card: #ffffff;
+  --card-foreground: #142033;
+  --popover: #ffffff;
+  --popover-foreground: #142033;
+  --primary: #5b5cf0;
+  --primary-foreground: #ffffff;
+  --secondary: #edf0ff;
+  --secondary-foreground: #3f46a5;
+  --muted: #f3f5f9;
+  --muted-foreground: #6f7b91;
+  --accent: #edf0ff;
+  --accent-foreground: #3f46a5;
+  --destructive: #e5484d;
+  --border: #e2e7f0;
+  --input: #dce2ed;
+  --ring: #7778f4;
+  --chart-1: #5b5cf0;
+  --chart-2: #18a999;
+  --chart-3: #f59e5b;
+  --chart-4: #9b7bea;
+  --chart-5: #4a90e2;
+  --radius: 0.875rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -122,9 +122,109 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-200;
   }
   html {
-    @apply font-sans;
+    @apply font-sans h-full overflow-hidden;
+  }
+  button,
+  a,
+  input,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
   }
 }
+
+:root {
+  --background: #f1f5f9;
+  --foreground: #0f172a;
+}
+
+.dark {
+  --background: #0b0f19;
+  --foreground: #f8fafc;
+}
+
+@layer utilities {
+  .app-bg {
+    background-color: #f1f5f9;
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.12), transparent 40rem),
+      linear-gradient(145deg, #f8fafc 0%, #e2e8f0 100%);
+    color: #0f172a;
+  }
+
+  .dark .app-bg {
+    background-color: #0b0f19;
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.08), transparent 45rem),
+      linear-gradient(145deg, #0b0f19 0%, #111827 50%, #0f172a 100%);
+    color: #f8fafc;
+  }
+
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.85);
+    border: 2px solid #cbd5e1;
+    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(16px);
+  }
+
+  .dark .glass-panel {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+      0 24px 64px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(24px) saturate(160%);
+  }
+
+  .glass-header {
+    background: rgba(255, 255, 255, 0.9);
+    border-bottom: 2px solid #cbd5e1;
+    backdrop-filter: blur(16px);
+  }
+
+  .dark .glass-header {
+    background: rgba(15, 23, 42, 0.85);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+  }
+
+  /* Neo-brutalist accents */
+  .brutal-card {
+    border: 2px solid #0f172a;
+    box-shadow: 4px 4px 0px #0f172a;
+    border-radius: 0.75rem;
+  }
+
+  .dark .brutal-card {
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.5);
+    border-radius: 0.75rem;
+  }
+
+  .soft-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
+  }
+
+  .dark .soft-scrollbar {
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
+
+  .soft-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  .soft-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 9999px;
+  }
+  .dark .soft-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .soft-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+

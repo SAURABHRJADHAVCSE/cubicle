@@ -1,7 +1,7 @@
 "use client";
 
+import { Plus, UsersRound } from "lucide-react";
 import { useState } from "react";
-import { Users } from "lucide-react";
 
 import { AddAgentDialog } from "@/components/agents/AddAgentDialog";
 import { AgentCard } from "@/components/agents/AgentCard";
@@ -14,25 +14,37 @@ export function AgentList() {
   const [addOpen, setAddOpen] = useState(false);
 
   return (
-    <div className="flex h-full flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
-          <Users className="size-4" />
-          Agents {agents ? `(${agents.length})` : ""}
-        </h2>
-        <Button size="sm" onClick={() => setAddOpen(true)}>
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      <div className="flex items-center justify-between px-1 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+            <UsersRound className="size-3.5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-semibold text-slate-200">Your agents</h3>
+            <p className="text-[10px] text-slate-400">
+              {agents?.length ?? 0} teammate{agents?.length === 1 ? "" : "s"}
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          className="h-7 rounded-lg bg-indigo-600 px-2.5 text-xs text-white shadow-md hover:bg-indigo-500"
+          onClick={() => setAddOpen(true)}
+        >
+          <Plus className="size-3.5" />
           Add agent
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-2 pr-2">
+      <ScrollArea className="min-h-0 flex-1 soft-scrollbar">
+        <div className="flex flex-col gap-2 pr-2.5 pb-1">
           {isLoading && (
-            <p className="text-sm text-muted-foreground">Loading agents…</p>
+            <div className="h-16 animate-pulse rounded-xl bg-slate-800/50 border border-white/5" />
           )}
           {agents?.length === 0 && !isLoading && (
-            <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-              No agents yet. Add one to get started.
+            <div className="rounded-xl border border-dashed border-white/10 bg-slate-900/40 p-4 text-center text-xs text-slate-400">
+              No agents yet. Click &quot;Add agent&quot; to bring your office live.
             </div>
           )}
           {agents?.map((agent) => <AgentCard key={agent.id} agent={agent} />)}
