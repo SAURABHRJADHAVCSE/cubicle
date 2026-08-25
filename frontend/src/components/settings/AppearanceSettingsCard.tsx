@@ -12,6 +12,8 @@ export function AppearanceSettingsCard() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Same SSR-hydration guard as ThemeToggle.tsx — see its comment.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

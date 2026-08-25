@@ -11,6 +11,10 @@ export function ThemeToggle({ className }: { className?: string }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Standard next-themes SSR-hydration guard: the server can't know the
+    // user's stored theme preference, so this deliberately renders a
+    // neutral placeholder until after hydration, then flips once.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

@@ -1,12 +1,14 @@
 "use client";
 
 import { Activity, Building2, Settings, Sparkles } from "lucide-react";
-import Link from "next/link";
+import { useState } from "react";
 
 import { AgentList } from "@/components/agents/AgentList";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { OfficeScene } from "@/components/office/OfficeScene";
+import { SettingsDialog } from "@/components/settings/SettingsDialog";
+import { OnboardingDialog } from "@/components/setup/OnboardingDialog";
 import { TaskHistory } from "@/components/tasks/TaskHistory";
 import { Button } from "@/components/ui/button";
 import { useAgents } from "@/hooks/useAgents";
@@ -17,6 +19,8 @@ export default function Home() {
   const { data: agents } = useAgents();
   const { data: tasks } = useTasks();
   const selectedAgentId = useUIStore((s) => s.selectedAgentId);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const onlineAgents = agents?.filter((agent) => agent.status !== "offline").length ?? 0;
   const workingAgents =
     agents?.filter((agent) => ["working", "thinking"].includes(agent.status)).length ?? 0;
@@ -56,9 +60,13 @@ export default function Home() {
             </span>
           </div>
           {agents?.length === 0 && (
-            <Link href="/setup" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline underline-offset-4">
+            <button
+              type="button"
+              onClick={() => setOnboardingOpen(true)}
+              className="text-xs font-bold text-indigo-600 hover:underline underline-offset-4 dark:text-indigo-400"
+            >
               Run setup
-            </Link>
+            </button>
           )}
 
           <ThemeToggle />
@@ -67,8 +75,7 @@ export default function Home() {
             variant="ghost"
             size="icon"
             className="rounded-xl border border-slate-300 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-            render={<Link href="/settings" />}
-            nativeButton={false}
+            onClick={() => setSettingsOpen(true)}
             aria-label="Settings"
           >
             <Settings className="size-4" />
@@ -112,6 +119,9 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <OnboardingDialog open={onboardingOpen} onOpenChange={setOnboardingOpen} />
     </div>
   );
 }
