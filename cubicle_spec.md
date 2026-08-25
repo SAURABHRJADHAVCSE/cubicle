@@ -11,7 +11,7 @@ Cubicle is a self-hosted, open-source AI agent harness that visualizes multiple 
 
 What makes Cubicle different from every other agent harness:
 
-- **Visual 3D office** — Spline-rendered office where agents sit at desks, walk around, interact
+- **Visual 3D office** — procedurally-rendered (React Three Fiber) voxel office where agents sit at desks, walk around, interact
 - **Social behavior** — Agents have personalities, take breaks, gossip, flirt, celebrate after tasks
 - **Voice calls** — Call any agent via WebRTC + Sarvam AI (STT/TTS), talk in Hindi or English
 - **Multi-engine** — Claude Code, Codex, Grok, Gemini, Ollama, OpenCode, any CLI agent or API
@@ -23,7 +23,7 @@ What makes Cubicle different from every other agent harness:
 | | Munder Difflin | Cubicle |
 |---|---|---|
 | Platform | Electron desktop only | Web (Next.js) — any device, any browser |
-| 3D | Pixi.js pixel art (non-commercial license) | Spline low-poly 3D (own assets) |
+| 3D | Pixi.js pixel art (non-commercial license) | Procedural voxel 3D (React Three Fiber, no asset pipeline) |
 | Agents | Terminal wrappers, raw CLI output | Dual engine: CLI wrapper + direct API |
 | Social | None | Full personality system, flirting, gossip |
 | Voice | None | Sarvam AI — call agents in Hindi/English |
@@ -45,7 +45,7 @@ What makes Cubicle different from every other agent harness:
 │  ┌──────────────┐   ┌──────────────┐   ┌────────────────┐ │
 │  │ Next.js 15   │   │ FastAPI      │   │ Celery Workers │ │
 │  │ Frontend     │◄─►│ Backend      │◄─►│ Agent Tasks    │ │
-│  │ Spline 3D    │   │ WebSocket    │   │ Social Tasks   │ │
+│  │ R3F 3D       │   │ WebSocket    │   │ Social Tasks   │ │
 │  │ PWA          │   │ REST API     │   │ Voice Tasks    │ │
 │  └──────────────┘   └──────┬───────┘   └───────┬────────┘ │
 │                            │                    │          │
@@ -112,7 +112,7 @@ Users choose per-agent which engine to use, exactly like Munder Difflin's "Step 
 | TypeScript | 5.x | Type safety |
 | Tailwind CSS | 3.x | Utility-first styling |
 | shadcn/ui | latest | Accessible component library (own source) |
-| Spline | @splinetool/react-spline | 3D office scene rendering |
+| React Three Fiber | @react-three/fiber + drei | Procedural voxel office scene rendering (primitives, no asset loading) |
 | Lottie | lottie-react | Agent state micro-animations |
 | Framer Motion | 11.x | Speech bubbles, transitions, UI animations |
 | Zustand | 4.x | Client state (agent positions, moods, UI) |
@@ -242,7 +242,7 @@ cubicle/
 ├── frontend/                   # Next.js 15
 │   ├── Dockerfile
 │   ├── package.json
-│   ├── next.config.js          # PWA config, Spline loader
+│   ├── next.config.js          # PWA config
 │   ├── tailwind.config.ts
 │   │
 │   ├── public/
@@ -266,7 +266,7 @@ cubicle/
 │   │   │
 │   │   ├── components/
 │   │   │   ├── office/
-│   │   │   │   ├── SplineScene.tsx     # 3D office canvas
+│   │   │   │   ├── OfficeCanvas.tsx    # R3F <Canvas> root (procedural voxel office + avatars)
 │   │   │   │   ├── SpeechBubble.tsx    # Floating dialogue over agents
 │   │   │   │   └── AgentOverlay.tsx    # Status badges on 3D scene
 │   │   │   │
@@ -308,7 +308,7 @@ cubicle/
 │   │   │   ├── useAgents.ts        # TanStack Query: agent CRUD
 │   │   │   ├── useTasks.ts         # TanStack Query: task operations
 │   │   │   ├── useVoice.ts         # WebRTC voice call hook
-│   │   │   └── useSpline.ts        # Spline scene event bridge
+│   │   │   └── useOfficeSocket.ts  # Live agent state → office scene bridge
 │   │   │
 │   │   ├── lib/
 │   │   │   ├── api.ts              # Axios/fetch client to FastAPI
@@ -320,9 +320,6 @@ cubicle/
 │   │       ├── task.ts
 │   │       └── events.ts
 │   │
-│   └── spline/
-│       └── office.splinecode       # Exported Spline scene file
-│
 └── docs/
     ├── SETUP.md                # Installation guide
     ├── ENGINES.md              # How to configure each engine
@@ -357,7 +354,7 @@ CREATE TABLE agents (
     voice_pace VARCHAR(10) DEFAULT 'medium',
     
     -- Visual
-    character_id VARCHAR(50),              -- Spline character reference
+    character_id VARCHAR(50),              -- procedural avatar preset reference
     accent_color VARCHAR(7) DEFAULT '#6366f1',
     desk_position INTEGER,                 -- seat assignment in office
     
@@ -788,7 +785,7 @@ MVP. Office works. Agents do tasks. Chat works. Looks good.
 - [ ] Onboarding wizard (3-step: detect engines → config → demo task)
 - [ ] Add Agent dialog (identity, engine, briefing — 4 steps like MD)
 - [ ] Engine registry: Claude Code CLI + LiteLLM (Ollama/Anthropic)
-- [ ] Spline 3D office scene with 4 desk positions
+- [ ] Procedural voxel 3D office scene (React Three Fiber) with 4 desk positions
 - [ ] Agent status system: idle → working → done
 - [ ] Task creation and execution (single agent per task)
 - [ ] Structured result cards (not raw terminal)

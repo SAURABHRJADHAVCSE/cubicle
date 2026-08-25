@@ -31,19 +31,21 @@ export default function Home() {
         </div>
       </header>
 
-      <OfficeScene />
+      <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
+        <OfficeScene className="h-72 shrink-0 border-b md:h-auto md:w-[70%] md:min-w-[560px] md:border-b-0 md:border-r" />
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="grid flex-1 grid-cols-1 gap-6 overflow-y-auto p-6 md:grid-cols-[320px_1fr] md:overflow-hidden">
-          <aside className="min-h-96 md:min-h-0 md:overflow-hidden">
-            <AgentList />
-          </aside>
-          <main className="min-h-96 md:min-h-0 md:overflow-hidden">
-            <TaskHistory />
-          </main>
+        <div className="relative flex flex-1 overflow-hidden">
+          <div className="flex flex-1 flex-col gap-6 overflow-hidden p-6">
+            <aside className="h-72 shrink-0 overflow-hidden">
+              <AgentList />
+            </aside>
+            <main className="min-h-0 flex-1 overflow-hidden">
+              <TaskHistory />
+            </main>
+          </div>
+
+          {selectedAgentId && <ChatPanel key={selectedAgentId} />}
         </div>
-
-        {selectedAgentId && <ChatPanel key={selectedAgentId} />}
       </div>
     </div>
   );

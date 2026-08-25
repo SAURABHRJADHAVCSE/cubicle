@@ -1,20 +1,50 @@
 "use client";
 
-import { SpeechBubbleOverlay } from "@/components/office/SpeechBubble";
-import { SplineScene } from "@/components/office/SplineScene";
-import { useSpeechBubbles } from "@/hooks/useSpeechBubbles";
+import { useCallback, useState } from "react";
+import dynamic from "next/dynamic";
 
-/** Ambient office banner: Spline scene + live speech bubbles on top of it.
- * Hidden below `sm` — decoration isn't worth the render cost or the
- * vertical space on a phone screen.
+import { SpeechBubbleOverlay } from "@/components/office/SpeechBubble";
+import { useAgents } from "@/hooks/useAgents";
+import { useSpeechBubbles } from "@/hooks/useSpeechBubbles";
+import { cn } from "@/lib/utils";
+
+const OfficeCanvas = dynamic(
+  () => import("@/components/office/OfficeCanvas").then((m) => m.OfficeCanvas),
+  { ssr: false },
+);
+
+interface OfficeSceneProps {
+  className?: string;
+}
+
+/** Live 3D office: procedural voxel room + desks/avatars, with speech
+ * bubbles floating on top. Sizing/visibility is entirely up to the caller
+ * via `className` — this component just fills whatever box it's given.
  */
-export function OfficeScene() {
+export function OfficeScene({ className }: OfficeSceneProps) {
   const bubbles = useSpeechBubbles();
+  const { data: agents } = useAgents();
+  const [resetKey, setResetKey] = useState(0);
+
+  // A lost WebGL context (GPU driver TDR reset, seen in testing) isn't
+  // always restored in place by the browser — remounting the whole canvas
+  // gets a fresh context instead of leaving the panel permanently blank
+  // until the user reloads the page.
+  const handleContextLost = useCallback(() => {
+    setTimeout(() => setResetKey((k) => k + 1), 500);
+  }, []);
 
   return (
-    <div className="relative hidden h-48 shrink-0 px-6 pt-4 sm:block md:h-56">
-      <SplineScene />
+    <div className={cn("relative overflow-hidden", className)}>
+      <OfficeCanvas key={resetKey} onContextLost={handleContextLost} />
       <SpeechBubbleOverlay bubbles={bubbles} />
+      {agents?.length === 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <p className="rounded-full bg-background/85 px-4 py-2 text-sm text-muted-foreground shadow-sm backdrop-blur">
+            Add an agent to bring the office to life
+          </p>
+        </div>
+      )}
     </div>
   );
 }

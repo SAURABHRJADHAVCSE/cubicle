@@ -43,7 +43,7 @@ export function ChatPanel() {
   const waitingForFirstToken = sendMessage.isPending && !streamingText;
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-background md:static md:z-auto md:h-full md:w-80 md:shrink-0 md:border-l">
+    <div className="fixed inset-0 z-40 flex flex-col bg-background shadow-xl md:absolute md:inset-y-0 md:right-0 md:w-80 md:border-l">
       <div className="flex items-center gap-2 border-b px-4 py-3">
         <Avatar className="size-7" style={{ backgroundColor: agent?.accent_color }}>
           <AvatarFallback

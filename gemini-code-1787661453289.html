@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Minecraft Office - Executive Edition</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #87CEEB;
+            font-family: monospace;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #aaa;
+            pointer-events: none;
+            user-select: none;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+            color: #ffaa00;
+        }
+
+        p {
+            margin: 5px 0;
+            font-size: 0.9rem;
+            color: #ddd;
+        }
+
+        .highlight {
+            color: #55ff55;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="ui">
+        <h1>Minecraft HQ: Executive Update</h1>
+        <p>🖱️ <b>Left Click:</b> Rotate Camera</p>
+        <p>🖱️ <b>Right Click:</b> Pan Camera</p>
+        <p>🖱️ <b>Scroll:</b> Zoom In/Out</p>
+        <br>
+        <p class="highlight">⭐ Features:</p>
+        <p>- CEO Cabin (Glass Walls, VIP Girl)</p>
+        <p>- VIP Boy in Main Aisle</p>
+        <p>- 10 Enclosed Cubicles</p>
+        <p>- Cafeteria with Nameplate</p>
+    </div>
+
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // ==========================================
+        // 1. PROCEDURAL TEXTURE GENERATOR
+        // ==========================================
+        function generateTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = (type.startsWith('sign') || type === 'painting') ? 128 : 16;
+            canvas.height = (type.startsWith('sign') || type === 'painting') ? 64 : 16;
+            const ctx = canvas.getContext('2d');
+            let w = canvas.width, h = canvas.height;
+
+            // Base Block Textures
+            let base = '#ffffff';
+            if (type === 'oak') base = '#8f7044';
+            if (type === 'dark_oak') base = '#3c2712';
+            if (type === 'stone_brick') base = '#787878';
+            if (type === 'cubicle_wall') base = '#5e7c99'; // Blue/Grey wool
+            if (type === 'red_carpet') base = '#a12727';
+            if (type === 'ceo_carpet') base = '#1e3b70'; // Deep blue
+            if (type === 'quartz') base = '#eee6e0';
+            if (type === 'glass') base = '#a4c2d3';
+            if (type === 'leaves') base = '#418023';
+            if (type === 'iron') base = '#d8d8d8';
+            if (type === 'dirt') base = '#543b27';
+            if (type === 'monitor_screen') base = '#222';
+            if (type === 'skin') base = '#f1c27d';
+
+            ctx.fillStyle = base;
+            ctx.fillRect(0, 0, w, h);
+
+            // Add Pixel Noise for blocks
+            if (w === 16 && !['glass', 'monitor_screen', 'skin', 'face_boy', 'face_girl', 'shirt', 'jeans'].includes(type)) {
+                for (let i = 0; i < 256; i++) {
+                    let noise = Math.random() * 0.15;
+                    ctx.fillStyle = Math.random() > 0.5 ? `rgba(0,0,0,${noise})` : `rgba(255,255,255,${noise})`;
+                    ctx.fillRect(i % 16, Math.floor(i / 16), 1, 1);
+                }
+            }
+
+            // Specific Details
+            if (type === 'oak' || type === 'dark_oak') {
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                for (let y = 0; y < 16; y += 4) ctx.fillRect(0, y, 16, 1);
+            } else if (type === 'stone_brick') {
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.fillRect(0, 7, 16, 1); ctx.fillRect(0, 15, 16, 1);
+                ctx.fillRect(7, 0, 1, 7); ctx.fillRect(15, 8, 1, 7);
+            } else if (type === 'cubicle_wall') {
+                ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                for (let i = 0; i < 16; i += 2) { ctx.fillRect(i, 0, 1, 16); ctx.fillRect(0, i, 16, 1); }
+            } else if (type === 'ceo_carpet') {
+                ctx.fillStyle = '#d4af37'; // Gold pattern
+                ctx.fillRect(2, 2, 12, 2); ctx.fillRect(2, 12, 12, 2);
+                ctx.fillRect(2, 2, 2, 12); ctx.fillRect(12, 2, 2, 12);
+                ctx.fillRect(6, 6, 4, 4);
+            } else if (type === 'glass') {
+                ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2; ctx.strokeRect(0, 0, 16, 16);
+                ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillRect(2, 2, 4, 4);
+            } else if (type === 'monitor_screen') {
+                ctx.fillStyle = '#1c3d2a'; ctx.fillRect(1, 1, 14, 14);
+                ctx.fillStyle = '#55b685'; // Green Code
+                ctx.fillRect(2, 2, 5, 1); ctx.fillRect(2, 4, 8, 1); ctx.fillRect(2, 6, 4, 1);
+            } else if (type === 'sign_cafe' || type === 'sign_ceo') {
+                ctx.fillStyle = '#4a2f18'; ctx.fillRect(0, 0, w, h);
+                ctx.strokeStyle = '#2d1c0e'; ctx.lineWidth = 4; ctx.strokeRect(0, 0, w, h);
+                ctx.fillStyle = type === 'sign_ceo' ? '#ffaa00' : '#ffffff';
+                ctx.font = 'bold 32px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(type === 'sign_ceo' ? "CEO CABIN" : "CAFETERIA", w / 2, h / 2 + 2);
+            } else if (type === 'painting') {
+                ctx.fillStyle = '#ff7b00'; ctx.fillRect(0, 0, w, h); // Sunset
+                ctx.fillStyle = '#ffd000'; ctx.beginPath(); ctx.arc(64, 40, 20, 0, Math.PI * 2); ctx.fill(); // Sun
+                ctx.fillStyle = '#222'; ctx.fillRect(0, 45, w, 20); // Mountains
+                ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(30, 20); ctx.lineTo(60, 45); ctx.fill();
+                ctx.strokeStyle = '#3a2312'; ctx.lineWidth = 8; ctx.strokeRect(0, 0, w, h); // Frame
+            } else if (type === 'face_boy') {
+                ctx.fillStyle = '#f1c27d'; ctx.fillRect(0, 0, 16, 16);
+                ctx.fillStyle = '#4a2f18'; ctx.fillRect(0, 0, 16, 4); // Hair
+                ctx.fillStyle = '#fff'; ctx.fillRect(2, 7, 4, 2); ctx.fillRect(10, 7, 4, 2); // Eyes
+                ctx.fillStyle = '#11aadd'; ctx.fillRect(4, 7, 2, 2); ctx.fillRect(10, 7, 2, 2); // Pupils
+                ctx.fillStyle = '#d2a669'; ctx.fillRect(6, 11, 4, 2); // Mouth
+            } else if (type === 'face_girl') {
+                ctx.fillStyle = '#ffceaa'; ctx.fillRect(0, 0, 16, 16);
+                ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 16, 5); ctx.fillRect(0, 5, 3, 11); ctx.fillRect(13, 5, 3, 11); // Hair
+                ctx.fillStyle = '#fff'; ctx.fillRect(3, 7, 3, 2); ctx.fillRect(10, 7, 3, 2); // Eyes
+                ctx.fillStyle = '#44aa44'; ctx.fillRect(4, 7, 2, 2); ctx.fillRect(10, 7, 2, 2); // Pupils
+                ctx.fillStyle = '#e58e8e'; ctx.fillRect(6, 11, 4, 1); // Mouth
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+
+        // ==========================================
+        // 2. SCENE & MATERIALS SETUP
+        // ==========================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#87CEEB');
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 18, 35); // Higher angle to see everything
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 2, 0); controls.maxPolarAngle = Math.PI / 2 - 0.05; controls.update();
+
+        // Lighting
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const sun = new THREE.DirectionalLight(0xffffee, 0.8);
+        sun.position.set(25, 40, 20);
+        sun.castShadow = true;
+        sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
+        sun.shadow.camera.top = 30; sun.shadow.camera.bottom = -30;
+        sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
+        scene.add(sun);
+
+        // Materials Cache
+        const mats = {
+            oak: new THREE.MeshLambertMaterial({ map: generateTexture('oak') }),
+            dark_oak: new THREE.MeshLambertMaterial({ map: generateTexture('dark_oak') }),
+            stone_brick: new THREE.MeshLambertMaterial({ map: generateTexture('stone_brick') }),
+            cubicle: new THREE.MeshLambertMaterial({ map: generateTexture('cubicle_wall') }),
+            red_carpet: new THREE.MeshLambertMaterial({ map: generateTexture('red_carpet') }),
+            ceo_carpet: new THREE.MeshLambertMaterial({ map: generateTexture('ceo_carpet') }),
+            glass: new THREE.MeshLambertMaterial({ map: generateTexture('glass'), transparent: true, opacity: 0.4 }),
+            iron: new THREE.MeshLambertMaterial({ map: generateTexture('iron') }),
+            leaves: new THREE.MeshLambertMaterial({ map: generateTexture('leaves'), transparent: true }),
+            monitor: [new THREE.MeshLambertMaterial({ map: generateTexture('iron') }), new THREE.MeshLambertMaterial({ map: generateTexture('iron') }), new THREE.MeshLambertMaterial({ map: generateTexture('iron') }), new THREE.MeshLambertMaterial({ map: generateTexture('iron') }), new THREE.MeshLambertMaterial({ map: generateTexture('monitor_screen') }), new THREE.MeshLambertMaterial({ map: generateTexture('iron') })],
+            sign_cafe: new THREE.MeshLambertMaterial({ map: generateTexture('sign_cafe') }),
+            sign_ceo: new THREE.MeshLambertMaterial({ map: generateTexture('sign_ceo') }),
+            painting: new THREE.MeshLambertMaterial({ map: generateTexture('painting') }),
+            // Character specific materials
+            skin: new THREE.MeshLambertMaterial({ color: '#f1c27d' }),
+            shirt_boy: new THREE.MeshLambertMaterial({ color: '#2c5aa0' }),
+            pants_boy: new THREE.MeshLambertMaterial({ color: '#1f355d' }),
+            face_boy: new THREE.MeshLambertMaterial({ map: generateTexture('face_boy') }),
+            shirt_girl: new THREE.MeshLambertMaterial({ color: '#a02c84' }),
+            pants_girl: new THREE.MeshLambertMaterial({ color: '#111111' }),
+            face_girl: new THREE.MeshLambertMaterial({ map: generateTexture('face_girl') }),
+        };
+
+        function getTiled(mat, u, v) {
+            const m = mat.clone(); m.map = mat.map.clone();
+            m.map.needsUpdate = true; m.map.repeat.set(u, v); return m;
+        }
+
+        // ==========================================
+        // 3. ARCHITECTURE (40x40 Room)
+        // ==========================================
+        // Main Floor & Ceiling
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(40, 1, 40), getTiled(mats.oak, 40, 40));
+        floor.position.set(0, -0.5, 0); floor.receiveShadow = true; scene.add(floor);
+
+        // Exterior Walls
+        const wallMat = getTiled(mats.stone_brick, 40, 7);
+        const wallL = new THREE.Mesh(new THREE.BoxGeometry(1, 7, 40), wallMat); wallL.position.set(-20.5, 3.5, 0); scene.add(wallL);
+        const wallR = new THREE.Mesh(new THREE.BoxGeometry(1, 7, 40), wallMat); wallR.position.set(20.5, 3.5, 0); scene.add(wallR);
+        const wallB = new THREE.Mesh(new THREE.BoxGeometry(40, 7, 1), wallMat); wallB.position.set(0, 3.5, -20.5); scene.add(wallB);
+
+        // Main Red Carpet Aisle (Down the center)
+        const carpet = new THREE.Mesh(new THREE.BoxGeometry(6, 0.05, 30), getTiled(mats.red_carpet, 6, 30));
+        carpet.position.set(0, 0.03, 5); carpet.receiveShadow = true; scene.add(carpet);
+
+        // ==========================================
+        // 4. CEO CABIN (Back Right)
+        // ==========================================
+        // Glass Walls enclosing cabin (X: 4 to 20, Z: -20 to -6)
+        const glassTiled = getTiled(mats.glass, 16, 7);
+        const ceoFrontWall = new THREE.Mesh(new THREE.BoxGeometry(16, 7, 0.2), glassTiled);
+        ceoFrontWall.position.set(12, 3.5, -6); scene.add(ceoFrontWall);
+        const ceoSideWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 7, 14), getTiled(mats.glass, 14, 7));
+        ceoSideWall.position.set(4, 3.5, -13); scene.add(ceoSideWall);
+
+        // CEO Carpet
+        const ceoCarpet = new THREE.Mesh(new THREE.BoxGeometry(15, 0.06, 13.5), getTiled(mats.ceo_carpet, 15, 13));
+        ceoCarpet.position.set(12.5, 0.03, -13.25); ceoCarpet.receiveShadow = true; scene.add(ceoCarpet);
+
+        // CEO Sign
+        const ceoSign = new THREE.Mesh(new THREE.BoxGeometry(3, 1.5, 0.1), mats.sign_ceo);
+        ceoSign.position.set(8, 5, -5.9); scene.add(ceoSign);
+
+        // CEO Painting
+        const painting = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 0.1), mats.painting);
+        painting.position.set(12, 4, -19.9); scene.add(painting);
+
+        // CEO Desk (Large)
+        const ceoDesk = new THREE.Mesh(new THREE.BoxGeometry(5, 0.2, 2.5), mats.dark_oak);
+        ceoDesk.position.set(12, 1.2, -15); ceoDesk.castShadow = true; scene.add(ceoDesk);
+        const ceoLeg1 = new THREE.Mesh(new THREE.BoxGeometry(1, 1.2, 2.3), mats.dark_oak);
+        ceoLeg1.position.set(10, 0.6, -15); scene.add(ceoLeg1);
+        const ceoLeg2 = new THREE.Mesh(new THREE.BoxGeometry(1, 1.2, 2.3), mats.dark_oak);
+        ceoLeg2.position.set(14, 0.6, -15); scene.add(ceoLeg2);
+
+        // CEO Chair & Computer
+        const ceoMonitor = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1, 0.15), mats.monitor);
+        ceoMonitor.position.set(12, 1.8, -14.5); ceoMonitor.rotation.y = Math.PI; ceoMonitor.castShadow = true; scene.add(ceoMonitor);
+
+        const ceoChairSeat = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 1.2), mats.iron);
+        ceoChairSeat.position.set(12, 0.7, -17); ceoChairSeat.castShadow = true; scene.add(ceoChairSeat);
+        const ceoChairBack = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.5, 0.2), mats.iron);
+        ceoChairBack.position.set(12, 1.5, -17.5); ceoChairBack.castShadow = true; scene.add(ceoChairBack);
+
+        // ==========================================
+        // 5. CAFETERIA (Back Left)
+        // ==========================================
+        // Cafe Sign
+        const cafeSign = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 0.1), mats.sign_cafe);
+        cafeSign.position.set(-10, 5, -5.9); scene.add(cafeSign);
+
+        // Divider (Leaves)
+        for (let x = -20; x <= -4; x += 1.5) {
+            const leaf = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.5, 1.2), mats.leaves);
+            leaf.position.set(x, 0.75, -6); leaf.castShadow = true; scene.add(leaf);
+        }
+
+        // Cafe Counter
+        const counter = new THREE.Mesh(new THREE.BoxGeometry(12, 1.2, 2), getTiled(mats.oak, 12, 2));
+        counter.position.set(-12, 0.6, -18); counter.castShadow = true; scene.add(counter);
+
+        // Cafe Tables
+        [[-15, -11], [-7, -11]].forEach(([tx, tz]) => {
+            const table = new THREE.Mesh(new THREE.BoxGeometry(3, 0.1, 3), mats.stone_brick);
+            table.position.set(tx, 1.2, tz); table.castShadow = true; scene.add(table);
+            const pole = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), mats.iron);
+            pole.position.set(tx, 0.6, tz); scene.add(pole);
+            // Stools
+            [[tx - 2, tz], [tx + 2, tz], [tx, tz - 2], [tx, tz + 2]].forEach(([cx, cz]) => {
+                const stool = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.8), mats.red_carpet);
+                stool.position.set(cx, 0.3, cz); stool.castShadow = true; scene.add(stool);
+            });
+        });
+
+        // ==========================================
+        // 6. CUBICLE FARM (10 Desks)
+        // ==========================================
+        function createCubicleDesk(x, z, faceRight) {
+            const group = new THREE.Group();
+            group.position.set(x, 0, z);
+            if (faceRight) group.rotation.y = Math.PI;
+
+            // Cubicle Walls (U-shape)
+            const wallMatTiled = getTiled(mats.cubicle, 4, 2);
+            const backWall = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2, 0.2), wallMatTiled);
+            backWall.position.set(0, 1, -2); backWall.castShadow = true; group.add(backWall);
+
+            const sideWall1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2, 4), wallMatTiled);
+            sideWall1.position.set(-2, 1, 0); sideWall1.castShadow = true; group.add(sideWall1);
+            const sideWall2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2, 4), wallMatTiled);
+            sideWall2.position.set(2, 1, 0); sideWall2.castShadow = true; group.add(sideWall2);
+
+            // Desk
+            const desk = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.1, 1.5), mats.oak);
+            desk.position.set(0, 1, -1.2); desk.castShadow = true; group.add(desk);
+            const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1, 1.3), mats.iron);
+            leg1.position.set(-1.6, 0.5, -1.2); group.add(leg1);
+            const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1, 1.3), mats.iron);
+            leg2.position.set(1.6, 0.5, -1.2); group.add(leg2);
+
+            // Monitor & Chair
+            const mon = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.1), mats.monitor);
+            mon.position.set(0, 1.5, -1.5); mon.castShadow = true; group.add(mon);
+
+            const seat = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.8), mats.stone_brick);
+            seat.position.set(0, 0.6, 0); seat.castShadow = true; group.add(seat);
+            const bck = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.1), mats.stone_brick);
+            bck.position.set(0, 1.1, 0.35); group.add(bck);
+
+            scene.add(group);
+        }
+
+        // Place 5 cubicles on left, 5 on right
+        const zPositions = [0, 4, 8, 12, 16];
+        zPositions.forEach(z => {
+            createCubicleDesk(-11, z, false); // Left block
+            createCubicleDesk(11, z, true);   // Right block (rotated)
+        });
+
+        // ==========================================
+        // 7. VIP CHARACTERS
+        // ==========================================
+        function createCharacter(x, y, z, rotY, isGirl, isSitting) {
+            const charGroup = new THREE.Group();
+            charGroup.position.set(x, y, z);
+            charGroup.rotation.y = rotY;
+
+            const skin = mats.skin;
+            const shirt = isGirl ? mats.shirt_girl : mats.shirt_boy;
+            const pants = isGirl ? mats.pants_girl : mats.pants_boy;
+            const face = isGirl ? mats.face_girl : mats.face_boy;
+
+            // Head (Multimaterial to put face on front)
+            const headMats = [skin, skin, skin, skin, face, skin];
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), headMats);
+            head.position.set(0, 1.8, 0); head.castShadow = true; charGroup.add(head);
+
+            // Torso
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.9, 0.3), shirt);
+            torso.position.set(0, 1.05, 0); torso.castShadow = true; charGroup.add(torso);
+
+            // Arms
+            const armL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.9, 0.25), skin);
+            armL.position.set(-0.45, 1.05, 0); armL.castShadow = true; charGroup.add(armL);
+            const armR = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.9, 0.25), skin);
+            armR.position.set(0.45, 1.05, 0); armR.castShadow = true; charGroup.add(armR);
+
+            // Legs
+            if (isSitting) {
+                // Legs pointing forward
+                const legL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.8), pants);
+                legL.position.set(-0.15, 0.75, 0.25); legL.castShadow = true; charGroup.add(legL);
+                const legR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.8), pants);
+                legR.position.set(0.15, 0.75, 0.25); legR.castShadow = true; charGroup.add(legR);
+                // Lower legs pointing down
+                const calfL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.3), pants);
+                calfL.position.set(-0.15, 0.3, 0.5); calfL.castShadow = true; charGroup.add(calfL);
+                const calfR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.3), pants);
+                calfR.position.set(0.15, 0.3, 0.5); calfR.castShadow = true; charGroup.add(calfR);
+
+                // Adjust overall position for sitting
+                charGroup.position.y -= 0.6;
+                // Raise arms to type on keyboard
+                armL.rotation.x = -Math.PI / 3; armL.position.z += 0.2; armL.position.y += 0.2;
+                armR.rotation.x = -Math.PI / 3; armR.position.z += 0.2; armR.position.y += 0.2;
+            } else {
+                // Standing legs
+                const legL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.9, 0.3), pants);
+                legL.position.set(-0.15, 0.15, 0); legL.castShadow = true; charGroup.add(legL);
+                const legR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.9, 0.3), pants);
+                legR.position.set(0.15, 0.15, 0); legR.castShadow = true; charGroup.add(legR);
+                // Slight walking pose
+                legL.rotation.x = 0.2; legR.rotation.x = -0.2;
+                armL.rotation.x = -0.2; armR.rotation.x = 0.2;
+            }
+
+            scene.add(charGroup);
+        }
+
+        // 1. Important Person Girl - CEO Sitting in her cabin
+        createCharacter(12, 0.7, -16.5, 0, true, true);
+
+        // 2. Important Person Boy - VIP Walking down the main red carpet aisle
+        createCharacter(0, 0.3, 10, Math.PI + 0.3, false, false);
+
+        // ==========================================
+        // 8. RENDER LOOP
+        // ==========================================
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+
+</html>
