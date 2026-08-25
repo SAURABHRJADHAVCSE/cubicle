@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ListTodo } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,7 +20,10 @@ export function TaskHistory() {
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-muted-foreground">Tasks</h2>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
+          <ListTodo className="size-4" />
+          Tasks {tasks ? `(${tasks.length})` : ""}
+        </h2>
         <Button size="sm" onClick={() => setNewTaskOpen(true)}>
           + New task
         </Button>
@@ -29,9 +33,9 @@ export function TaskHistory() {
         <div className="flex flex-col gap-3 pr-2">
           {isLoading && <p className="text-sm text-muted-foreground">Loading tasks…</p>}
           {sorted.length === 0 && !isLoading && (
-            <p className="text-sm text-muted-foreground">
+            <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
               No tasks yet. Start one to see your agents work.
-            </p>
+            </div>
           )}
           {sorted.map((task) => (
             <TaskCard key={task.id} task={task} />

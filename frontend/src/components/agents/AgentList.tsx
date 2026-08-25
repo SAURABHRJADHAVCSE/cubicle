@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Users } from "lucide-react";
 
 import { AddAgentDialog } from "@/components/agents/AddAgentDialog";
 import { AgentCard } from "@/components/agents/AgentCard";
@@ -15,7 +16,8 @@ export function AgentList() {
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-muted-foreground">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
+          <Users className="size-4" />
           Agents {agents ? `(${agents.length})` : ""}
         </h2>
         <Button size="sm" onClick={() => setAddOpen(true)}>
@@ -28,10 +30,10 @@ export function AgentList() {
           {isLoading && (
             <p className="text-sm text-muted-foreground">Loading agents…</p>
           )}
-          {agents?.length === 0 && (
-            <p className="text-sm text-muted-foreground">
+          {agents?.length === 0 && !isLoading && (
+            <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
               No agents yet. Add one to get started.
-            </p>
+            </div>
           )}
           {agents?.map((agent) => <AgentCard key={agent.id} agent={agent} />)}
         </div>
