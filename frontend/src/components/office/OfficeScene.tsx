@@ -1,10 +1,11 @@
 "use client";
 
-import { Maximize2, Radio, UsersRound } from "lucide-react";
+import { Maximize2, Minimize2, Radio, UsersRound } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { SpeechBubbleOverlay } from "@/components/office/SpeechBubble";
+import { Button } from "@/components/ui/button";
 import { useAgents } from "@/hooks/useAgents";
 import { useSpeechBubbles } from "@/hooks/useSpeechBubbles";
 import { cn } from "@/lib/utils";
@@ -19,9 +20,12 @@ interface OfficeSceneProps {
 }
 
 export function OfficeScene({ className }: OfficeSceneProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const bubbles = useSpeechBubbles();
   const { data: agents } = useAgents();
   const [resetKey, setResetKey] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   const workingCount =
     agents?.filter((agent) => ["working", "thinking"].includes(agent.status)).length ?? 0;
 
@@ -29,8 +33,18 @@ export function OfficeScene({ className }: OfficeSceneProps) {
     setTimeout(() => setResetKey((key) => key + 1), 500);
   }, []);
 
+  const toggleFullscreen = useCallback(() => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  }, []);
+
   return (
     <section
+      ref={containerRef}
       className={cn(
         "relative isolate overflow-hidden border border-slate-300 dark:border-white/10 bg-slate-900",
         className,
@@ -62,7 +76,7 @@ export function OfficeScene({ className }: OfficeSceneProps) {
       <OfficeCanvas key={resetKey} onContextLost={handleContextLost} />
       <SpeechBubbleOverlay bubbles={bubbles} />
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex items-end justify-between p-3 text-slate-300 md:p-4">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between p-3 text-slate-300 md:p-4">
         <div className="flex items-center gap-3 text-[9.5px] font-bold uppercase tracking-wider bg-slate-950/70 border border-white/10 px-3 py-1.5 rounded-full backdrop-blur-xl">
           <span className="flex items-center gap-1.5 text-emerald-400">
             <span className="size-1.5 rounded-full bg-emerald-400" /> Available
@@ -71,7 +85,15 @@ export function OfficeScene({ className }: OfficeSceneProps) {
             <span className="size-1.5 rounded-full bg-blue-400" /> Working
           </span>
         </div>
-        <Maximize2 className="size-4 opacity-70" />
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="pointer-events-auto rounded-xl border border-white/15 bg-slate-950/80 p-2 text-white shadow-xl hover:bg-slate-800 transition-all"
+          onClick={toggleFullscreen}
+          aria-label="Toggle Fullscreen"
+        >
+          {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+        </Button>
       </div>
 
       {agents?.length === 0 && (

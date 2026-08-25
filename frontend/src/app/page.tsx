@@ -80,7 +80,7 @@ export default function Home() {
         <div className="grid h-full min-h-0 flex-1 grid-cols-1 md:grid-cols-[1fr_440px] gap-3">
           <OfficeScene className="h-full min-h-0 rounded-2xl shadow-lg border border-slate-300 dark:border-white/10" />
 
-          <div className="glass-panel brutal-card relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl">
+          <div className="glass-panel relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl">
             <div className="flex items-center justify-between border-b border-slate-300 dark:border-white/10 px-4 py-3 shrink-0">
               <div>
                 <div className="flex items-center gap-2">

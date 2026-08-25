@@ -32,9 +32,9 @@ const MIN_ROOM_WIDTH = 16;
 function CameraRig({ width, depth }: { width: number; depth: number }) {
   const { camera } = useThree();
   useEffect(() => {
-    const distance = Math.max(width, depth) * 0.98;
-    camera.position.set(distance * 0.72, distance * 0.73, distance * 0.88);
-    camera.lookAt(0, 0.45, 0.25);
+    const distance = Math.max(width, depth) * 0.65;
+    camera.position.set(distance * 0.68, distance * 0.72, distance * 0.82);
+    camera.lookAt(0, 0.4, 0.2);
   }, [camera, width, depth]);
   return null;
 }

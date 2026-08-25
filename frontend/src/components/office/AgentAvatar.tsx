@@ -109,8 +109,11 @@ export function AgentAvatar({ agent, position }: AgentAvatarProps) {
       {/* Seat glowing status ring */}
       <mesh position={[0, 0.02, SEAT_Z]} rotation={[-Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.34, 0.04, 12, 32]} />
-        <meshStandardMaterial color={ringColor} emissive={ringColor} emissiveIntensity={0.6} />
+        <meshStandardMaterial color={ringColor} emissive={ringColor} emissiveIntensity={0.8} />
       </mesh>
+
+      {/* Ambient status light aura */}
+      <pointLight position={[0, 0.4, SEAT_Z]} color={ringColor} intensity={0.8} distance={2.5} />
 
       <group ref={groupRef} position={[0, SEAT_TOP_Y, SEAT_Z]}>
         {/* Torso */}
