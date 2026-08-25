@@ -4,7 +4,8 @@ export type TaskStatus =
   | "in_progress"
   | "review"
   | "completed"
-  | "failed";
+  | "failed"
+  | "routed";
 
 export interface Task {
   id: string;

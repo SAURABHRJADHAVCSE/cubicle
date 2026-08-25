@@ -13,6 +13,7 @@ const STATUS_VARIANT: Record<TaskStatus, "default" | "secondary" | "outline" | "
   review: "secondary",
   completed: "secondary",
   failed: "destructive",
+  routed: "secondary",
 };
 
 export function TaskCard({ task }: { task: Task }) {
@@ -21,6 +22,10 @@ export function TaskCard({ task }: { task: Task }) {
     .map((id) => agents?.find((a) => a.id === id)?.name)
     .filter(Boolean)
     .join(", ");
+
+  const childTaskIds = Array.isArray(task.result_structured?.child_task_ids)
+    ? (task.result_structured!.child_task_ids as string[])
+    : null;
 
   return (
     <Card size="sm">
@@ -37,7 +42,13 @@ export function TaskCard({ task }: { task: Task }) {
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">{task.brief}</p>
-        <TaskResult task={task} />
+        {task.status === "routed" && childTaskIds ? (
+          <p className="text-sm text-muted-foreground">
+            Routed → {childTaskIds.length} subtask{childTaskIds.length === 1 ? "" : "s"} dispatched
+          </p>
+        ) : (
+          <TaskResult task={task} />
+        )}
       </CardContent>
     </Card>
   );

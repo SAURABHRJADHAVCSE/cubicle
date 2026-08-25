@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.task import Task
 from app.schemas.task import TaskCreate, TaskRead
-from app.workers.task_worker import execute_task
+from app.workers.task_worker import execute_task, route_task
 
 logger = structlog.get_logger()
 
@@ -62,6 +62,10 @@ async def execute_task_route(task_id: uuid.UUID, db: AsyncSession = Depends(get_
     await db.commit()
     await db.refresh(task)
 
-    execute_task.delay(str(task.id))
-    logger.info("task_dispatched", task_id=str(task.id))
+    if task.orchestrator_agent_id is not None:
+        route_task.delay(str(task.id))
+        logger.info("task_routed", task_id=str(task.id))
+    else:
+        execute_task.delay(str(task.id))
+        logger.info("task_dispatched", task_id=str(task.id))
     return task

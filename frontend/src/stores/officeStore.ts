@@ -11,10 +11,14 @@ export interface AgentSceneState {
   targetPosition: [number, number, number] | null;
 }
 
+const CELEBRATION_DURATION_MS = 3000;
+const celebrationTimeouts: Record<string, ReturnType<typeof setTimeout>> = {};
+
 interface OfficeStoreState {
   agents: Record<string, AgentSceneState>;
   setAgentStatus: (agentId: string, status: AgentStatus) => void;
   syncFromRoster: (agents: Agent[]) => void;
+  triggerCelebration: (agentId: string) => void;
 }
 
 function deriveAnimationState(status: AgentStatus): AnimationState {
@@ -31,7 +35,7 @@ function deriveAnimationState(status: AgentStatus): AnimationState {
   }
 }
 
-export const useOfficeStore = create<OfficeStoreState>((set) => ({
+export const useOfficeStore = create<OfficeStoreState>((set, get) => ({
   agents: {},
   setAgentStatus: (agentId, status) =>
     set((state) => ({
@@ -56,4 +60,32 @@ export const useOfficeStore = create<OfficeStoreState>((set) => ({
       }
       return { agents };
     }),
+  triggerCelebration: (agentId) => {
+    const existing = get().agents[agentId];
+    if (!existing) return;
+
+    set((state) => ({
+      agents: {
+        ...state.agents,
+        [agentId]: { ...state.agents[agentId], animationState: "celebrating" },
+      },
+    }));
+
+    // A rapid re-trigger (two tasks finishing close together) should extend
+    // the celebration rather than race a shorter earlier timeout to revert
+    // it early.
+    clearTimeout(celebrationTimeouts[agentId]);
+    celebrationTimeouts[agentId] = setTimeout(() => {
+      set((state) => {
+        const current = state.agents[agentId];
+        if (!current) return state;
+        return {
+          agents: {
+            ...state.agents,
+            [agentId]: { ...current, animationState: deriveAnimationState(current.status) },
+          },
+        };
+      });
+    }, CELEBRATION_DURATION_MS);
+  },
 }));

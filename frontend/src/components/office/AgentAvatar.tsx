@@ -61,7 +61,7 @@ export function AgentAvatar({ agent, position }: AgentAvatarProps) {
   // "the character looks alive at its own desk," not room-scale walking
   // (e.g. to the cafeteria) — that needs real pathfinding around cubicle
   // walls/furniture, which is a bigger follow-up, not attempted here.
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     if (!groupRef.current) return;
     const t = clock.elapsedTime;
     switch (animationState) {
@@ -72,11 +72,15 @@ export function AgentAvatar({ agent, position }: AgentAvatarProps) {
         groupRef.current.position.set(0, SEAT_TOP_Y + Math.sin(t * 4) * 0.03, SEAT_Z);
         groupRef.current.rotation.y = 0;
         break;
-      case "celebrating":
-        // TODO(V0.2 task-complete celebration): jump/spin burst
-        groupRef.current.position.set(0, SEAT_TOP_Y + Math.sin(t * 1.5) * 0.05, SEAT_Z);
-        groupRef.current.rotation.y = 0;
+      case "celebrating": {
+        // Task-complete celebration: a bouncy jump (always upward, not a
+        // symmetric sway) combined with a continuous spin, for the ~3s
+        // window officeStore.triggerCelebration holds this state.
+        const jump = Math.abs(Math.sin(t * 6)) * 0.35;
+        groupRef.current.position.set(0, SEAT_TOP_Y + jump, SEAT_Z);
+        groupRef.current.rotation.y += delta * 6;
         break;
+      }
       case "idle":
       default:
         groupRef.current.position.set(

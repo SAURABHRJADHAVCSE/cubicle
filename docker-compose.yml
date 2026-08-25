@@ -46,6 +46,27 @@ services:
       redis:
         condition: service_healthy
 
+  cubicle-beat:
+    build: ./backend
+    command: celery -A app.workers beat -l info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-cubicle}:${POSTGRES_PASSWORD:-cubicle}@postgres:5432/${POSTGRES_DB:-cubicle}
+      - REDIS_URL=redis://redis:6379/0
+      - ENV=${ENV:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - SECRET_KEY=${SECRET_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./backend/app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   cubicle-web:
     build:
       context: ./frontend

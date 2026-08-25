@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { useAgents } from "@/hooks/useAgents";
 import { getSocket } from "@/lib/socket";
-import type { AgentStatusEvent } from "@/types/events";
+import { useAgents } from "@/hooks/useAgents";
+import type { SocialEvent } from "@/types/events";
 
 export interface SpeechBubbleState {
   id: string;
@@ -16,45 +16,37 @@ export interface SpeechBubbleState {
 const BUBBLE_LIFETIME_MS = 4000;
 
 /**
- * Turns real agent_status transitions into short speech bubbles.
+ * Speech bubbles are driven entirely by `social_event` now — real
+ * LLM-generated dialogue from `app/social/dialogue.py`, covering
+ * work-start/work-done lines today and (Phase 3) coffee/desk-visit/
+ * wind-down lines from the Celery Beat scheduler.
  *
- * cubicle_spec.md's speech bubbles are meant to come from a cheap-LLM
- * "social" dialogue system (Celery Beat scheduler + social/dialogue.py) —
- * that's V0.2 scope (social behavior scheduler, personality-driven
- * dialogue) and hasn't been built. These bubbles react to genuine status
- * changes with canned lines instead, so the UI element exists and works
- * against real events; swap in generated dialogue once V0.2's social
- * system lands.
+ * There used to be a second path here reacting directly to `agent_status`
+ * transitions with canned "On it!"/"Done!" text. That's gone: the only
+ * real agent-status transitions are idle↔working, and `social_event`'s
+ * `work_chat` already covers exactly those two triggers (with real
+ * dialogue, or its own canned fallback if the LLM call failed) — a
+ * parallel `agent_status` listener would just double up the same moments,
+ * not cover any additional case. (Note: a failed task also transitions the
+ * agent back to `"idle"` — backend-wise there's no separate agent-level
+ * "failed" status to distinguish from a normal completion.)
  */
 export function useSpeechBubbles(): SpeechBubbleState[] {
   const { data: agents } = useAgents();
   const [bubbles, setBubbles] = useState<SpeechBubbleState[]>([]);
-  const previousStatus = useRef<Record<string, string>>({});
 
   useEffect(() => {
     const socket = getSocket();
 
-    const onAgentStatus = (payload: AgentStatusEvent) => {
+    const onSocialEvent = (payload: SocialEvent) => {
       const agent = agents?.find((a) => a.id === payload.agent_id);
       if (!agent) return;
-
-      const prev = previousStatus.current[agent.id];
-      previousStatus.current[agent.id] = payload.status;
-      if (prev === payload.status) return;
-
-      const text =
-        payload.status === "working"
-          ? "On it!"
-          : prev === "working" && payload.status === "idle"
-            ? "Done! 🎉"
-            : null;
-      if (!text) return;
 
       const bubble: SpeechBubbleState = {
         id: `${agent.id}-${Date.now()}`,
         agentName: agent.name,
         accentColor: agent.accent_color,
-        text,
+        text: payload.dialogue,
       };
       setBubbles((current) => [...current, bubble]);
       setTimeout(() => {
@@ -62,9 +54,9 @@ export function useSpeechBubbles(): SpeechBubbleState[] {
       }, BUBBLE_LIFETIME_MS);
     };
 
-    socket.on("agent_status", onAgentStatus);
+    socket.on("social_event", onSocialEvent);
     return () => {
-      socket.off("agent_status", onAgentStatus);
+      socket.off("social_event", onSocialEvent);
     };
   }, [agents]);
 

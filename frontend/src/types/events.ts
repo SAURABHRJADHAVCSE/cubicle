@@ -12,6 +12,17 @@ export interface TaskStatusEvent {
   status: string;
 }
 
+export interface CelebrationEvent {
+  agent_id: string;
+}
+
+export interface SocialEvent {
+  agent_id: string;
+  event_type: string;
+  dialogue: string;
+  target_agent_id: string | null;
+}
+
 export interface ChatChunkEvent {
   agent_id: string;
   delta: string;
@@ -27,4 +38,6 @@ export interface ServerToClientEvents {
   task_status: (payload: TaskStatusEvent) => void;
   chat_chunk: (payload: ChatChunkEvent) => void;
   chat_done: (payload: ChatDoneEvent) => void;
+  celebration: (payload: CelebrationEvent) => void;
+  social_event: (payload: SocialEvent) => void;
 }

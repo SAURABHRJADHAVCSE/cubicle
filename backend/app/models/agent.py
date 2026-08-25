@@ -53,6 +53,17 @@ class Agent(Base):
     current_task_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("tasks.id")
     )
+    # When `status` last changed — set explicitly wherever status is
+    # reassigned (task_worker.py). Deliberately NOT `updated_at` reused for
+    # this: `updated_at` bumps on *any* column edit, which would make
+    # "idle for >2 min" (the social scheduler's idle-detection signal)
+    # unreliable if something unrelated touched the row mid-idle-streak.
+    status_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    # Cooldown marker so the social scheduler doesn't re-fire a coffee/desk
+    # -visit event on every single Beat tick while an agent stays idle.
+    last_social_trigger_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

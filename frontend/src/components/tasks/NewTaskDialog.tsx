@@ -15,9 +15,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAgents } from "@/hooks/useAgents";
 import { useCreateTask, useExecuteTask } from "@/hooks/useTasks";
+
+const NO_ORCHESTRATOR = "__none__";
 
 interface NewTaskDialogProps {
   open: boolean;
@@ -32,11 +41,16 @@ export function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps) {
   const [title, setTitle] = useState("");
   const [brief, setBrief] = useState("");
   const [assignedAgents, setAssignedAgents] = useState<string[]>([]);
+  const [orchestratorId, setOrchestratorId] = useState(NO_ORCHESTRATOR);
+
+  const isRouted = orchestratorId !== NO_ORCHESTRATOR;
+  const orchestrator = agents?.find((a) => a.id === orchestratorId);
 
   function reset() {
     setTitle("");
     setBrief("");
     setAssignedAgents([]);
+    setOrchestratorId(NO_ORCHESTRATOR);
   }
 
   function close() {
@@ -55,17 +69,22 @@ export function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps) {
       const task = await createTask.mutateAsync({
         title: title.trim(),
         brief: brief.trim(),
-        assigned_agents: assignedAgents,
+        // Routed via a boss agent: assigned_agents is a required non-null
+        // placeholder (the backend's `route_task` dynamically reassigns
+        // each subtask to whichever teammate the boss picks) rather than
+        // the user's own checkbox selection.
+        assigned_agents: isRouted ? [orchestratorId] : assignedAgents,
+        orchestrator_agent_id: isRouted ? orchestratorId : null,
       });
       await executeTask.mutateAsync(task.id);
-      toast.success("Task started");
+      toast.success(isRouted ? "Task routed" : "Task started");
       close();
     } catch {
       toast.error("Couldn't start the task — check the console/API logs");
     }
   }
 
-  const canStart = title.trim() && brief.trim() && assignedAgents.length > 0;
+  const canStart = title.trim() && brief.trim() && (isRouted || assignedAgents.length > 0);
   const isSubmitting = createTask.isPending || executeTask.isPending;
 
   return (
@@ -100,30 +119,55 @@ export function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps) {
             />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label>Assign to</Label>
-            {!agents?.length && (
-              <p className="text-sm text-muted-foreground">
-                No agents yet — add one first.
+          <div className="flex flex-col gap-1.5">
+            <Label>Route via boss agent (optional)</Label>
+            <Select value={orchestratorId} onValueChange={(v) => v && setOrchestratorId(v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_ORCHESTRATOR}>No boss — assign directly</SelectItem>
+                {agents?.map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name} &middot; {agent.role}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isRouted && (
+              <p className="text-xs text-muted-foreground">
+                {orchestrator?.name ?? "This agent"} will break the brief into subtasks and
+                assign each to the best-fit teammate.
               </p>
             )}
-            <div className="flex flex-col gap-2">
-              {agents?.map((agent) => (
-                <label key={agent.id} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={assignedAgents.includes(agent.id)}
-                    onCheckedChange={() => toggleAgent(agent.id)}
-                  />
-                  {agent.name} &middot; {agent.role}
-                </label>
-              ))}
-            </div>
           </div>
+
+          {!isRouted && (
+            <div className="flex flex-col gap-2">
+              <Label>Assign to</Label>
+              {!agents?.length && (
+                <p className="text-sm text-muted-foreground">
+                  No agents yet — add one first.
+                </p>
+              )}
+              <div className="flex flex-col gap-2">
+                {agents?.map((agent) => (
+                  <label key={agent.id} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={assignedAgents.includes(agent.id)}
+                      onCheckedChange={() => toggleAgent(agent.id)}
+                    />
+                    {agent.name} &middot; {agent.role}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
           <Button onClick={handleStart} disabled={!canStart || isSubmitting}>
-            {isSubmitting ? "Starting…" : "Start"}
+            {isSubmitting ? "Starting…" : isRouted ? "Route" : "Start"}
           </Button>
         </DialogFooter>
       </DialogContent>

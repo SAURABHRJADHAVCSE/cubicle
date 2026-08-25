@@ -8,7 +8,7 @@ from app.engines.litellm_engine import LiteLLMEngine
 from app.engines.opencode import OpenCodeEngine
 from app.models.agent import Agent
 
-_DEFAULT_OLLAMA_MODEL = "llama3.2"
+_DEFAULT_OLLAMA_MODEL = "llama3.1:8b"
 _DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5"
 
 # CLI providers routed through GenericCliEngine — see that module's
