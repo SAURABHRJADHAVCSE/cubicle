@@ -23,7 +23,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       <Button
         variant="ghost"
         size="icon"
-        className={`rounded-xl border border-border bg-card/60 opacity-50 ${className}`}
+        className={`rounded-lg border border-border bg-card/60 opacity-50 ${className}`}
         aria-label="Toggle theme"
       >
         <Sun className="size-4" />
@@ -37,11 +37,11 @@ export function ThemeToggle({ className }: { className?: string }) {
     <Button
       variant="ghost"
       size="icon"
-      className={`rounded-xl border border-slate-300 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all ${className}`}
+      className={`rounded-lg border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all ${className}`}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label="Toggle theme"
     >
-      {isDark ? <Sun className="size-4 text-amber-400" /> : <Moon className="size-4 text-indigo-600" />}
+      {isDark ? <Sun className="size-4 text-amber-400" /> : <Moon className="size-4 text-teal-600" />}
     </Button>
   );
 }

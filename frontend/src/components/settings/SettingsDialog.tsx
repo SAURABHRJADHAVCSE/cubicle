@@ -40,14 +40,14 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-2 border-b border-slate-300 pb-2 dark:border-white/10">
+        <div className="flex items-center gap-2 border-b border-slate-200 pb-2 dark:border-white/10">
           <Button
             size="sm"
             variant={tab === "providers" ? "default" : "ghost"}
-            className={`gap-2 rounded-xl text-xs font-bold ${
+            className={`gap-2 rounded-lg text-xs font-bold ${
               tab === "providers"
-                ? "bg-indigo-600 text-white shadow-md"
-                : "text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"
+                ? "bg-teal-600 text-white shadow-sm hover:bg-teal-500 dark:bg-teal-600 dark:hover:bg-teal-500"
+                : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
             }`}
             onClick={() => setTab("providers")}
           >
@@ -56,10 +56,10 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           <Button
             size="sm"
             variant={tab === "appearance" ? "default" : "ghost"}
-            className={`gap-2 rounded-xl text-xs font-bold ${
+            className={`gap-2 rounded-lg text-xs font-bold ${
               tab === "appearance"
-                ? "bg-indigo-600 text-white shadow-md"
-                : "text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"
+                ? "bg-teal-600 text-white shadow-sm hover:bg-teal-500 dark:bg-teal-600 dark:hover:bg-teal-500"
+                : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
             }`}
             onClick={() => setTab("appearance")}
           >

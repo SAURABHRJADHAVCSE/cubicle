@@ -55,7 +55,7 @@ export function ClaudeAuthCard() {
   const awaitingCode = startAuth.isSuccess;
 
   return (
-    <div className="glass-panel brutal-card rounded-2xl border border-slate-300 bg-white/80 p-4 dark:border-white/10 dark:bg-slate-900/60">
+    <div className="glass-panel rounded-lg border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-heading text-sm font-bold tracking-wide text-slate-900 uppercase dark:text-slate-100">
           Claude Code CLI
@@ -65,7 +65,7 @@ export function ClaudeAuthCard() {
             className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold ${
               isConnected
                 ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                : "border-slate-300 dark:border-white/10 bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
+                : "border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
             }`}
           >
             {isConnected ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
@@ -84,7 +84,7 @@ export function ClaudeAuthCard() {
             size="sm"
             onClick={handleConnect}
             disabled={startAuth.isPending}
-            className="w-fit rounded-lg bg-indigo-600 font-bold text-white shadow-md hover:bg-indigo-500"
+            className="w-fit rounded-lg bg-teal-600 font-bold text-white shadow-sm hover:bg-teal-500 dark:bg-teal-600 dark:hover:bg-teal-500"
           >
             {startAuth.isPending
               ? "Starting…"
@@ -95,14 +95,14 @@ export function ClaudeAuthCard() {
         )}
 
         {awaitingCode && startAuth.data && (
-          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-100 p-3 dark:border-white/10 dark:bg-slate-800/60">
+          <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/60">
             <p className="text-xs text-slate-600 dark:text-slate-300">
               1. Sign in at the tab that just opened (or{" "}
               <a
                 href={startAuth.data.auth_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-indigo-600 underline underline-offset-4 dark:text-indigo-400"
+                className="inline-flex items-center gap-1 text-teal-600 underline underline-offset-4 dark:text-teal-400 font-semibold"
               >
                 open it again <ExternalLink className="size-3" />
               </a>
@@ -119,13 +119,13 @@ export function ClaudeAuthCard() {
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="Paste the code here"
                   onKeyDown={(e) => e.key === "Enter" && handleSubmitCode()}
-                  className="border-slate-300 dark:border-white/10 dark:bg-slate-900"
+                  className="border-slate-200 dark:border-white/10 dark:bg-slate-900 rounded-lg"
                 />
                 <Button
                   size="sm"
                   onClick={handleSubmitCode}
                   disabled={!code.trim() || completeAuth.isPending}
-                  className="rounded-lg bg-indigo-600 font-bold text-white shadow-md hover:bg-indigo-500"
+                  className="rounded-lg bg-teal-600 font-bold text-white shadow-sm hover:bg-teal-500 dark:bg-teal-600 dark:hover:bg-teal-500"
                 >
                   {completeAuth.isPending ? "Connecting…" : "Submit"}
                 </Button>

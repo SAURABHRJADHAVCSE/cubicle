@@ -20,10 +20,10 @@ export function AppearanceSettingsCard() {
   if (!mounted) return null;
 
   return (
-    <Card className="glass-panel brutal-card border-slate-300 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 p-4">
+    <Card className="glass-panel border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 p-4 rounded-lg shadow-sm">
       <CardHeader className="p-0 pb-3">
         <div className="flex items-center gap-2">
-          <Palette className="size-4 text-indigo-600 dark:text-indigo-400" />
+          <Palette className="size-4 text-teal-600 dark:text-teal-400" />
           <CardTitle className="font-heading text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
             Appearance & Theme
           </CardTitle>
@@ -33,7 +33,7 @@ export function AppearanceSettingsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 p-0 pt-2">
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/50 p-3">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 p-3">
           <div>
             <p className="text-xs font-bold text-slate-900 dark:text-white">Workspace Color Mode</p>
             <p className="text-[10px] text-slate-500 dark:text-slate-400">Current theme: <span className="font-semibold uppercase">{theme}</span></p>
@@ -43,7 +43,7 @@ export function AppearanceSettingsCard() {
               size="sm"
               variant={theme === "light" ? "default" : "outline"}
               className={`gap-1.5 rounded-lg text-xs font-bold ${
-                theme === "light" ? "bg-indigo-600 text-white" : "border-slate-300 dark:border-white/10"
+                theme === "light" ? "bg-teal-600 hover:bg-teal-500 text-white" : "border-slate-200 dark:border-white/10"
               }`}
               onClick={() => setTheme("light")}
             >
@@ -53,7 +53,7 @@ export function AppearanceSettingsCard() {
               size="sm"
               variant={theme === "dark" ? "default" : "outline"}
               className={`gap-1.5 rounded-lg text-xs font-bold ${
-                theme === "dark" ? "bg-indigo-600 text-white" : "border-slate-300 dark:border-white/10"
+                theme === "dark" ? "bg-teal-600 hover:bg-teal-500 text-white" : "border-slate-200 dark:border-white/10"
               }`}
               onClick={() => setTheme("dark")}
             >

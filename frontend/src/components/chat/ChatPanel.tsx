@@ -43,9 +43,9 @@ export function ChatPanel() {
   const waitingForFirstToken = sendMessage.isPending && !streamingText;
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-slate-950/95 shadow-2xl backdrop-blur-2xl md:absolute md:inset-y-0 md:right-0 md:w-[92%] md:max-w-[380px] md:border-l md:border-white/10 text-slate-100">
-      <div className="flex items-center gap-3 border-b border-white/10 bg-slate-900/80 px-4 py-3 backdrop-blur-xl">
-        <Avatar className="size-8 ring-2 ring-white/10 shadow-sm" style={{ backgroundColor: agent?.accent_color }}>
+    <div className="fixed inset-0 z-40 flex flex-col bg-white/95 dark:bg-slate-950/95 shadow-2xl backdrop-blur-2xl md:absolute md:inset-y-0 md:right-0 md:w-[92%] md:max-w-[380px] md:border-l md:border-slate-200 dark:md:border-white/10 text-slate-900 dark:text-slate-100">
+      <div className="flex items-center gap-3 border-b border-slate-200 dark:border-white/10 bg-slate-50/90 dark:bg-slate-900/80 px-4 py-3 backdrop-blur-xl">
+        <Avatar className="size-8 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm" style={{ backgroundColor: agent?.accent_color }}>
           <AvatarFallback
             className="text-[11px] font-bold text-white"
             style={{ backgroundColor: agent?.accent_color }}
@@ -55,18 +55,18 @@ export function ChatPanel() {
         </Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="truncate font-heading text-xs font-semibold text-slate-100">{agent?.name ?? "Agent"}</p>
-            <span className="size-1.5 rounded-full bg-emerald-400" />
+            <p className="truncate font-heading text-xs font-semibold text-slate-900 dark:text-slate-100">{agent?.name ?? "Agent"}</p>
+            <span className="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
           </div>
-          <p className="truncate text-[10px] text-slate-400">Direct line · {agent?.role}</p>
+          <p className="truncate text-[10px] text-slate-500 dark:text-slate-400">Direct line · {agent?.role}</p>
         </div>
-        <div className="mr-1 hidden items-center gap-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 text-[9px] font-bold text-indigo-300 sm:flex">
+        <div className="mr-1 hidden items-center gap-1 rounded-full bg-teal-500/15 border border-teal-500/30 px-2 py-0.5 text-[9px] font-bold text-teal-700 dark:text-teal-300 sm:flex">
           <Sparkles className="size-2.5" /> AI
         </div>
         <Button
           variant="ghost"
           size="icon-xs"
-          className="rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+          className="rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white"
           onClick={() => selectAgent(null)}
           aria-label="Close chat"
         >
@@ -78,11 +78,11 @@ export function ChatPanel() {
         <div className="flex flex-col gap-2.5">
           {history?.length === 0 && !streamingText && (
             <div className="mx-auto mt-10 max-w-[230px] text-center">
-              <div className="mx-auto flex size-9 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+              <div className="mx-auto flex size-9 items-center justify-center rounded-lg bg-teal-500/15 text-teal-600 dark:text-teal-400 border border-teal-500/30">
                 <Sparkles className="size-4" />
               </div>
-              <p className="mt-3 text-xs font-semibold text-slate-200">Start a conversation</p>
-              <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+              <p className="mt-3 text-xs font-semibold text-slate-900 dark:text-slate-200">Start a conversation</p>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
                 Ask for an update, discuss a task, or give {agent?.name ?? "this agent"} a new instruction.
               </p>
             </div>
@@ -107,10 +107,10 @@ export function ChatPanel() {
         </div>
       </ScrollArea>
 
-      <div className="border-t border-white/10 bg-slate-900/90 p-3 backdrop-blur-xl">
-        <div className="flex gap-2 rounded-xl border border-white/10 bg-slate-800/80 p-1.5 pl-3 shadow-inner">
+      <div className="border-t border-slate-200 dark:border-white/10 bg-slate-50/90 dark:bg-slate-900/90 p-3 backdrop-blur-xl">
+        <div className="flex gap-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100/80 dark:bg-slate-800/80 p-1.5 pl-3 shadow-inner">
           <Input
-            className="h-8 flex-1 border-0 bg-transparent px-0 text-xs text-slate-100 placeholder:text-slate-500 shadow-none focus-visible:ring-0"
+            className="h-8 flex-1 border-0 bg-transparent px-0 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-none focus-visible:ring-0"
             placeholder={`Message ${agent?.name ?? "agent"}…`}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -118,7 +118,7 @@ export function ChatPanel() {
           />
           <Button
             size="icon-sm"
-            className="rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 shadow-md"
+            className="rounded-lg bg-teal-600 text-white hover:bg-teal-500 shadow-sm dark:bg-teal-600 dark:hover:bg-teal-500"
             onClick={handleSend}
             disabled={!draft.trim() || sendMessage.isPending}
             aria-label="Send message"

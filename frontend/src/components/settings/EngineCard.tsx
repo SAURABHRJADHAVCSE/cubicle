@@ -19,7 +19,7 @@ export function EngineCard({ engineKey }: EngineCardProps) {
   const connected = engines?.[engineKey] ?? false;
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/50 p-3">
+    <div className="flex flex-col gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 p-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-bold text-slate-900 dark:text-white">{info.label}</p>
         {!isLoading && (
@@ -27,7 +27,7 @@ export function EngineCard({ engineKey }: EngineCardProps) {
             className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold ${
               connected
                 ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                : "border-slate-300 dark:border-white/10 bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
+                : "border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
             }`}
           >
             {connected ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}

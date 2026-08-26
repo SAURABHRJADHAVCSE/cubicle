@@ -109,12 +109,12 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
           {STEPS.map((label, i) => (
             <div
               key={label}
-              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all ${
                 i === step
-                  ? "border-indigo-600 bg-indigo-600 text-white shadow-md"
+                  ? "border-teal-600 bg-teal-600 text-white shadow-sm"
                   : i < step
                     ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                    : "border-slate-300 bg-white/60 text-slate-400 dark:border-white/10 dark:bg-slate-900/40"
+                    : "border-slate-200 bg-white/60 text-slate-400 dark:border-white/10 dark:bg-slate-900/40"
               }`}
             >
               <span className="flex size-4 items-center justify-center rounded-full bg-black/20 text-[10px]">
@@ -125,7 +125,7 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
           ))}
         </div>
 
-        <div className="glass-panel brutal-card rounded-2xl border border-slate-300 bg-white/90 p-5 shadow-xl dark:border-white/15 dark:bg-slate-900/80">
+        <div className="glass-panel rounded-lg border border-slate-200 bg-white/90 p-5 shadow-lg dark:border-white/15 dark:bg-slate-900/80">
           <h3 className="mb-4 font-heading text-lg font-bold tracking-wide text-slate-900 uppercase dark:text-slate-100">
             {STEPS[step]}
           </h3>
@@ -147,11 +147,11 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
           {step === 1 && (
             <div className="flex flex-col gap-3.5 text-xs">
               {anyEngineAvailable ? (
-                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 font-semibold text-emerald-700 dark:text-emerald-300">
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 font-semibold text-emerald-700 dark:text-emerald-300">
                   ✓ At least one AI engine is active and ready to process agent tasks!
                 </div>
               ) : (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 font-medium text-amber-700 dark:text-amber-300">
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 font-medium text-amber-700 dark:text-amber-300">
                   No engine detected yet — pick one below to get started.
                 </div>
               )}
@@ -160,7 +160,7 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
                   {missing.map((key) => (
                     <div
                       key={key}
-                      className="rounded-xl border border-slate-200 bg-slate-100 p-3 text-slate-600 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-300"
+                      className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-600 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-300"
                     >
                       <p className="font-bold text-slate-900 dark:text-white">{engineInfo(key).label}</p>
                       <p className="mt-1">{engineInfo(key).guidance}</p>
@@ -183,7 +183,7 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
                     size="sm"
                     variant="outline"
                     disabled={running}
-                    className="h-auto flex-col items-start justify-start border-slate-300 bg-white p-3 text-left hover:border-indigo-500 dark:border-white/10 dark:bg-slate-800"
+                    className="h-auto flex-col items-start justify-start border-slate-200 bg-white p-3 text-left hover:border-teal-500 dark:border-white/10 dark:bg-slate-800 rounded-lg"
                     onClick={() => runDemo(i)}
                   >
                     <span className="text-xs font-bold text-slate-900 dark:text-white">{template.name}</span>
@@ -192,8 +192,8 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
                 ))}
               </div>
               {running && (
-                <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                  <span className="size-2 animate-ping rounded-full bg-indigo-500" />
+                <div className="flex items-center gap-2 text-xs font-semibold text-teal-600 dark:text-teal-400">
+                  <span className="size-2 animate-ping rounded-full bg-teal-500" />
                   Agent is processing demo task…
                 </div>
               )}
@@ -206,21 +206,21 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
           <Button
             variant="outline"
             disabled={step === 0}
-            className="rounded-xl border-slate-300 dark:border-white/10"
+            className="rounded-lg border-slate-200 dark:border-white/10"
             onClick={() => setStep((s) => s - 1)}
           >
             Back
           </Button>
           {step < STEPS.length - 1 ? (
             <Button
-              className="rounded-xl bg-indigo-600 font-bold text-white shadow-md hover:bg-indigo-500"
+              className="rounded-lg bg-teal-600 font-bold text-white shadow-sm hover:bg-teal-500 dark:bg-teal-600 dark:hover:bg-teal-500"
               onClick={() => setStep((s) => s + 1)}
             >
               Next
             </Button>
           ) : (
             <Button
-              className="rounded-xl bg-emerald-600 font-bold text-white shadow-md hover:bg-emerald-500"
+              className="rounded-lg bg-emerald-600 font-bold text-white shadow-sm hover:bg-emerald-500"
               onClick={() => handleOpenChange(false)}
             >
               Enter Office

@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { Providers } from "./providers";
 import { PwaRegister } from "@/components/PwaRegister";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -15,9 +16,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Sora gives headings/titles some personality that Geist alone doesn't —
-// a friendlier, more distinctive geometric sans, fitting for a product
-// about agents with names and moods rather than a generic dashboard.
 export const metadata: Metadata = {
   title: "Cubicle",
   description: "Self-hosted AI office. Watch your agents work.",
@@ -25,14 +23,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#6366f1",
+  themeColor: "#0d9488",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${plusJakartaSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-col overflow-hidden">
         <PwaRegister />
