@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export function ThemeToggle({ className }: { className?: string }) {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -31,17 +31,17 @@ export function ThemeToggle({ className }: { className?: string }) {
     );
   }
 
-  const isDark = theme === "dark";
+  const isDark = resolvedTheme === "dark";
 
   return (
     <Button
       variant="ghost"
       size="icon"
-      className={`rounded-lg border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all ${className}`}
+      className={`rounded-lg border border-border bg-card/75 text-foreground hover:bg-accent hover:text-accent-foreground transition-all ${className}`}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label="Toggle theme"
     >
-      {isDark ? <Sun className="size-4 text-amber-400" /> : <Moon className="size-4 text-teal-600" />}
+      {isDark ? <Sun className="size-4 text-amber-400" /> : <Moon className="size-4 text-primary" />}
     </Button>
   );
 }

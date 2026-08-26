@@ -24,13 +24,13 @@ const BASE_COLORS: Record<BlockType, string> = {
   stone_brick: "#334155",
   red_wool: "#9f1239",
   quartz: "#f8fafc",
-  glass: "#38bdf8",
+  glass: "#8b86c9",
   iron: "#64748b",
   dirt: "#583e2e",
   cactus: "#15803d",
   leaves: "#16a34a",
   monitor_screen: "#0f172a",
-  sea_lantern: "#38bdf8",
+  sea_lantern: "#f3c969",
   cake_side: "#b45309",
   cake_top: "#f8fafc",
   skin: "#f3a683",
@@ -116,7 +116,7 @@ export function generateBlockTexture(type: BlockType): THREE.CanvasTexture {
     ctx.fillRect(0, 0, 32, 32);
 
     // Code lines
-    ctx.fillStyle = "#38bdf8"; // blue keyword
+    ctx.fillStyle = "#818cf8"; // indigo keyword
     ctx.fillRect(3, 4, 6, 2);
     ctx.fillStyle = "#a855f7"; // purple var
     ctx.fillRect(10, 4, 10, 2);
@@ -126,19 +126,19 @@ export function generateBlockTexture(type: BlockType): THREE.CanvasTexture {
 
     ctx.fillStyle = "#eab308"; // yellow fn
     ctx.fillRect(6, 14, 8, 2);
-    ctx.fillStyle = "#38bdf8";
+    ctx.fillStyle = "#818cf8";
     ctx.fillRect(15, 14, 10, 2);
 
     ctx.fillStyle = "#ec4899"; // pink return
     ctx.fillRect(6, 19, 12, 2);
 
-    ctx.fillStyle = "#38bdf8";
+    ctx.fillStyle = "#818cf8";
     ctx.fillRect(3, 24, 4, 2);
     // Cursor glow
     ctx.fillStyle = "#60a5fa";
     ctx.fillRect(8, 24, 2, 3);
   } else if (type === "sea_lantern") {
-    ctx.strokeStyle = "#38bdf8";
+    ctx.strokeStyle = "#f3c969";
     ctx.lineWidth = 3;
     ctx.strokeRect(2, 2, 28, 28);
     ctx.fillStyle = "rgba(255,255,255,0.8)";

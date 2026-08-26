@@ -56,11 +56,11 @@ export function ChatPanel() {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="truncate font-heading text-xs font-semibold text-slate-900 dark:text-slate-100">{agent?.name ?? "Agent"}</p>
-            <span className="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+            <span className="size-1.5 rounded-full bg-success" />
           </div>
           <p className="truncate text-[10px] text-slate-500 dark:text-slate-400">Direct line · {agent?.role}</p>
         </div>
-        <div className="mr-1 hidden items-center gap-1 rounded-full bg-teal-500/15 border border-teal-500/30 px-2 py-0.5 text-[9px] font-bold text-teal-700 dark:text-teal-300 sm:flex">
+        <div className="mr-1 hidden items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary sm:flex">
           <Sparkles className="size-2.5" /> AI
         </div>
         <Button
@@ -78,7 +78,7 @@ export function ChatPanel() {
         <div className="flex flex-col gap-2.5">
           {history?.length === 0 && !streamingText && (
             <div className="mx-auto mt-10 max-w-[230px] text-center">
-              <div className="mx-auto flex size-9 items-center justify-center rounded-lg bg-teal-500/15 text-teal-600 dark:text-teal-400 border border-teal-500/30">
+              <div className="mx-auto flex size-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
                 <Sparkles className="size-4" />
               </div>
               <p className="mt-3 text-xs font-semibold text-slate-900 dark:text-slate-200">Start a conversation</p>
@@ -118,7 +118,7 @@ export function ChatPanel() {
           />
           <Button
             size="icon-sm"
-            className="rounded-lg bg-teal-600 text-white hover:bg-teal-500 shadow-sm dark:bg-teal-600 dark:hover:bg-teal-500"
+            className="rounded-lg bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
             onClick={handleSend}
             disabled={!draft.trim() || sendMessage.isPending}
             aria-label="Send message"

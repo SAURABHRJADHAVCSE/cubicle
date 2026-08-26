@@ -46,7 +46,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             variant={tab === "providers" ? "default" : "ghost"}
             className={`gap-2 rounded-lg text-xs font-bold ${
               tab === "providers"
-                ? "bg-teal-600 text-white shadow-sm hover:bg-teal-500 dark:bg-teal-600 dark:hover:bg-teal-500"
+                ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
                 : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
             }`}
             onClick={() => setTab("providers")}
@@ -58,7 +58,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             variant={tab === "appearance" ? "default" : "ghost"}
             className={`gap-2 rounded-lg text-xs font-bold ${
               tab === "appearance"
-                ? "bg-teal-600 text-white shadow-sm hover:bg-teal-500 dark:bg-teal-600 dark:hover:bg-teal-500"
+                ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
                 : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
             }`}
             onClick={() => setTab("appearance")}

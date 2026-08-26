@@ -64,7 +64,7 @@ export function ClaudeAuthCard() {
           <span
             className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold ${
               isConnected
-                ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                ? "border-success/30 bg-success/15 text-success"
                 : "border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
             }`}
           >
@@ -84,7 +84,7 @@ export function ClaudeAuthCard() {
             size="sm"
             onClick={handleConnect}
             disabled={startAuth.isPending}
-            className="w-fit rounded-lg bg-teal-600 font-bold text-white shadow-sm hover:bg-teal-500 dark:bg-teal-600 dark:hover:bg-teal-500"
+            className="w-fit rounded-lg bg-primary font-bold text-primary-foreground shadow-sm hover:bg-primary/90"
           >
             {startAuth.isPending
               ? "Starting…"
@@ -102,7 +102,7 @@ export function ClaudeAuthCard() {
                 href={startAuth.data.auth_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-teal-600 underline underline-offset-4 dark:text-teal-400 font-semibold"
+                className="inline-flex items-center gap-1 font-semibold text-primary underline underline-offset-4"
               >
                 open it again <ExternalLink className="size-3" />
               </a>
@@ -125,7 +125,7 @@ export function ClaudeAuthCard() {
                   size="sm"
                   onClick={handleSubmitCode}
                   disabled={!code.trim() || completeAuth.isPending}
-                  className="rounded-lg bg-teal-600 font-bold text-white shadow-sm hover:bg-teal-500 dark:bg-teal-600 dark:hover:bg-teal-500"
+                  className="rounded-lg bg-primary font-bold text-primary-foreground shadow-sm hover:bg-primary/90"
                 >
                   {completeAuth.isPending ? "Connecting…" : "Submit"}
                 </Button>

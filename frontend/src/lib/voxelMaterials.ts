@@ -40,10 +40,10 @@ export function getVoxelMaterial(type: BlockType): THREE.MeshStandardMaterial {
 
   if (EMISSIVE_TYPES.has(type)) {
     if (type === "sea_lantern") {
-      params.emissive = new THREE.Color("#38bdf8");
+      params.emissive = new THREE.Color("#f3c969");
       params.emissiveIntensity = 0.7;
     } else if (type === "monitor_screen") {
-      params.emissive = new THREE.Color("#0284c7");
+      params.emissive = new THREE.Color("#4f46e5");
       params.emissiveIntensity = 0.3;
     }
   }

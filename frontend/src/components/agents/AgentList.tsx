@@ -17,7 +17,7 @@ export function AgentList() {
     <div className="flex h-full min-h-0 flex-col gap-2">
       <div className="flex items-center justify-between px-1 shrink-0">
         <div className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-teal-500/15 text-teal-600 dark:text-teal-400 border border-teal-500/30">
+          <div className="flex size-7 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
             <UsersRound className="size-3.5" />
           </div>
           <div>
@@ -29,7 +29,7 @@ export function AgentList() {
         </div>
         <Button
           size="sm"
-          className="h-7 rounded-lg bg-teal-600 px-2.5 text-xs text-white shadow-sm hover:bg-teal-500 dark:bg-teal-600 dark:hover:bg-teal-500"
+          className="h-7 rounded-lg bg-primary px-2.5 text-xs text-primary-foreground shadow-sm hover:bg-primary/90"
           onClick={() => setAddOpen(true)}
         >
           <Plus className="size-3.5" />

@@ -64,7 +64,7 @@ export function AgentAvatar({ agent, position }: AgentAvatarProps) {
     [],
   );
   const headsetMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#38bdf8", metalness: 0.6, roughness: 0.3 }),
+    () => new THREE.MeshStandardMaterial({ color: "#818cf8", metalness: 0.6, roughness: 0.3 }),
     [],
   );
 

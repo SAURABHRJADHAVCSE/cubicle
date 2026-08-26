@@ -50,7 +50,7 @@ function LampPost({ position }: { position: [number, number, number] }) {
       <mesh position={[0, 1.85, 0]} material={lantern}>
         <boxGeometry args={[0.35, 0.35, 0.35]} />
       </mesh>
-      <pointLight position={[0, 1.85, 0]} color="#38bdf8" intensity={1.2} distance={10} />
+      <pointLight position={[0, 1.85, 0]} color="#f3c969" intensity={1.2} distance={10} />
     </group>
   );
 }
@@ -139,7 +139,7 @@ export function Office() {
 
       <CameraRig width={width} depth={depth} />
 
-      <hemisphereLight args={["#93c5fd", "#1e1b4b", 1.2]} />
+      <hemisphereLight args={["#c4b5fd", "#1e1b4b", 1.2]} />
       <ambientLight intensity={0.6} />
       <directionalLight
         position={[width / 2, 16, depth / 3]}

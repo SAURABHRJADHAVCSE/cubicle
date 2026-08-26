@@ -10,10 +10,10 @@ import { useUIStore } from "@/stores/uiStore";
 import type { Agent, AgentMood, AgentStatus } from "@/types/agent";
 
 const STATUS_STYLES: Record<AgentStatus, { label: string; dot: string; surface: string }> = {
-  idle: { label: "Available", dot: "bg-emerald-500 dark:bg-emerald-400", surface: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30" },
-  working: { label: "Working", dot: "bg-cyan-500 dark:bg-cyan-400", surface: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30" },
-  thinking: { label: "Thinking", dot: "bg-teal-500 dark:bg-teal-400", surface: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30" },
-  break: { label: "On break", dot: "bg-amber-500 dark:bg-amber-400", surface: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30" },
+  idle: { label: "Available", dot: "bg-success", surface: "bg-success/12 text-success border border-success/25" },
+  working: { label: "Working", dot: "bg-info", surface: "bg-info/12 text-info border border-info/25" },
+  thinking: { label: "Thinking", dot: "bg-primary", surface: "bg-primary/12 text-primary border border-primary/25" },
+  break: { label: "On break", dot: "bg-warning", surface: "bg-warning/12 text-warning border border-warning/25" },
   offline: { label: "Offline", dot: "bg-slate-400", surface: "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700" },
 };
 
@@ -40,7 +40,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
 
   return (
     <div
-      className="group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-lg border border-slate-200 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 p-2 shadow-sm transition-all hover:border-teal-500/40 hover:bg-white dark:hover:bg-slate-900/90"
+      className="group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-lg border border-slate-200 bg-white/70 p-2 shadow-sm transition-all hover:border-primary/40 hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:hover:bg-slate-900/90"
       onClick={() => selectAgent(agent.id)}
     >
       <span
@@ -74,7 +74,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
           <span className="truncate capitalize">{agent.engine_provider.replace("_", " ")}</span>
         </div>
         {currentTask && (
-          <p className="mt-0.5 truncate text-[9.5px] font-medium text-teal-600 dark:text-teal-400">
+          <p className="mt-0.5 truncate text-[9.5px] font-medium text-primary">
             Working on {currentTask.title}
           </p>
         )}
@@ -93,7 +93,7 @@ export function AgentCard({ agent }: { agent: Agent }) {
       >
         <Trash2 className="size-3" />
       </Button>
-      <ChevronRight className="size-3.5 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-teal-600 dark:group-hover:text-teal-400" />
+      <ChevronRight className="size-3.5 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
     </div>
   );
 }

@@ -111,9 +111,9 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
               key={label}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all ${
                 i === step
-                  ? "border-teal-600 bg-teal-600 text-white shadow-sm"
+                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
                   : i < step
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    ? "border-success/40 bg-success/10 text-success"
                     : "border-slate-200 bg-white/60 text-slate-400 dark:border-white/10 dark:bg-slate-900/40"
               }`}
             >
@@ -183,7 +183,7 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
                     size="sm"
                     variant="outline"
                     disabled={running}
-                    className="h-auto flex-col items-start justify-start border-slate-200 bg-white p-3 text-left hover:border-teal-500 dark:border-white/10 dark:bg-slate-800 rounded-lg"
+                    className="h-auto flex-col items-start justify-start rounded-lg border-slate-200 bg-white p-3 text-left hover:border-primary dark:border-white/10 dark:bg-slate-800"
                     onClick={() => runDemo(i)}
                   >
                     <span className="text-xs font-bold text-slate-900 dark:text-white">{template.name}</span>
@@ -192,8 +192,8 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
                 ))}
               </div>
               {running && (
-                <div className="flex items-center gap-2 text-xs font-semibold text-teal-600 dark:text-teal-400">
-                  <span className="size-2 animate-ping rounded-full bg-teal-500" />
+                <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                  <span className="size-2 animate-ping rounded-full bg-primary" />
                   Agent is processing demo task…
                 </div>
               )}
@@ -213,14 +213,14 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
           </Button>
           {step < STEPS.length - 1 ? (
             <Button
-              className="rounded-lg bg-teal-600 font-bold text-white shadow-sm hover:bg-teal-500 dark:bg-teal-600 dark:hover:bg-teal-500"
+              className="rounded-lg bg-primary font-bold text-primary-foreground shadow-sm hover:bg-primary/90"
               onClick={() => setStep((s) => s + 1)}
             >
               Next
             </Button>
           ) : (
             <Button
-              className="rounded-lg bg-emerald-600 font-bold text-white shadow-sm hover:bg-emerald-500"
+              className="rounded-lg bg-success font-bold text-success-foreground shadow-sm hover:bg-success/90"
               onClick={() => handleOpenChange(false)}
             >
               Enter Office

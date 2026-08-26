@@ -10,12 +10,12 @@ import type { Task, TaskStatus } from "@/types/task";
 
 const STATUS_STYLES: Record<TaskStatus, { label: string; className: string }> = {
   pending: { label: "Queued", className: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700" },
-  assigned: { label: "Assigned", className: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30" },
-  in_progress: { label: "In progress", className: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30" },
-  review: { label: "In review", className: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30" },
-  completed: { label: "Completed", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30" },
+  assigned: { label: "Assigned", className: "bg-info/12 text-info border border-info/25" },
+  in_progress: { label: "In progress", className: "bg-info/12 text-info border border-info/25" },
+  review: { label: "In review", className: "bg-primary/12 text-primary border border-primary/25" },
+  completed: { label: "Completed", className: "bg-success/12 text-success border border-success/25" },
   failed: { label: "Failed", className: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30" },
-  routed: { label: "Routed", className: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30" },
+  routed: { label: "Routed", className: "bg-primary/12 text-primary border border-primary/25" },
 };
 
 function StatusIcon({ status }: { status: TaskStatus }) {
@@ -43,7 +43,7 @@ export function TaskCard({ task }: { task: Task }) {
     : null;
 
   return (
-    <article className="rounded-lg border border-slate-200 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 p-3 shadow-sm transition-all hover:border-teal-500/40 hover:bg-white dark:hover:bg-slate-900/90">
+    <article className="rounded-lg border border-slate-200 bg-white/70 p-3 shadow-sm transition-all hover:border-primary/40 hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:hover:bg-slate-900/90">
       <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -88,7 +88,7 @@ export function TaskCard({ task }: { task: Task }) {
       </div>
 
       {task.status === "routed" && childTaskIds ? (
-        <div className="mt-2 rounded-md bg-teal-500/10 border border-teal-500/20 px-2.5 py-1.5 text-[10px] text-teal-700 dark:text-teal-300">
+        <div className="mt-2 rounded-md border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-[10px] text-primary">
           Split into {childTaskIds.length} subtask{childTaskIds.length === 1 ? "" : "s"}.
         </div>
       ) : (

@@ -50,7 +50,7 @@ export function OfficeScene({ className }: OfficeSceneProps) {
         className,
       )}
     >
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_18%,rgba(20,184,166,0.15),transparent_48%),linear-gradient(180deg,rgba(0,0,0,0)_50%,rgba(0,0,0,0.5)_100%)]" />
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_18%,rgba(99,102,241,0.16),transparent_48%),linear-gradient(180deg,rgba(0,0,0,0)_50%,rgba(0,0,0,0.5)_100%)]" />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3 md:p-4">
         <div className="rounded-lg border border-white/15 bg-slate-950/70 px-3 py-2 text-white shadow-xl backdrop-blur-xl">
@@ -63,11 +63,11 @@ export function OfficeScene({ className }: OfficeSceneProps) {
 
         <div className="flex items-center gap-2 pointer-events-auto">
           <div className="flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/70 px-3 py-1.5 text-[10px] font-bold text-slate-200 backdrop-blur-xl shadow-md">
-            <UsersRound className="size-3 text-teal-400" />
+            <UsersRound className="size-3 text-indigo-400" />
             {agents?.length ?? 0} agents
           </div>
           <div className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/70 px-3 py-1.5 text-[10px] font-bold text-slate-200 backdrop-blur-xl shadow-md sm:flex">
-            <span className={`size-1.5 rounded-full ${workingCount ? "bg-cyan-400 shadow-[0_0_8px_#22d3ee]" : "bg-emerald-400 shadow-[0_0_8px_#34d399]"}`} />
+            <span className={`size-1.5 rounded-full ${workingCount ? "bg-indigo-400 shadow-[0_0_8px_#818cf8]" : "bg-emerald-400 shadow-[0_0_8px_#34d399]"}`} />
             {workingCount ? `${workingCount} working` : "All settled"}
           </div>
         </div>
@@ -81,8 +81,8 @@ export function OfficeScene({ className }: OfficeSceneProps) {
           <span className="flex items-center gap-1.5 text-emerald-400">
             <span className="size-1.5 rounded-full bg-emerald-400" /> Available
           </span>
-          <span className="flex items-center gap-1.5 text-cyan-400">
-            <span className="size-1.5 rounded-full bg-cyan-400" /> Working
+          <span className="flex items-center gap-1.5 text-indigo-400">
+            <span className="size-1.5 rounded-full bg-indigo-400" /> Working
           </span>
         </div>
         <Button
