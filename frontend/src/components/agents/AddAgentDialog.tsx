@@ -15,6 +15,7 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { ClaudeAuthCard } from "@/components/settings/ClaudeAuthCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -495,6 +496,14 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Inline Claude Code connect flow — a new user picking this
+                  provider shouldn't have to abandon the wizard, go to
+                  Settings, connect, and start over. Same self-contained
+                  component either surface uses. */}
+              {form.engineType === "cli" && form.engineProvider === "claude_code" && (
+                <ClaudeAuthCard />
+              )}
 
               {/* Model Name */}
               <div className="flex flex-col gap-1.5">

@@ -58,6 +58,32 @@ def test_extract_oauth_token_rejoins_line_wrapped_token() -> None:
     assert _extract_oauth_token(REAL_SUCCESS_BUFFER) == REAL_SUCCESS_TOKEN
 
 
+# Captured from a real failed connection attempt: this CLI run wrapped the
+# token with a bare `\r\x1b[1B` (no `\x1b[<n>C` cursor-forward component,
+# unlike REAL_SUCCESS_BUFFER above) followed by a literal indent space —
+# the original _LINE_WRAP_RE required the forward-cursor code, so this
+# pattern fell through to generic stripping and left a stray space in the
+# middle of the token, breaking _TOKEN_SHAPE_RE's match entirely. Written
+# with explicit \x1b escapes (unlike REAL_SUCCESS_BUFFER's embedded raw
+# bytes above) so the wrap sequence is unambiguous on the page — both
+# produce an identical runtime string.
+REAL_BARE_WRAP_BUFFER = (
+    "✓\x1b[4GLong-lived\x1b[15Gauthentication\x1b[30Gtoken\x1b[36Gcreated"
+    "\x1b[44Gsuccessfully!\r\x1b[1B\x1b[K\r\x1b[1B Your OAuth token (valid for 1 year):"
+    "\x1b[K\r\x1b[1B\x1b[K\r\x1b[1B sk-ant-oat01-0GxdL1S6qu5Zg9-rV3tViWCEdWnIlCLmIQ_o636PusuJwMB9V5V08dB6lw6CtqXxn6"
+    "\r\x1b[1B p4SHhjCho7MJ4OS6fAng-X2uZ7AAA\r\x1b[1C\x1b[2BStore\x1b[8Gthis"
+    "\x1b[13Gtoken\x1b[19Gsecurely."
+)
+REAL_BARE_WRAP_TOKEN = (
+    "sk-ant-oat01-0GxdL1S6qu5Zg9-rV3tViWCEdWnIlCLmIQ_o636PusuJwMB9V5V08dB6lw6CtqXxn6"
+    "p4SHhjCho7MJ4OS6fAng-X2uZ7AAA"
+)
+
+
+def test_extract_oauth_token_rejoins_bare_wrap_token() -> None:
+    assert _extract_oauth_token(REAL_BARE_WRAP_BUFFER) == REAL_BARE_WRAP_TOKEN
+
+
 def test_extract_oauth_token_returns_none_when_absent() -> None:
     assert _extract_oauth_token("nothing here") is None
 

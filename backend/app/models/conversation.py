@@ -21,7 +21,7 @@ class Conversation(Base):
         server_default=text("gen_random_uuid()"),
     )
     agent_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("agents.id"), nullable=False
+        PG_UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
     )
     role: Mapped[str] = mapped_column(String(10), nullable=False)  # "user" or "agent"
     content: Mapped[str] = mapped_column(Text, nullable=False)

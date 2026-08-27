@@ -29,7 +29,11 @@ class Agent(Base):
         server_default=text("gen_random_uuid()"),
     )
     name: Mapped[str] = mapped_column(String(50), nullable=False)
-    role: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Originally a short label ("Researcher", "Dev") per the initial spec,
+    # but AddAgentDialog's "Quick Role Templates" step composes a full
+    # "<title>: <description>" sentence into this field — widened from the
+    # original 50 chars to fit that (found via a real 500 on agent creation).
+    role: Mapped[str] = mapped_column(String(500), nullable=False)
 
     engine_type: Mapped[str] = mapped_column(String(20), nullable=False)
     engine_provider: Mapped[str] = mapped_column(String(50), nullable=False)

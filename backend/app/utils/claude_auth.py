@@ -53,15 +53,23 @@ _ANSI_RE = re.compile(
     r"|\x1b[=>]"
 )
 
-# \r + move-right + move-down-exactly-1-row: the TUI wrapping one long
-# value across two visual lines — the two halves are really one continuous
-# string, so this is dropped with no separator. A move-down of 2+ rows,
-# by contrast, is a real paragraph break (there's a blank line between
-# them on screen) and gets a space instead — see _PARAGRAPH_BREAK_RE below.
-# Distinguishing these is what makes token reassembly actually work; without
-# it there's no way to tell "wrapped mid-value" from "next sentence" once
-# escape codes are stripped and everything is flush against the last char.
-_LINE_WRAP_RE = re.compile(r"\r\x1b\[\d*C\x1b\[1B")
+# \r + move-down-exactly-1-row (the move-right component is optional — a
+# real captured failure showed the CLI sometimes wrapping with a bare
+# `\r\x1b[1B`, no cursor-forward code at all, which the original stricter
+# pattern didn't match): the TUI wrapping one long value across two visual
+# lines. The two halves are really one continuous string, so this is
+# dropped with no separator — including one trailing literal space, since
+# the CLI pads every line in this block with a 1-space left indent and
+# that indent lands right at the wrap point when a value splits there
+# (confirmed against a real `sk-ant-oat01-...` token that got split into
+# two lines with a bare " " between them in the raw stream). A move-down
+# of 2+ rows, by contrast, is a real paragraph break (there's a blank line
+# between them on screen) and gets a space instead — see
+# _PARAGRAPH_BREAK_RE below. Distinguishing these is what makes token
+# reassembly actually work; without it there's no way to tell "wrapped
+# mid-value" from "next sentence" once escape codes are stripped and
+# everything is flush against the last char.
+_LINE_WRAP_RE = re.compile(r"\r(?:\x1b\[\d*C)?\x1b\[1B ?")
 _PARAGRAPH_BREAK_RE = re.compile(r"\r\x1b\[\d*C\x1b\[\d*B")
 # Same-row word positioning (`\x1b[<n>G` — "move to column n") separates
 # two on-screen words with no literal space character; put one back.
