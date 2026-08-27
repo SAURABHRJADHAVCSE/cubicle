@@ -1,4 +1,4 @@
-import { API_URL } from "@/lib/constants";
+import { getApiUrl } from "@/lib/constants";
 import { clearAuthToken, getAuthToken } from "@/lib/authToken";
 import type { Agent, AgentCreate, AgentUpdate } from "@/types/agent";
 import type {
@@ -25,7 +25,7 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${getApiUrl()}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",

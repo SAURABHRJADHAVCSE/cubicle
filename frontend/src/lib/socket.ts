@@ -1,7 +1,7 @@
 import { io, type Socket } from "socket.io-client";
 
 import { getAuthToken, onAuthTokenChange } from "@/lib/authToken";
-import { WS_URL } from "@/lib/constants";
+import { getWsUrl } from "@/lib/constants";
 import type { ClientToServerEvents, ServerToClientEvents } from "@/types/events";
 
 let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
@@ -11,7 +11,7 @@ let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
  * refuses unauthenticated connections outright (app/ws/manager.py). */
 export function getSocket(): Socket<ServerToClientEvents, ClientToServerEvents> {
   if (!socket) {
-    socket = io(WS_URL, {
+    socket = io(getWsUrl(), {
       autoConnect: false,
       transports: ["websocket", "polling"],
       auth: (cb) => cb({ token: getAuthToken() }),

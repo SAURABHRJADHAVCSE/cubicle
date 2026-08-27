@@ -11,6 +11,11 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - SECRET_KEY=${SECRET_KEY:-}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # Must include whatever origin the browser/phone actually loads the
+      # frontend from — "http://localhost:3000" alone blocks every request
+      # from a LAN IP or a Tailscale/tunnel hostname with a CORS error, even
+      # if NEXT_PUBLIC_API_URL/networking is otherwise all correctly set up.
+      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000"]}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@localhost}
@@ -82,10 +87,14 @@ services:
     build:
       context: ./frontend
       args:
-        # Browser-reachable URLs, not the Docker-internal "cubicle-api"
-        # hostname — the browser runs outside the compose network.
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-http://localhost:8000}
+        # Left unset by default on purpose: the frontend now derives the
+        # API/WS URL at runtime from whatever host the browser actually
+        # loaded the page from (see frontend/src/lib/constants.ts), so the
+        # same build works unmodified from localhost, a LAN IP, or a
+        # Tailscale hostname. Only set these to force a specific address —
+        # e.g. a Caddy deployment routing everything through one origin.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-}
     ports:
       - "3000:3000"
     volumes:

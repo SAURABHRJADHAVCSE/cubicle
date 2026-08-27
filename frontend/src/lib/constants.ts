@@ -1,7 +1,29 @@
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+/** Resolved at call time, not import time — NEXT_PUBLIC_* env vars are
+ * baked in at *build* time, which meant this only ever worked from
+ * whatever single address (e.g. "localhost") the frontend image happened
+ * to be built for. Reached over a LAN IP, a Tailscale hostname, or a
+ * tunnel domain instead, every API/socket call silently tried to hit that
+ * baked-in address from the browser's own machine and failed.
+ *
+ * Now: if NEXT_PUBLIC_API_URL/WS_URL were explicitly set at build time
+ * (e.g. a Caddy deployment routing everything through one origin/port),
+ * that still wins — it's an explicit choice. Otherwise, derive "whatever
+ * host the browser actually loaded this page from, on port 8000" at
+ * runtime, so the exact same build works unmodified from localhost, a LAN
+ * IP, or a Tailscale MagicDNS name with zero rebuilding. */
+function resolveUrl(explicit: string | undefined): string {
+  if (explicit) return explicit;
+  if (typeof window === "undefined") return "http://localhost:8000";
+  return `${window.location.protocol}//${window.location.hostname}:8000`;
+}
 
-export const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? API_URL;
+export function getApiUrl(): string {
+  return resolveUrl(process.env.NEXT_PUBLIC_API_URL);
+}
+
+export function getWsUrl(): string {
+  return resolveUrl(process.env.NEXT_PUBLIC_WS_URL ?? process.env.NEXT_PUBLIC_API_URL);
+}
 
 export const PERSONALITY_TRAIT_CATEGORIES: Record<string, string[]> = {
   social: ["introvert", "extrovert", "ambivert"],

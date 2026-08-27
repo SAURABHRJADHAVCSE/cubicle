@@ -64,7 +64,13 @@ class ClaudeCodeEngine(AgentEngine):
         working_dir = context.get("working_dir") or self.working_dir
         os.makedirs(working_dir, exist_ok=True)
 
-        cmd = ["claude", "--print", "--output-format", "json"]
+        # `--print` mode has no TTY behind it (stdout/stderr are piped, no
+        # stdin hooked up) — there's no one to answer an interactive
+        # permission prompt, so without this flag the CLI just reports back
+        # "blocked by permissions" instead of writing, on every file
+        # write/edit/bash call an agent makes. Safe to default on here since
+        # each agent is already confined to its own working_dir below.
+        cmd = ["claude", "--print", "--output-format", "json", "--dangerously-skip-permissions"]
         if self.allowed_tools:
             cmd += ["--allowedTools", ",".join(self.allowed_tools)]
         if self.model:
