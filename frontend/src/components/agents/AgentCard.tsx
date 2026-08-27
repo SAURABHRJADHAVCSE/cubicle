@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, ChevronRight, Trash2 } from "lucide-react";
+import { Bot, ChevronRight, Phone, Trash2 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ function initials(name: string): string {
 export function AgentCard({ agent }: { agent: Agent }) {
   const deleteAgent = useDeleteAgent();
   const selectAgent = useUIStore((s) => s.selectAgent);
+  const selectCallAgent = useUIStore((s) => s.selectCallAgent);
   const { data: tasks } = useTasks();
   const status = STATUS_STYLES[agent.status];
   const currentTask = agent.current_task_id
@@ -80,19 +81,35 @@ export function AgentCard({ agent }: { agent: Agent }) {
         )}
       </div>
 
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        className="absolute right-1 bottom-1 opacity-0 transition-opacity group-hover:opacity-100 text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-        aria-label={`Delete ${agent.name}`}
-        onClick={(event) => {
-          event.stopPropagation();
-          deleteAgent.mutate(agent.id);
-        }}
-        disabled={deleteAgent.isPending}
-      >
-        <Trash2 className="size-3" />
-      </Button>
+      <div className="absolute right-1 bottom-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        {agent.engine_type === "api" && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800"
+            aria-label={`Call ${agent.name}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              selectCallAgent(agent.id);
+            }}
+          >
+            <Phone className="size-3" />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+          aria-label={`Delete ${agent.name}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            deleteAgent.mutate(agent.id);
+          }}
+          disabled={deleteAgent.isPending}
+        >
+          <Trash2 className="size-3" />
+        </Button>
+      </div>
       <ChevronRight className="size-3.5 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
     </div>
   );

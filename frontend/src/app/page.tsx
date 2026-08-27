@@ -4,6 +4,7 @@ import { Activity, Building2, Settings, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 import { AgentList } from "@/components/agents/AgentList";
+import { CallPanel } from "@/components/calls/CallPanel";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { OfficeScene } from "@/components/office/OfficeScene";
@@ -19,6 +20,7 @@ export default function Home() {
   const { data: agents } = useAgents();
   const { data: tasks } = useTasks();
   const selectedAgentId = useUIStore((s) => s.selectedAgentId);
+  const activeCallAgentId = useUIStore((s) => s.activeCallAgentId);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const onlineAgents = agents?.filter((agent) => agent.status !== "offline").length ?? 0;
@@ -83,11 +85,11 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden p-3 gap-3">
-        <div className="grid h-full min-h-0 flex-1 grid-cols-1 md:grid-cols-[1fr_440px] gap-3">
-          <OfficeScene className="h-full min-h-0 rounded-xl shadow-md border border-slate-200 dark:border-white/10" />
+      <div className="flex min-h-0 flex-1 overflow-y-auto md:overflow-hidden p-3 gap-3">
+        <div className="grid flex-1 grid-cols-1 gap-3 md:h-full md:min-h-0 md:grid-cols-[1fr_440px]">
+          <OfficeScene className="h-[55vh] min-h-[320px] rounded-xl border border-slate-200 shadow-md md:h-full md:min-h-0 dark:border-white/10" />
 
-          <div className="glass-panel relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl">
+          <div className="glass-panel relative flex min-h-[420px] flex-col overflow-hidden rounded-xl md:h-full md:min-h-0">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 px-4 py-3 shrink-0">
               <div>
                 <div className="flex items-center gap-2">
@@ -116,6 +118,7 @@ export default function Home() {
             </div>
 
             {selectedAgentId && <ChatPanel key={selectedAgentId} />}
+            <CallPanel key={activeCallAgentId} />
           </div>
         </div>
       </div>

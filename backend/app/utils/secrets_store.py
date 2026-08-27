@@ -30,3 +30,19 @@ async def delete_setting(session: AsyncSession, key: str) -> None:
     if record is not None:
         await session.delete(record)
         await session.commit()
+
+
+async def set_plain_setting(session: AsyncSession, key: str, value: str) -> None:
+    """For values that are already safe to store as-is (e.g. a one-way
+    password hash) — no point running them through Fernet too."""
+    record = await session.get(SettingRecord, key)
+    if record is None:
+        session.add(SettingRecord(key=key, value_plain=value))
+    else:
+        record.value_plain = value
+    await session.commit()
+
+
+async def get_plain_setting(session: AsyncSession, key: str) -> str | None:
+    record = await session.get(SettingRecord, key)
+    return record.value_plain if record is not None else None

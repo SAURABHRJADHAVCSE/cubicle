@@ -34,6 +34,30 @@ class Settings(BaseSettings):
     # defeats the point, so this must come from the user's own .env.
     secret_key: str | None = None
 
+    # Web Push (task-completed/failed notifications to paired devices).
+    # Generate a pair with `vapid --gen` (from the pywebpush package) or
+    # `python -m py_vapid`. Unset means push notifications are silently
+    # skipped, same "not configured" pattern as the other optional keys.
+    vapid_public_key: str | None = None
+    vapid_private_key: str | None = None
+    vapid_subject: str = "mailto:admin@localhost"
+
+    # Voice calls (see app/voice/ and app/ws/calls.py). STT/TTS: unset means
+    # calls still connect and prove the transport via a test-tone/echo
+    # fallback (see app/voice/pipeline.py) — same "not configured" pattern
+    # as everything else optional here.
+    sarvam_api_key: str | None = None
+    # ICE: STUN alone is enough over Tailscale (a flat private network needs
+    # no relay); TURN is only required to reach this instance over
+    # Cloudflare Tunnel or a public VPS, since Cloudflare Tunnel has no UDP
+    # passthrough for raw WebRTC media. Point turn_url at the coturn service
+    # in docker-compose.yml (docker-compose.yml can't guess your externally
+    # -reachable address, so this is unset/STUN-only by default).
+    stun_url: str = "stun:stun.l.google.com:19302"
+    turn_url: str | None = None
+    turn_username: str | None = None
+    turn_credential: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

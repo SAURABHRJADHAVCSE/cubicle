@@ -77,12 +77,18 @@ This section is the accurate, current-reality companion to Section 9's versioned
 **Engines**
 - CLI engines run as real subprocesses; API engines go through LiteLLM. `GET /engines` auto-detects what's actually available on the host/PATH and drives every "detected/not detected" badge in the UI live — nothing here is hardcoded
 
-**Infrastructure**
-- Docker Compose services: `cubicle-web` (Next.js, Turbopack dev), `cubicle-api` (FastAPI), `cubicle-worker` + `cubicle-beat` (Celery), Postgres 16 + pgvector, Redis 7
-- No Caddy/reverse-proxy yet — the app is reached directly on its exposed ports, not via auto-SSL
-- Alembic migrations for schema changes (3 so far)
+**Auth & Remote Access**
+- Single instance-wide setup password (first run only) gates both the web dashboard and device pairing — there's no multi-user account system, every browser tab and every paired phone is just a bearer token in the `devices` table, checked identically on every REST route and the Socket.io connection
+- Settings → Devices: QR-code (or manual-token) pairing flow with short-lived single-use codes, a live device list, and per-device revoke
+- Caddy reverse proxy (opt-in `caddy` service) fronts web + API behind one address, with automatic HTTPS when `CADDY_DOMAIN` is set to a real hostname
+- Documented paths for reaching a self-hosted instance from outside its own network: Tailscale (recommended) or Cloudflare Tunnel — see `docs/remote-access.md`
+- The mobile app itself that pairs against this is not built — this is the backend/web foundation for it, see V0.3 in Section 9
 
-**Explicitly not built yet** (full detail and everything beyond this in Section 9): voice calls (WebRTC/Sarvam) and everything under it in V1.0, gossip/flirt social triggers, task history search, editable API keys and social-behavior toggles in Settings, a permissions system, keep-alive for closed-browser execution, result export (PDF/CSV/clipboard), and all of V2.0/V3.0 (multi-user auth, scheduled missions, webhooks, MCP server, plugin system).
+**Infrastructure**
+- Docker Compose services: `cubicle-web` (Next.js, Turbopack dev), `cubicle-api` (FastAPI), `cubicle-worker` + `cubicle-beat` (Celery), Postgres 16 + pgvector, Redis 7, `caddy` (reverse proxy)
+- Alembic migrations for schema changes (4 so far)
+
+**Explicitly not built yet** (full detail and everything beyond this in Section 9): the actual mobile app (React Native/Expo), voice calls (WebRTC/Sarvam) and everything under it in V1.0, gossip/flirt social triggers, task history search, editable API keys and social-behavior toggles in Settings, a permissions system, keep-alive for closed-browser execution, result export (PDF/CSV/clipboard), and all of V2.0/V3.0 (multi-user auth, scheduled missions, webhooks, MCP server, plugin system).
 
 ---
 
@@ -833,7 +839,7 @@ AGENT_TEMPLATES = [
 ### V0.1 — Core Office (4-5 weeks)
 MVP. Office works. Agents do tasks. Chat works. Looks good.
 
-- [ ] Docker Compose: FastAPI + Next.js + Postgres + Redis + Caddy
+- [x] Docker Compose: FastAPI + Next.js + Postgres + Redis + Caddy
 - [x] Onboarding wizard (3-step: detect engines → config → demo task)
 - [x] Add Agent dialog (identity, engine, briefing — 4 steps like MD)
 - [x] Engine registry: Claude Code CLI + LiteLLM (Ollama/Anthropic)
@@ -861,6 +867,34 @@ The differentiator. Office comes alive.
 - [x] Per-agent engine override
 - [x] Agent memory (pgvector semantic search)
 - [ ] Task history with search
+
+### V0.3 — Remote Access, Mobile PWA, and Voice Call Scaffolding
+Added mid-stream, ahead of the original roadmap. Initially planned as a separate React Native app; reconsidered mid-build in favor of making the existing Next.js app itself the mobile client (installable PWA) — agent/task management needs no native APIs, QR scanning and Web Push both work in a mobile browser, and it avoids a second codebase. The one accepted trade-off: iOS Safari suspends WebRTC audio when the tab is backgrounded, so a voice call has to stay in the foreground.
+
+**Auth/pairing foundation** (prerequisite for everything else here — nobody can pair a phone to an instance with no concept of "who's allowed to control this"):
+- [x] Instance setup password, gating both the web dashboard and device pairing
+- [x] Device model: every browser session and paired phone is a bearer-token row in `devices`, validated identically on every REST route and the Socket.io connection
+- [x] QR pairing: the QR encodes a real link (`<url>/?pair=<token>`) that auto-redeems itself on load — no separate scanner app, no password to type on a phone keyboard
+- [x] Device list + revoke (Settings → Devices)
+- [x] Caddy reverse proxy fronting web + API behind one address, with automatic HTTPS when a real domain is configured
+- [x] Remote-access documentation (Tailscale and Cloudflare Tunnel paths) — see `docs/remote-access.md`
+
+**Mobile-ready web app**:
+- [x] Dashboard layout actually usable at phone width (was an unusable squashed single column below `md` before this pass)
+- [x] 3D office scene scales down (no shadows, `dpr=1`) on narrow/low-core-count devices
+- [x] Proper PWA icons (192/512 PNG, not just one SVG) for Android/iOS install prompts
+
+**Web Push notifications**:
+- [x] Task-completed/failed notifications to every paired device with push permission granted
+- [x] VAPID keys, `devices.push_subscription`, service worker `push`/`notificationclick` handlers
+
+**Voice calls (WebRTC) — scaffolding, verified live end-to-end**:
+- [x] Full transport: mic capture → signaling over Socket.io → aiortc peer connection → ICE/DTLS → connected, confirmed via a real headless-browser call with a fake media device (not just code review)
+- [x] Audio pipeline architecture: STT → agent LLM turn → TTS, behind a provider interface (`app/voice/`) that falls back to a test-tone-and-echo when no Sarvam key is configured — proves the transport regardless of whether STT/TTS credentials exist yet
+- [x] Self-hosted `coturn` TURN service (needed off Tailscale, since Cloudflare Tunnel has no UDP passthrough for WebRTC media)
+- [ ] Real Sarvam STT/TTS credentials wired in and exercised (the provider implementation is written; nobody has tested it against a live Sarvam account yet)
+- [ ] The actual mobile app: turns out to not be needed — see the context note above
+- [ ] Call history/recording, backgrounded-tab ringing, multi-party calls, barge-in — explicitly out of scope for this pass
 
 ### V1.0 — Voice + Polish (3-4 weeks)
 Ship it. Public launch.

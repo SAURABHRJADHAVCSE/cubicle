@@ -1,10 +1,11 @@
 "use client";
 
-import { Key, Palette } from "lucide-react";
+import { Key, Palette, Smartphone } from "lucide-react";
 import { useState } from "react";
 
 import { AppearanceSettingsCard } from "@/components/settings/AppearanceSettingsCard";
 import { ClaudeAuthCard } from "@/components/settings/ClaudeAuthCard";
+import { DevicesCard } from "@/components/settings/DevicesCard";
 import { EngineCard } from "@/components/settings/EngineCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +25,7 @@ interface SettingsDialogProps {
 /** Settings, in-place — opens over the dashboard instead of navigating to
  * a separate /settings route, so the user never loses their place. */
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
-  const [tab, setTab] = useState<"providers" | "appearance">("providers");
+  const [tab, setTab] = useState<"providers" | "appearance" | "devices">("providers");
   const { data: engines } = useEngines();
   const otherEngineKeys = Object.keys(engines ?? {}).filter((key) => key !== "claude_code");
 
@@ -65,6 +66,18 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           >
             <Palette className="size-3.5" /> Appearance
           </Button>
+          <Button
+            size="sm"
+            variant={tab === "devices" ? "default" : "ghost"}
+            className={`gap-2 rounded-lg text-xs font-bold ${
+              tab === "devices"
+                ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+                : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            }`}
+            onClick={() => setTab("devices")}
+          >
+            <Smartphone className="size-3.5" /> Devices
+          </Button>
         </div>
 
         {tab === "providers" && (
@@ -79,6 +92,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         )}
 
         {tab === "appearance" && <AppearanceSettingsCard />}
+        {tab === "devices" && <DevicesCard />}
       </DialogContent>
     </Dialog>
   );

@@ -7,8 +7,9 @@ order elsewhere in the app.
 
 from app.models.agent import Agent
 from app.models.conversation import Conversation
+from app.models.device import Device
 from app.models.memory import AgentMemory
 from app.models.settings import SettingRecord
 from app.models.task import Task
 
-__all__ = ["Agent", "AgentMemory", "Conversation", "SettingRecord", "Task"]
+__all__ = ["Agent", "AgentMemory", "Conversation", "Device", "SettingRecord", "Task"]

@@ -14,6 +14,7 @@ from app.database import worker_session_factory
 from app.engines.registry import get_engine
 from app.models.agent import Agent
 from app.models.task import Task
+from app.utils.push import notify_all_devices
 from app.workers import app as celery_app
 from app.workers.memory_worker import store_memory
 from app.workers.social_worker import generate_and_emit_dialogue
@@ -96,6 +97,7 @@ async def _execute_task_async(task_id: uuid.UUID) -> None:
             str(task.id),
             "task",
         )
+        await notify_all_devices(session, f"{agent.name} finished a task", task.title)
         logger.info("execute_task_completed", task_id=str(task.id))
 
 
@@ -114,6 +116,7 @@ async def _mark_failed(
     emit_task_status(str(task.id), task.status)
     if agent is not None:
         emit_agent_status(str(agent.id), agent.status, agent.mood, None)
+    await notify_all_devices(session, f"Task failed: {task.title}", error[:200])
 
 
 @celery_app.task(name="route_task")

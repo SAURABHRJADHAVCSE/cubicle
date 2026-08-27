@@ -33,6 +33,57 @@ export interface ChatDoneEvent {
   message: ConversationMessage;
 }
 
+export interface CallAnswerEvent {
+  call_id: string;
+  sdp: string;
+}
+
+export interface CallIceCandidateEvent {
+  call_id: string;
+  candidate: RTCIceCandidateInit;
+}
+
+export interface CallStatusEvent {
+  call_id: string;
+  message: string;
+}
+
+export interface CallTranscriptEvent {
+  call_id: string;
+  role: "user" | "agent";
+  text: string;
+}
+
+export interface CallEndedEvent {
+  call_id: string;
+  reason: "hangup" | "error" | "disconnected";
+}
+
+export interface CallErrorEvent {
+  call_id: string | null;
+  message: string;
+}
+
+export interface CallOfferPayload {
+  agent_id: string;
+  sdp: string;
+}
+
+export interface CallIceCandidatePayload {
+  call_id: string;
+  candidate: RTCIceCandidateInit;
+}
+
+export interface CallHangupPayload {
+  call_id: string;
+}
+
+export interface ClientToServerEvents {
+  "call:offer": (payload: CallOfferPayload) => void;
+  "call:ice_candidate": (payload: CallIceCandidatePayload) => void;
+  "call:hangup": (payload: CallHangupPayload) => void;
+}
+
 export interface ServerToClientEvents {
   agent_status: (payload: AgentStatusEvent) => void;
   task_status: (payload: TaskStatusEvent) => void;
@@ -40,4 +91,10 @@ export interface ServerToClientEvents {
   chat_done: (payload: ChatDoneEvent) => void;
   celebration: (payload: CelebrationEvent) => void;
   social_event: (payload: SocialEvent) => void;
+  "call:answer": (payload: CallAnswerEvent) => void;
+  "call:ice_candidate": (payload: CallIceCandidateEvent) => void;
+  "call:status": (payload: CallStatusEvent) => void;
+  "call:transcript": (payload: CallTranscriptEvent) => void;
+  "call:ended": (payload: CallEndedEvent) => void;
+  "call:error": (payload: CallErrorEvent) => void;
 }

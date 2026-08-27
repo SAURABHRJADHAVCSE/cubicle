@@ -278,7 +278,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
         </div>
 
         {/* Form Body Container — fixed height so the dialog doesn't resize between steps */}
-        <div className="soft-scrollbar h-[460px] overflow-y-auto p-6">
+        <div className="soft-scrollbar h-[min(460px,60dvh)] overflow-y-auto p-6">
           {/* STEP 1: IDENTITY */}
           {currentStepId === "identity" && (
             <div className="grid grid-cols-1 md:grid-cols-[1fr_200px] gap-6 items-start">

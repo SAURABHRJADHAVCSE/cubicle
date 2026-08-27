@@ -1,0 +1,18 @@
+# Reverse proxy fronting cubicle-web + cubicle-api behind one address.
+#
+# - Set CADDY_DOMAIN to a real hostname (a Cloudflare Tunnel hostname, your
+#   VPS's domain, or a Tailscale MagicDNS name) and Caddy issues/renews a
+#   real TLS cert automatically. Leave it unset for plain HTTP on :80 — fine
+#   if you're only reachable over a Tailscale tailnet, since that traffic is
+#   already end-to-end WireGuard-encrypted regardless of what's on top.
+# - Route selection: everything under one of the backend's known route
+#   prefixes goes to cubicle-api; everything else (the Next.js app, static
+#   assets) goes to cubicle-web. The API has no `/api` prefix of its own
+#   today, so this lists its routers explicitly instead.
+
+{$CADDY_DOMAIN::80} {
+	@api path /health* /auth* /devices* /agents* /tasks* /chat* /settings* /engines* /socket.io*
+	reverse_proxy @api cubicle-api:8000
+
+	reverse_proxy cubicle-web:3000
+}

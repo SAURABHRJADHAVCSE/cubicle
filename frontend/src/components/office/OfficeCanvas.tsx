@@ -2,6 +2,7 @@
 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
+import { useEffect, useState } from "react";
 
 import { Office } from "@/components/office/Office";
 
@@ -13,13 +14,31 @@ interface OfficeCanvasProps {
   activePreset?: CameraPreset;
 }
 
+/** Coarse mobile/low-end check — narrow viewport or few CPU cores. Defaults
+ * to the full-quality desktop path until this resolves post-mount, so SSR
+ * output stays consistent (see the theme/localStorage guards elsewhere in
+ * this app for the same idiom). Shadows + a higher dpr are real battery and
+ * thermal cost on a phone, so this scene shouldn't render them there. */
+function useIsLowPowerDevice(): boolean {
+  const [isLowPower, setIsLowPower] = useState(false);
+  useEffect(() => {
+    const narrow = window.innerWidth < 768;
+    const fewCores = (navigator.hardwareConcurrency ?? 8) <= 4;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsLowPower(narrow && fewCores);
+  }, []);
+  return isLowPower;
+}
+
 export function OfficeCanvas({ onContextLost, onSelectObject, activePreset }: OfficeCanvasProps) {
+  const isLowPower = useIsLowPowerDevice();
+
   return (
     <Canvas
-      shadows
-      dpr={[1, 1.5]}
+      shadows={!isLowPower}
+      dpr={isLowPower ? 1 : [1, 1.5]}
       camera={{ fov: 38, near: 0.1, far: 150 }}
-      gl={{ logarithmicDepthBuffer: true, antialias: true, alpha: false }}
+      gl={{ logarithmicDepthBuffer: true, antialias: !isLowPower, alpha: false }}
       className="!absolute inset-0 cursor-grab active:cursor-grabbing"
       onCreated={({ gl }) => {
         gl.domElement.addEventListener(

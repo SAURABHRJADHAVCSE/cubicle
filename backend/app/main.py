@@ -9,7 +9,10 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import agents, chat, engines, health, settings as settings_api, tasks
+from fastapi import Depends
+
+from app.api import agents, auth, calls, chat, devices, engines, health, settings as settings_api, tasks
+from app.api.deps import get_current_device
 from app.config import get_settings
 from app.database import engine
 from app.ws.manager import sio
@@ -58,12 +61,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Public: needed before a client has a token at all (bootstrap/login) or
+# harmless to leak (liveness).
 app.include_router(health.router)
-app.include_router(engines.router)
-app.include_router(agents.router)
-app.include_router(tasks.router)
-app.include_router(chat.router)
-app.include_router(settings_api.router)
+app.include_router(auth.router)
+app.include_router(devices.router)
+
+# Protected: every route here requires a valid device/browser bearer token.
+_protected = Depends(get_current_device)
+app.include_router(calls.router, dependencies=[_protected])
+app.include_router(engines.router, dependencies=[_protected])
+app.include_router(agents.router, dependencies=[_protected])
+app.include_router(tasks.router, dependencies=[_protected])
+app.include_router(chat.router, dependencies=[_protected])
+app.include_router(settings_api.router, dependencies=[_protected])
 
 # Wraps `app` so both plain HTTP routes and Socket.io's /socket.io/ path are
 # served from one process; this is what uvicorn actually runs (see

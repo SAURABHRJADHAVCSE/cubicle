@@ -14,6 +14,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_device
 from app.database import engine, get_db
 from app.main import app
 
@@ -45,10 +46,18 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
+    # Tests exercise application behavior, not the auth gate itself (that's
+    # covered separately in test_api/test_auth.py) — treat every request as
+    # already authenticated, same as overriding get_db above.
+    async def _override_get_current_device() -> None:
+        return None
+
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_current_device] = _override_get_current_device
     transport = ASGITransport(app=app)
     try:
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
             yield ac
     finally:
         app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(get_current_device, None)

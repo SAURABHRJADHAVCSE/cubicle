@@ -1,5 +1,14 @@
 import { API_URL } from "@/lib/constants";
+import { clearAuthToken, getAuthToken } from "@/lib/authToken";
 import type { Agent, AgentCreate, AgentUpdate } from "@/types/agent";
+import type {
+  AuthStatus,
+  Device,
+  DeviceToken,
+  PairingToken,
+  PushConfig,
+} from "@/types/auth";
+import type { CallConfig } from "@/types/call";
 import type { ChatRequest, ConversationMessage } from "@/types/chat";
 import type { ClaudeAuthStart, ClaudeAuthStatus } from "@/types/settings";
 import type { Task, TaskCreate } from "@/types/task";
@@ -15,12 +24,22 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getAuthToken();
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
   });
 
   if (!response.ok) {
+    // A 401 on an authenticated request means the token was revoked (or
+    // expired) server-side — bounce back to the login screen. Login/setup
+    // themselves can legitimately 401/409 (wrong password) without a token
+    // to clear, so this is a harmless no-op there.
+    if (response.status === 401 && token) clearAuthToken();
     const body = await response.text();
     throw new ApiError(response.status, body || response.statusText);
   }
@@ -32,6 +51,40 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  auth: {
+    status: () => request<AuthStatus>("/auth/status"),
+    setup: (password: string, deviceName: string) =>
+      request<DeviceToken>("/auth/setup", {
+        method: "POST",
+        body: JSON.stringify({ password, device_name: deviceName }),
+      }),
+    login: (password: string, deviceName: string) =>
+      request<DeviceToken>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ password, device_name: deviceName }),
+      }),
+  },
+  devices: {
+    list: () => request<Device[]>("/devices"),
+    pairingToken: () => request<PairingToken>("/devices/pairing-token", { method: "POST" }),
+    pair: (pairingToken: string, deviceName: string) =>
+      request<DeviceToken>("/devices/pair", {
+        method: "POST",
+        body: JSON.stringify({ pairing_token: pairingToken, device_name: deviceName }),
+      }),
+    revoke: (id: string) => request<void>(`/devices/${id}`, { method: "DELETE" }),
+    pushConfig: () => request<PushConfig>("/devices/push-config"),
+    savePushSubscription: (subscription: PushSubscriptionJSON) =>
+      request<void>("/devices/me/push-subscription", {
+        method: "PUT",
+        body: JSON.stringify({ subscription }),
+      }),
+    deletePushSubscription: () =>
+      request<void>("/devices/me/push-subscription", { method: "DELETE" }),
+  },
+  calls: {
+    config: () => request<CallConfig>("/calls/config"),
+  },
   engines: {
     list: () => request<Record<string, boolean>>("/engines"),
   },
