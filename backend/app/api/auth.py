@@ -7,10 +7,12 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_device
 from app.database import get_db
 from app.models.device import Device
 from app.schemas.auth import (
     AuthStatusResponse,
+    ChangePasswordRequest,
     DeviceTokenResponse,
     LoginRequest,
     SetupRequest,
@@ -70,3 +72,33 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> De
     if not verify_password(payload.password, stored):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Incorrect password")
     return await issue_device(db, payload.device_name)
+
+
+@router.post(
+    "/change-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(get_current_device)],
+)
+async def change_password(
+    payload: ChangePasswordRequest, db: AsyncSession = Depends(get_db)
+) -> None:
+    """Requires the current password even though the caller is already an
+    authenticated device — a device token alone shouldn't be enough to lock
+    the real owner out. Deliberately doesn't revoke other paired devices:
+    changing the password doesn't invalidate tokens already issued, same as
+    most apps (use Settings -> Devices to revoke a specific one instead)."""
+    # 400, not 401: the device token itself is valid (that's what got past
+    # get_current_device) — a wrong current_password is a validation
+    # failure, not an auth failure. Using 401 here would trip the
+    # frontend's global "401 on an authenticated request means the token
+    # was revoked, log out" handling (app/lib/api.ts) for what's really
+    # just a typo in a form field.
+    stored = await get_plain_setting(db, INSTANCE_PASSWORD_KEY)
+    if stored is None or not verify_password(payload.current_password, stored):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Incorrect current password")
+    if len(payload.new_password) < 8:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="New password must be at least 8 characters"
+        )
+    await set_plain_setting(db, INSTANCE_PASSWORD_KEY, hash_password(payload.new_password))
+    logger.info("instance_password_changed")

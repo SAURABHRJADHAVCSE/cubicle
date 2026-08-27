@@ -63,6 +63,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ password, device_name: deviceName }),
       }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<void>("/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      }),
   },
   devices: {
     list: () => request<Device[]>("/devices"),

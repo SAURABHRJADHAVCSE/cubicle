@@ -166,3 +166,58 @@ async def test_list_and_revoke_devices(raw_client: AsyncClient) -> None:
     # the revoked token no longer works anywhere, including for itself
     resp = await raw_client.get("/devices", headers=headers)
     assert resp.status_code == 401
+
+
+async def test_change_password_requires_auth(raw_client: AsyncClient) -> None:
+    resp = await raw_client.post(
+        "/auth/change-password", json={"current_password": "correct-horse", "new_password": "new-password"}
+    )
+    assert resp.status_code == 401
+
+
+async def test_change_password_wrong_current_password_rejected(raw_client: AsyncClient) -> None:
+    setup_resp = await raw_client.post("/auth/setup", json={"password": "correct-horse"})
+    headers = {"Authorization": f"Bearer {setup_resp.json()['token']}"}
+
+    resp = await raw_client.post(
+        "/auth/change-password",
+        json={"current_password": "wrong-password", "new_password": "new-password"},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+
+
+async def test_change_password_rejects_short_new_password(raw_client: AsyncClient) -> None:
+    setup_resp = await raw_client.post("/auth/setup", json={"password": "correct-horse"})
+    headers = {"Authorization": f"Bearer {setup_resp.json()['token']}"}
+
+    resp = await raw_client.post(
+        "/auth/change-password",
+        json={"current_password": "correct-horse", "new_password": "short"},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+
+
+async def test_change_password_success_and_old_password_stops_working(raw_client: AsyncClient) -> None:
+    setup_resp = await raw_client.post("/auth/setup", json={"password": "correct-horse"})
+    browser_token = setup_resp.json()["token"]
+    headers = {"Authorization": f"Bearer {browser_token}"}
+
+    resp = await raw_client.post(
+        "/auth/change-password",
+        json={"current_password": "correct-horse", "new_password": "new-password"},
+        headers=headers,
+    )
+    assert resp.status_code == 204
+
+    # the existing device token still works — changing the password doesn't
+    # revoke already-paired devices
+    still_works = await raw_client.get("/devices", headers=headers)
+    assert still_works.status_code == 200
+
+    # but logging in fresh needs the new password now
+    old_login = await raw_client.post("/auth/login", json={"password": "correct-horse"})
+    assert old_login.status_code == 401
+    new_login = await raw_client.post("/auth/login", json={"password": "new-password"})
+    assert new_login.status_code == 200

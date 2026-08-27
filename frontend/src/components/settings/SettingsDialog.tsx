@@ -4,6 +4,7 @@ import { Key, Palette, Smartphone } from "lucide-react";
 import { useState } from "react";
 
 import { AppearanceSettingsCard } from "@/components/settings/AppearanceSettingsCard";
+import { ChangePasswordCard } from "@/components/settings/ChangePasswordCard";
 import { ClaudeAuthCard } from "@/components/settings/ClaudeAuthCard";
 import { DevicesCard } from "@/components/settings/DevicesCard";
 import { EngineCard } from "@/components/settings/EngineCard";
@@ -92,7 +93,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         )}
 
         {tab === "appearance" && <AppearanceSettingsCard />}
-        {tab === "devices" && <DevicesCard />}
+        {tab === "devices" && (
+          <div className="flex flex-col gap-4">
+            <ChangePasswordCard />
+            <DevicesCard />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
