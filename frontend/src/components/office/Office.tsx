@@ -1,61 +1,113 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { useThree } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import * as THREE from "three";
 
 import { AgentAvatar } from "@/components/office/AgentAvatar";
 import { BossCabin } from "@/components/office/BossCabin";
 import { Cafeteria } from "@/components/office/Cafeteria";
+import { ConferenceRoom } from "@/components/office/ConferenceRoom";
 import { CubicleWalls } from "@/components/office/CubicleWalls";
 import { Desk } from "@/components/office/Desk";
 import { RecreationArea } from "@/components/office/RecreationArea";
+import { ReceptionLobby } from "@/components/office/ReceptionLobby";
+import { ServerRoom } from "@/components/office/ServerRoom";
 import { SmallPlant } from "@/components/office/SmallPlant";
+import type { CameraPreset, SelectedObjectType } from "@/components/office/TycoonHUD";
 import { useAgents } from "@/hooks/useAgents";
 import { useOfficeSocket } from "@/hooks/useOfficeSocket";
 import { computeDeskExtent, computeDeskLayout } from "@/lib/officeLayout";
 import { getTiledVoxelMaterial, getVoxelMaterial } from "@/lib/voxelMaterials";
 import { useOfficeStore } from "@/stores/officeStore";
 
-// Neutral warm tone, not stark white — a flat near-white background made
-// the whole scene look like it was floating in empty page space rather
-// than sitting on a ground.
-const BACKGROUND_COLOR = "#0b0f19";
-const GROUND_COLOR = "#111827";
+const BACKGROUND_COLOR = "#0f172a";
+const FOG_COLOR = "#1e293b";
 
-const FRONT_PADDING = 1.6;
-const DESK_BACK_PADDING = 1.1;
-const DIVIDER_GAP = 1.1;
-const BACK_ZONE_DEPTH = 5.8;
-const BACK_PADDING = 0.9;
-const MIN_ROOM_WIDTH = 16;
+const OFFICE_WIDTH = 38;
+const OFFICE_DEPTH = 26;
 
-function CameraRig({ width, depth }: { width: number; depth: number }) {
+interface OfficeProps {
+  onSelectObject?: (obj: SelectedObjectType) => void;
+  activePreset?: CameraPreset;
+}
+
+function CameraRig({ preset = "overview" }: { preset: CameraPreset }) {
   const { camera } = useThree();
+  const targetPos = useRef(new THREE.Vector3());
+  const targetLook = useRef(new THREE.Vector3());
+
   useEffect(() => {
-    const distance = Math.max(width, depth) * 0.65;
-    camera.position.set(distance * 0.68, distance * 0.72, distance * 0.82);
-    camera.lookAt(0, 0.4, 0.2);
-  }, [camera, width, depth]);
+    switch (preset) {
+      case "reception":
+        targetPos.current.set(0, 6, 14.5);
+        targetLook.current.set(0, 1, 8.5);
+        break;
+      case "desks":
+        targetPos.current.set(0, 9, 8.5);
+        targetLook.current.set(0, 0.5, 0.5);
+        break;
+      case "servers":
+        targetPos.current.set(-11, 6, 6.5);
+        targetLook.current.set(-11, 1, 1.5);
+        break;
+      case "ceosuite":
+        targetPos.current.set(0, 6, -2.5);
+        targetLook.current.set(0, 1, -7.5);
+        break;
+      case "cafeteria":
+        targetPos.current.set(11, 6, 6.5);
+        targetLook.current.set(11, 0.8, 1.5);
+        break;
+      case "recroom":
+        targetPos.current.set(11, 6, -2.5);
+        targetLook.current.set(11, 0.8, -7.5);
+        break;
+      case "warroom":
+        targetPos.current.set(-11, 6, -2.5);
+        targetLook.current.set(-11, 1, -7.5);
+        break;
+      case "overview":
+      default:
+        targetPos.current.set(22, 22, 26);
+        targetLook.current.set(0, 0.5, 0);
+        break;
+    }
+  }, [preset]);
+
+  useFrame((_, delta) => {
+    camera.position.lerp(targetPos.current, delta * 3.5);
+    camera.lookAt(targetLook.current);
+  });
+
   return null;
 }
 
-function LampPost({ position }: { position: [number, number, number] }) {
-  const dark = getVoxelMaterial("dark_oak");
-  const lantern = getVoxelMaterial("sea_lantern");
+function PartitionWall({
+  position,
+  args,
+}: {
+  position: [number, number, number];
+  args: [number, number, number];
+}) {
+  const wallMat = getVoxelMaterial("cubicle_wall");
   return (
-    <group position={position}>
-      <mesh position={[0, 0.9, 0]} material={dark} castShadow receiveShadow>
-        <boxGeometry args={[0.1, 1.8, 0.1]} />
-      </mesh>
-      <mesh position={[0, 1.85, 0]} material={lantern}>
-        <boxGeometry args={[0.35, 0.35, 0.35]} />
-      </mesh>
-      <pointLight position={[0, 1.85, 0]} color="#f3c969" intensity={1.2} distance={10} />
-    </group>
+    <mesh position={position} material={wallMat} castShadow receiveShadow>
+      <boxGeometry args={args} />
+    </mesh>
   );
 }
 
-export function Office() {
+function OfficeColumn({ position }: { position: [number, number, number] }) {
+  const iron = getVoxelMaterial("iron");
+  return (
+    <mesh position={position} material={iron} castShadow receiveShadow>
+      <boxGeometry args={[0.4, 3.2, 0.4]} />
+    </mesh>
+  );
+}
+
+export function Office({ onSelectObject, activePreset = "overview" }: OfficeProps) {
   const { data: agents } = useAgents();
   const syncFromRoster = useOfficeStore((s) => s.syncFromRoster);
   useOfficeSocket();
@@ -66,148 +118,174 @@ export function Office() {
 
   const rawLayout = computeDeskLayout(agents ?? []);
   const byId = new Map((agents ?? []).map((a) => [a.id, a]));
-  const deskExtent = computeDeskExtent(rawLayout);
-  const deskZoneDepth = deskExtent.depth + DESK_BACK_PADDING;
 
-  const depth = FRONT_PADDING + deskZoneDepth + DIVIDER_GAP + BACK_ZONE_DEPTH + BACK_PADDING;
-  const width = Math.max(deskExtent.width + FRONT_PADDING * 2, MIN_ROOM_WIDTH);
-
-  const deskZoneCenterZ = depth / 2 - FRONT_PADDING - deskZoneDepth / 2;
-  const dividerZ = deskZoneCenterZ - deskZoneDepth / 2 - DIVIDER_GAP / 2;
-  const backZoneBackEdge = -depth / 2 + BACK_PADDING;
-  const counterZ = backZoneBackEdge + 0.7;
-  const tablesZ = dividerZ - BACK_ZONE_DEPTH / 2 + 0.5;
-  const zoneWidth = width / 3;
-  const cafeteriaCenterX = -zoneWidth;
-  const cabinCenterX = 0;
-  const recCenterX = zoneWidth;
+  const deskCenterZ = 0.5;
 
   const layout = useMemo(
     () =>
       rawLayout.map((d) => ({
         ...d,
-        position: [d.position[0], d.position[1], d.position[2] + deskZoneCenterZ] as [
+        position: [d.position[0], d.position[1], d.position[2] + deskCenterZ] as [
           number,
           number,
           number,
         ],
       })),
-    [rawLayout, deskZoneCenterZ],
+    [rawLayout, deskCenterZ],
   );
 
-  const floorMat = useMemo(() => getTiledVoxelMaterial("oak", width, depth), [width, depth]);
-  const aisleMat = useMemo(
-    () => getTiledVoxelMaterial("red_wool", 1.8, deskZoneDepth),
-    [deskZoneDepth],
+  const floorMat = useMemo(
+    () => getTiledVoxelMaterial("wood_parquet", OFFICE_WIDTH, OFFICE_DEPTH),
+    [],
   );
-  const dividerMat = getVoxelMaterial("oak");
+  const aisleMat = useMemo(
+    () => getTiledVoxelMaterial("red_wool", 2.8, OFFICE_DEPTH - 2),
+    [],
+  );
   const foundationMat = getVoxelMaterial("dark_oak");
   const edgeMat = getVoxelMaterial("stone_brick");
-
-  const fencePosts = useMemo(() => {
-    const posts: number[] = [];
-    const gapHalf = 1.3;
-    for (let x = -width / 2 + 1; x <= width / 2 - 1; x += 1.4) {
-      if (x > -gapHalf && x < gapHalf) continue;
-      posts.push(x);
-    }
-    return posts;
-  }, [width]);
-
-  const lampPositions = useMemo<[number, number, number][]>(
-    () => [
-      [-width / 2 + 0.5, 0, dividerZ],
-      [width / 2 - 0.5, 0, dividerZ],
-    ],
-    [width, dividerZ],
-  );
-
-  const plantPositions = useMemo<[number, number, number][]>(
-    () => [
-      [-width / 2 + 0.6, 0, -depth / 2 + 0.6],
-      [width / 2 - 0.6, 0, -depth / 2 + 0.6],
-      [-width / 2 + 0.6, 0, deskZoneCenterZ + deskZoneDepth / 2 - 0.4],
-      [width / 2 - 0.6, 0, deskZoneCenterZ + deskZoneDepth / 2 - 0.4],
-    ],
-    [width, depth, deskZoneCenterZ, deskZoneDepth],
+  const glassWallMat = useMemo(
+    () => getTiledVoxelMaterial("glass", OFFICE_WIDTH, 2.2),
+    [],
   );
 
   return (
     <>
+      {/* Clean Corporate Studio Environment */}
       <color attach="background" args={[BACKGROUND_COLOR]} />
-      <fog attach="fog" args={[BACKGROUND_COLOR, 22, 48]} />
+      <fog attach="fog" args={[FOG_COLOR, 45, 120]} />
 
-      <CameraRig width={width} depth={depth} />
+      <CameraRig preset={activePreset} />
 
-      <hemisphereLight args={["#c4b5fd", "#1e1b4b", 1.2]} />
-      <ambientLight intensity={0.6} />
+      {/* Warm Corporate Studio Lighting with Anti-Blinking Shadow Bias */}
+      <hemisphereLight args={["#f8fafc", "#334155", 1.5]} />
+      <ambientLight intensity={0.75} />
       <directionalLight
-        position={[width / 2, 16, depth / 3]}
-        intensity={1.6}
-        color="#fff7ed"
+        position={[24, 30, 24]}
+        intensity={1.8}
+        color="#fffbeb"
         castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-bias={-0.0005}
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-bias={-0.0008}
       />
-      <directionalLight position={[-width / 2, 10, -depth / 2]} intensity={0.7} color="#818cf8" />
+      <directionalLight position={[-20, 18, -20]} intensity={0.5} color="#818cf8" />
 
-      <mesh position={[0, -0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[width * 2.4, depth * 2.4]} />
-        <meshStandardMaterial color={GROUND_COLOR} roughness={0.9} />
-      </mesh>
-      <mesh position={[0, -0.16, 0]} material={foundationMat} castShadow receiveShadow>
-        <boxGeometry args={[width + 0.35, 0.3, depth + 0.35]} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} material={floorMat} receiveShadow>
-        <planeGeometry args={[width, depth]} />
-      </mesh>
-      <mesh position={[0, 0.24, -depth / 2]} material={edgeMat} castShadow receiveShadow>
-        <boxGeometry args={[width, 0.48, 0.16]} />
-      </mesh>
-      <mesh position={[-width / 2, 0.18, 0]} material={edgeMat} castShadow receiveShadow>
-        <boxGeometry args={[0.16, 0.36, depth]} />
-      </mesh>
-      <mesh position={[width / 2, 0.18, 0]} material={edgeMat} castShadow receiveShadow>
-        <boxGeometry args={[0.16, 0.36, depth]} />
-      </mesh>
-      <mesh position={[0, 0.01, deskZoneCenterZ]} rotation={[-Math.PI / 2, 0, 0]} material={aisleMat} receiveShadow>
-        <planeGeometry args={[1.8, deskZoneDepth]} />
+      {/* Extended Outer Floor (Smooth Non-Aliasing Studio Floor - Eliminating Moiré Shimmering!) */}
+      <mesh position={[0, -0.22, 0]} receiveShadow>
+        <boxGeometry args={[140, 0.1, 140]} />
+        <meshStandardMaterial color="#0b0f19" roughness={0.95} metalness={0.05} />
       </mesh>
 
-      {fencePosts.map((x) => (
-        <mesh key={x} position={[x, 0.45, dividerZ]} material={dividerMat} castShadow receiveShadow>
-          <boxGeometry args={[0.14, 0.9, 0.14]} />
-        </mesh>
-      ))}
+      {/* Outer Building Foundation Base Slab */}
+      <mesh position={[0, -0.1, 0]} material={foundationMat} receiveShadow>
+        <boxGeometry args={[OFFICE_WIDTH + 0.6, 0.2, OFFICE_DEPTH + 0.6]} />
+      </mesh>
 
-      {lampPositions.map((p) => (
-        <LampPost key={`${p[0]}-${p[2]}`} position={p} />
-      ))}
+      {/* Main Solid Office Parquet Floor Slab (Y = 0.02, height 0.04) */}
+      <mesh position={[0, 0.02, 0]} material={floorMat} receiveShadow>
+        <boxGeometry args={[OFFICE_WIDTH, 0.04, OFFICE_DEPTH]} />
+      </mesh>
 
-      {plantPositions.map((p) => (
-        <SmallPlant key={`${p[0]}-${p[2]}`} position={p} />
-      ))}
+      {/* Central Corridor Executive Navy Carpet Runner (Y = 0.05, height 0.02) */}
+      <mesh position={[0, 0.05, 0]} material={aisleMat} receiveShadow>
+        <boxGeometry args={[2.8, 0.02, OFFICE_DEPTH - 1.0]} />
+      </mesh>
 
+      {/* Perimeter Exterior Trim Walls & Glass Facades */}
+      <mesh position={[0, 0.28, -OFFICE_DEPTH / 2]} material={edgeMat} receiveShadow>
+        <boxGeometry args={[OFFICE_WIDTH, 0.52, 0.24]} />
+      </mesh>
+      <mesh position={[0, 0.28, OFFICE_DEPTH / 2]} material={edgeMat} receiveShadow>
+        <boxGeometry args={[OFFICE_WIDTH, 0.52, 0.24]} />
+      </mesh>
+      <mesh position={[-OFFICE_WIDTH / 2, 0.28, 0]} material={edgeMat} receiveShadow>
+        <boxGeometry args={[0.24, 0.52, OFFICE_DEPTH]} />
+      </mesh>
+      <mesh position={[OFFICE_WIDTH / 2, 0.28, 0]} material={edgeMat} receiveShadow>
+        <boxGeometry args={[0.24, 0.52, OFFICE_DEPTH]} />
+      </mesh>
+
+      {/* Outer Glass Window Walls */}
+      <mesh position={[0, 1.25, -OFFICE_DEPTH / 2 + 0.06]} material={glassWallMat}>
+        <boxGeometry args={[OFFICE_WIDTH - 0.5, 1.6, 0.06]} />
+      </mesh>
+      <mesh position={[0, 1.25, OFFICE_DEPTH / 2 - 0.06]} material={glassWallMat}>
+        <boxGeometry args={[OFFICE_WIDTH - 0.5, 1.6, 0.06]} />
+      </mesh>
+
+      {/* Interior Partition Walls (Structuring Wings & Corridors) */}
+      <PartitionWall position={[-6.8, 1.2, 4.5]} args={[0.12, 2.4, 8.0]} />
+      <PartitionWall position={[-6.8, 1.2, -4.5]} args={[0.12, 2.4, 8.0]} />
+      <PartitionWall position={[6.8, 1.2, 4.5]} args={[0.12, 2.4, 8.0]} />
+      <PartitionWall position={[6.8, 1.2, -4.5]} args={[0.12, 2.4, 8.0]} />
+
+      {/* Architectural Support Columns */}
+      <OfficeColumn position={[-6.8, 1.6, 8.5]} />
+      <OfficeColumn position={[6.8, 1.6, 8.5]} />
+      <OfficeColumn position={[-6.8, 1.6, 0]} />
+      <OfficeColumn position={[6.8, 1.6, 0]} />
+      <OfficeColumn position={[-6.8, 1.6, -8.5]} />
+      <OfficeColumn position={[6.8, 1.6, -8.5]} />
+
+      {/* Indoor Potted Palm Plants */}
+      <SmallPlant position={[-5.8, 0, 8.5]} />
+      <SmallPlant position={[5.8, 0, 8.5]} />
+      <SmallPlant position={[-5.8, 0, -4.0]} />
+      <SmallPlant position={[5.8, 0, -4.0]} />
+      <SmallPlant position={[-16.5, 0, 8.5]} />
+      <SmallPlant position={[16.5, 0, 8.5]} />
+      <SmallPlant position={[-16.5, 0, -8.5]} />
+      <SmallPlant position={[16.5, 0, -8.5]} />
+
+      {/* Front Entrance Reception Lobby (Center Front: Z = +8.5, X = 0) */}
+      <ReceptionLobby
+        position={[0, 0, 8.5]}
+        onSelect={() => onSelectObject?.({ type: "reception" })}
+      />
+
+      {/* AI Data Server Core Room (Mid-Left Wing: Z = +1.5, X = -11) */}
+      <ServerRoom
+        position={[-11, 0, 1.5]}
+        onSelect={() => onSelectObject?.({ type: "server" })}
+      />
+
+      {/* War Room Strategy Hub (Back-Left Wing: Z = -7.5, X = -11) */}
+      <ConferenceRoom
+        position={[-11, 0, -7.5]}
+        onSelect={() => onSelectObject?.({ type: "warroom" })}
+      />
+
+      {/* Corporate Cafeteria (Mid-Right Wing: Z = +1.5, X = +11) */}
       <Cafeteria
-        zoneCenterX={cafeteriaCenterX}
-        zoneWidth={zoneWidth}
-        counterZ={counterZ}
-        tablesZ={tablesZ}
-        dividerZ={dividerZ}
+        position={[11, 0, 1.5]}
+        onSelect={() => onSelectObject?.({ type: "cafeteria" })}
       />
 
-      <BossCabin position={[cabinCenterX, 0, tablesZ]} />
+      {/* Recreation & Arcade Lounge (Back-Right Wing: Z = -7.5, X = +11) */}
+      <RecreationArea
+        position={[11, 0, -7.5]}
+        onSelect={() => onSelectObject?.({ type: "recroom" })}
+      />
 
-      <RecreationArea zoneCenterX={recCenterX} poolZ={tablesZ} tennisZ={(tablesZ + counterZ) / 2} />
+      {/* Executive CEO Suite (Back Center Wing: Z = -7.5, X = 0) */}
+      <BossCabin
+        position={[0, 0, -7.5]}
+        onSelect={() => onSelectObject?.({ type: "ceosuite" })}
+      />
 
+      {/* Open Office Workstations Grid (Center Main Floor: Z = 0.5) */}
       {layout.map(({ agentId, position, rotationY }) => {
         const agent = byId.get(agentId);
         if (!agent) return null;
         return (
           <group key={agentId}>
             <CubicleWalls position={position} rotationY={rotationY} />
-            <Desk position={position} rotationY={rotationY} />
+            <Desk
+              position={position}
+              rotationY={rotationY}
+              onSelect={() => onSelectObject?.({ type: "agent", agent })}
+            />
             <AgentAvatar agent={agent} position={position} />
           </group>
         );

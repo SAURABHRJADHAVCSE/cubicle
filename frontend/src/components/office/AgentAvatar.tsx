@@ -45,12 +45,12 @@ export function AgentAvatar({ agent, position }: AgentAvatarProps) {
     [],
   );
   const shirtMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: agent.accent_color, roughness: 0.4 }),
+    () => new THREE.MeshStandardMaterial({ color: agent.accent_color || "#6366f1", roughness: 0.4 }),
     [agent.accent_color],
   );
   const hairMat = useMemo(
     () => new THREE.MeshStandardMaterial({
-      color: ["#1e1b4b", "#451a03", "#78350f", "#334155", "#0f172a"][hashSeed(agent.id) % 5],
+      color: ["#1e1b4b", "#451a03", "#78350f", "#334155", "#0f172a"][Math.floor(hashSeed(agent.id)) % 5],
       roughness: 0.7
     }),
     [agent.id],
@@ -71,8 +71,8 @@ export function AgentAvatar({ agent, position }: AgentAvatarProps) {
   const SEAT_TOP_Y = 0.49;
   const SEAT_Z = 0.8;
   const seed = useMemo(() => hashSeed(agent.id), [agent.id]);
-  const hasGlasses = seed % 2 === 0;
-  const hasHeadset = seed % 3 === 0;
+  const hasGlasses = Math.floor(seed) % 2 === 0;
+  const hasHeadset = Math.floor(seed) % 3 === 0;
 
   useFrame(({ clock }, delta) => {
     if (!groupRef.current) return;

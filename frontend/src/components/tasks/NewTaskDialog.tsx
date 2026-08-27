@@ -121,7 +121,14 @@ export function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps) {
 
           <div className="flex flex-col gap-1.5">
             <Label>Route via boss agent (optional)</Label>
-            <Select value={orchestratorId} onValueChange={(v) => v && setOrchestratorId(v)}>
+            <Select
+              value={orchestratorId}
+              onValueChange={(v) => v && setOrchestratorId(v)}
+              items={{
+                [NO_ORCHESTRATOR]: "No boss — assign directly",
+                ...Object.fromEntries((agents ?? []).map((a) => [a.id, `${a.name} · ${a.role}`])),
+              }}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>

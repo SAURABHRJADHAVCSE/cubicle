@@ -5,7 +5,7 @@ import { generateBlockTexture, generateSignTexture, type BlockType } from "@/lib
 const materialCache = new Map<BlockType, THREE.MeshStandardMaterial>();
 
 const TRANSPARENT_TYPES = new Set<BlockType>(["glass", "leaves"]);
-const EMISSIVE_TYPES = new Set<BlockType>(["sea_lantern", "monitor_screen"]);
+const EMISSIVE_TYPES = new Set<BlockType>(["sea_lantern", "monitor_screen", "server_rack", "arcade_screen"]);
 
 export function getVoxelMaterial(type: BlockType): THREE.MeshStandardMaterial {
   const cached = materialCache.get(type);
@@ -25,14 +25,23 @@ export function getVoxelMaterial(type: BlockType): THREE.MeshStandardMaterial {
     params.roughness = 0.1;
     params.metalness = 0.1;
     params.transparent = true;
-    params.opacity = 0.5;
+    params.opacity = 0.45;
   } else if (type === "quartz") {
     params.roughness = 0.25;
-  } else if (type === "oak" || type === "dark_oak") {
-    params.roughness = 0.5;
+  } else if (type === "oak" || type === "dark_oak" || type === "wood_parquet") {
+    params.roughness = 0.45;
+  } else if (type === "marble_tile") {
+    params.roughness = 0.2;
+    params.metalness = 0.15;
+  } else if (type === "grass") {
+    params.roughness = 0.9;
+    params.metalness = 0.0;
   } else if (type === "red_wool") {
     params.roughness = 0.95;
     params.metalness = 0.0;
+  } else if (type === "server_rack") {
+    params.roughness = 0.3;
+    params.metalness = 0.7;
   }
 
   if (TRANSPARENT_TYPES.has(type) && type !== "glass") params.transparent = true;
@@ -44,7 +53,13 @@ export function getVoxelMaterial(type: BlockType): THREE.MeshStandardMaterial {
       params.emissiveIntensity = 0.7;
     } else if (type === "monitor_screen") {
       params.emissive = new THREE.Color("#4f46e5");
-      params.emissiveIntensity = 0.3;
+      params.emissiveIntensity = 0.35;
+    } else if (type === "server_rack") {
+      params.emissive = new THREE.Color("#0284c7");
+      params.emissiveIntensity = 0.25;
+    } else if (type === "arcade_screen") {
+      params.emissive = new THREE.Color("#8b5cf6");
+      params.emissiveIntensity = 0.6;
     }
   }
 
@@ -63,6 +78,16 @@ export function getTiledVoxelMaterial(
   material.map = base.map!.clone();
   material.map.needsUpdate = true;
   material.map.repeat.set(repeatX, repeatY);
+  return material;
+}
+
+/** Nudges a material's rendered depth slightly toward the camera so it wins
+ * z-fighting against a coplanar surface underneath it — e.g. a room's own
+ * floor tile sitting exactly on top of the main office floor slab. */
+export function preventZFighting<T extends THREE.Material>(material: T): T {
+  material.polygonOffset = true;
+  material.polygonOffsetFactor = -4;
+  material.polygonOffsetUnits = -4;
   return material;
 }
 

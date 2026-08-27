@@ -5,16 +5,17 @@ import { getVoxelMaterial } from "@/lib/voxelMaterials";
 interface DeskProps {
   position: [number, number, number];
   rotationY?: number;
+  onSelect?: () => void;
 }
 
 const LEG_OFFSETS: [number, number][] = [
-  [-0.55, -0.28],
-  [0.55, -0.28],
-  [-0.55, 0.28],
-  [0.55, 0.28],
+  [-0.65, -0.32],
+  [0.65, -0.32],
+  [-0.65, 0.32],
+  [0.65, 0.32],
 ];
 
-export function Desk({ position, rotationY = 0 }: DeskProps) {
+export function Desk({ position, rotationY = 0, onSelect }: DeskProps) {
   const darkOak = getVoxelMaterial("dark_oak");
   const iron = getVoxelMaterial("iron");
   const redWool = getVoxelMaterial("red_wool");
@@ -22,22 +23,26 @@ export function Desk({ position, rotationY = 0 }: DeskProps) {
   const dirt = getVoxelMaterial("dirt");
   const cactus = getVoxelMaterial("cactus");
   const monitorScreen = getVoxelMaterial("monitor_screen");
+  const quartz = getVoxelMaterial("quartz");
+  const cubicleWallMat = getVoxelMaterial("cubicle_wall");
 
-  // BoxGeometry has 6 built-in material groups (one per face); passing an
-  // array here targets [+x, -x, +y, -y, +z, -z] without needing per-face
-  // `attach="material-N"` children. Face 4 (+z) faces the seated avatar.
   const monitorMaterials = useMemo(
     () => [iron, iron, iron, iron, monitorScreen, iron],
     [iron, monitorScreen],
   );
 
-  const quartz = getVoxelMaterial("quartz");
-
   return (
-    <group position={position} rotation={[0, rotationY, 0]}>
+    <group
+      position={position}
+      rotation={[0, rotationY, 0]}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect?.();
+      }}
+    >
       {/* Desk Top */}
       <mesh position={[0, 0.85, 0]} material={darkOak} castShadow receiveShadow>
-        <boxGeometry args={[1.3, 0.08, 0.7]} />
+        <boxGeometry args={[1.5, 0.08, 0.78]} />
       </mesh>
       {/* Desk Legs */}
       {LEG_OFFSETS.map(([x, z]) => (
@@ -46,44 +51,72 @@ export function Desk({ position, rotationY = 0 }: DeskProps) {
         </mesh>
       ))}
 
-      {/* Monitor */}
-      <mesh position={[0, 1.15, -0.25]} material={monitorMaterials} castShadow>
-        <boxGeometry args={[0.58, 0.38, 0.06]} />
+      {/* Dual Curved / Angled Monitors */}
+      {/* Main Center Monitor */}
+      <mesh position={[-0.18, 1.16, -0.26]} rotation={[0, 0.1, 0]} material={monitorMaterials} castShadow>
+        <boxGeometry args={[0.55, 0.36, 0.05]} />
       </mesh>
-      <mesh position={[0, 0.98, -0.28]} material={iron} castShadow>
-        <boxGeometry args={[0.08, 0.14, 0.08]} />
+      {/* Secondary Right Monitor */}
+      <mesh position={[0.34, 1.16, -0.22]} rotation={[0, -0.3, 0]} material={monitorMaterials} castShadow>
+        <boxGeometry args={[0.5, 0.36, 0.05]} />
       </mesh>
-      {/* Keyboard */}
-      <mesh position={[0, 0.9, 0.12]} material={iron} castShadow>
-        <boxGeometry args={[0.38, 0.02, 0.15]} />
+      {/* Monitor Stand Arm */}
+      <mesh position={[0.08, 0.98, -0.28]} material={iron} castShadow>
+        <boxGeometry args={[0.2, 0.16, 0.08]} />
       </mesh>
 
-      {/* Chair */}
-      <group position={[0, 0, 0.85]}>
-        <mesh position={[0, 0.45, 0]} material={redWool} castShadow receiveShadow>
-          <boxGeometry args={[0.42, 0.08, 0.42]} />
+      {/* Desktop PC Tower Case with Glowing RGB Strip */}
+      <group position={[0.62, 0.4, 0.1]}>
+        <mesh position={[0, 0, 0]} material={cubicleWallMat} castShadow>
+          <boxGeometry args={[0.22, 0.45, 0.45]} />
         </mesh>
-        <mesh position={[0, 0.7, 0.18]} material={redWool} castShadow receiveShadow>
-          <boxGeometry args={[0.42, 0.45, 0.08]} />
+        <mesh position={[-0.115, 0, 0]} material={quartz}>
+          <boxGeometry args={[0.02, 0.38, 0.38]} />
+        </mesh>
+        <pointLight position={[-0.05, 0, 0]} color="#60a5fa" intensity={0.5} distance={1.2} />
+      </group>
+
+      {/* Mechanical Keyboard & Mouse pad */}
+      <mesh position={[-0.05, 0.9, 0.14]} material={iron} castShadow>
+        <boxGeometry args={[0.42, 0.02, 0.16]} />
+      </mesh>
+      <mesh position={[0.28, 0.895, 0.14]} material={cubicleWallMat} receiveShadow>
+        <boxGeometry args={[0.2, 0.01, 0.22]} />
+      </mesh>
+
+      {/* Ergonomic Mesh Office Chair */}
+      <group position={[0, 0, 0.88]}>
+        <mesh position={[0, 0.45, 0]} material={redWool} castShadow receiveShadow>
+          <boxGeometry args={[0.46, 0.08, 0.46]} />
+        </mesh>
+        <mesh position={[0, 0.74, 0.2]} material={redWool} castShadow receiveShadow>
+          <boxGeometry args={[0.46, 0.48, 0.08]} />
+        </mesh>
+        {/* Armrests */}
+        <mesh position={[-0.25, 0.6, 0]} material={iron}>
+          <boxGeometry args={[0.04, 0.24, 0.3]} />
+        </mesh>
+        <mesh position={[0.25, 0.6, 0]} material={iron}>
+          <boxGeometry args={[0.04, 0.24, 0.3]} />
         </mesh>
         <mesh position={[0, 0.24, 0]} material={iron} castShadow>
           <boxGeometry args={[0.07, 0.35, 0.07]} />
         </mesh>
         <mesh position={[0, 0.05, 0]} material={stoneBrick} castShadow receiveShadow>
-          <boxGeometry args={[0.4, 0.06, 0.4]} />
+          <boxGeometry args={[0.45, 0.06, 0.45]} />
         </mesh>
       </group>
 
-      {/* Plant */}
-      <mesh position={[-0.52, 0.98, -0.25]} material={dirt} castShadow>
+      {/* Desk Succulent Plant */}
+      <mesh position={[-0.6, 0.98, -0.22]} material={dirt} castShadow>
         <boxGeometry args={[0.12, 0.14, 0.12]} />
       </mesh>
-      <mesh position={[-0.52, 1.12, -0.25]} material={cactus} castShadow>
+      <mesh position={[-0.6, 1.12, -0.22]} material={cactus} castShadow>
         <boxGeometry args={[0.09, 0.2, 0.09]} />
       </mesh>
 
-      {/* Coffee Mug */}
-      <mesh position={[0.48, 0.93, 0.1]} material={quartz} castShadow>
+      {/* Ceramic Coffee Mug */}
+      <mesh position={[-0.45, 0.93, 0.18]} material={quartz} castShadow>
         <boxGeometry args={[0.09, 0.12, 0.09]} />
       </mesh>
     </group>

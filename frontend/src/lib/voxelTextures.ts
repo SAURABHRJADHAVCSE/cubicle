@@ -16,13 +16,20 @@ export type BlockType =
   | "cake_side"
   | "cake_top"
   | "skin"
-  | "cubicle_wall";
+  | "cubicle_wall"
+  | "server_rack"
+  | "vending_machine"
+  | "grass"
+  | "wood_parquet"
+  | "marble_tile"
+  | "arcade_screen"
+  | "whiteboard";
 
 const BASE_COLORS: Record<BlockType, string> = {
   oak: "#b88e5e",
   dark_oak: "#3d2d24",
   stone_brick: "#334155",
-  red_wool: "#9f1239",
+  red_wool: "#1e293b",
   quartz: "#f8fafc",
   glass: "#8b86c9",
   iron: "#64748b",
@@ -34,7 +41,14 @@ const BASE_COLORS: Record<BlockType, string> = {
   cake_side: "#b45309",
   cake_top: "#f8fafc",
   skin: "#f3a683",
-  cubicle_wall: "#475569",
+  cubicle_wall: "#334155",
+  server_rack: "#0f172a",
+  vending_machine: "#1e1b4b",
+  grass: "#15803d",
+  wood_parquet: "#cbd5e1",
+  marble_tile: "#f1f5f9",
+  arcade_screen: "#312e81",
+  whiteboard: "#f8fafc",
 };
 
 /**
@@ -51,7 +65,14 @@ export function generateBlockTexture(type: BlockType): THREE.CanvasTexture {
   ctx.fillRect(0, 0, 32, 32);
 
   // Subtle pixel noise
-  if (type !== "glass" && type !== "monitor_screen" && type !== "cake_top") {
+  if (
+    type !== "glass" &&
+    type !== "monitor_screen" &&
+    type !== "cake_top" &&
+    type !== "server_rack" &&
+    type !== "arcade_screen" &&
+    type !== "whiteboard"
+  ) {
     for (let i = 0; i < 80; i++) {
       const x = (i * 13) % 32;
       const y = (i * 17) % 32;
@@ -78,16 +99,94 @@ export function generateBlockTexture(type: BlockType): THREE.CanvasTexture {
     ctx.fillStyle = "rgba(255,255,255,0.05)";
     ctx.fillRect(2, 6, 16, 1);
     ctx.fillRect(14, 22, 12, 1);
+  } else if (type === "wood_parquet") {
+    // Elegant light oak / grey-beige parquet flooring
+    ctx.fillStyle = "#e2e8f0";
+    ctx.fillRect(0, 0, 16, 16);
+    ctx.fillRect(16, 16, 16, 16);
+    ctx.fillStyle = "rgba(148,163,184,0.3)";
+    ctx.fillRect(0, 15, 32, 1);
+    ctx.fillRect(15, 0, 1, 32);
+  } else if (type === "marble_tile") {
+    // Elegant polished marble grid
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0, 0, 32, 32);
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.fillRect(2, 2, 8, 8);
+  } else if (type === "grass") {
+    // Lawn grass texture
+    ctx.fillStyle = "#166534";
+    for (let i = 0; i < 40; i++) {
+      const gx = (i * 7) % 32;
+      const gy = (i * 11) % 32;
+      ctx.fillRect(gx, gy, 2, 3);
+    }
+  } else if (type === "server_rack") {
+    // High-tech server rack front
+    ctx.fillStyle = "#020617";
+    ctx.fillRect(0, 0, 32, 32);
+    // Server blade slots
+    for (let y = 2; y < 30; y += 6) {
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(2, y, 28, 4);
+      // Blinking LEDs
+      ctx.fillStyle = y % 12 === 2 ? "#22c55e" : "#3b82f6";
+      ctx.fillRect(4, y + 1, 2, 2);
+      ctx.fillStyle = "#38bdf8";
+      ctx.fillRect(7, y + 1, 2, 2);
+    }
+  } else if (type === "vending_machine") {
+    // Vending machine front glass & snacks
+    ctx.fillStyle = "#1e1b4b";
+    ctx.fillRect(0, 0, 32, 32);
+    ctx.fillStyle = "#38bdf8";
+    ctx.fillRect(4, 4, 24, 18);
+    // Soda cans / snack rows
+    ctx.fillStyle = "#ef4444";
+    ctx.fillRect(6, 6, 4, 5);
+    ctx.fillStyle = "#eab308";
+    ctx.fillRect(12, 6, 4, 5);
+    ctx.fillStyle = "#22c55e";
+    ctx.fillRect(18, 6, 4, 5);
+    // Keypad & coin dispenser slot
+    ctx.fillStyle = "#94a3b8";
+    ctx.fillRect(4, 24, 24, 6);
+  } else if (type === "arcade_screen") {
+    // Arcade CRT game screen
+    ctx.fillStyle = "#09090b";
+    ctx.fillRect(0, 0, 32, 32);
+    ctx.fillStyle = "#a855f7"; // Neon arcade ship
+    ctx.fillRect(13, 20, 6, 4);
+    ctx.fillRect(15, 16, 2, 4);
+    // Stars / invaders
+    ctx.fillStyle = "#facc15";
+    ctx.fillRect(6, 6, 3, 3);
+    ctx.fillRect(22, 8, 3, 3);
+  } else if (type === "whiteboard") {
+    // Office whiteboard with chart drawing
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, 32, 32);
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(1, 1, 30, 30);
+    // Bar chart lines
+    ctx.fillStyle = "#3b82f6";
+    ctx.fillRect(4, 18, 4, 10);
+    ctx.fillStyle = "#22c55e";
+    ctx.fillRect(10, 12, 4, 16);
+    ctx.fillStyle = "#a855f7";
+    ctx.fillRect(16, 6, 4, 22);
   } else if (type === "red_wool") {
-    // Woven velvet carpet / rug pattern
-    ctx.fillStyle = "#be123c";
+    // Woven corporate navy carpet runner
+    ctx.fillStyle = "#334155";
     for (let y = 0; y < 32; y += 4) {
       for (let x = 0; x < 32; x += 4) {
         if ((x + y) % 8 === 0) ctx.fillRect(x, y, 2, 2);
       }
     }
-    // Gold border trim effect
-    ctx.fillStyle = "rgba(253, 224, 71, 0.25)";
+    // Silver border trim effect
+    ctx.fillStyle = "rgba(226, 232, 240, 0.4)";
     ctx.fillRect(0, 0, 32, 2);
     ctx.fillRect(0, 30, 32, 2);
   } else if (type === "stone_brick") {
@@ -189,3 +288,4 @@ export function generateSignTexture(text: string, textColor = "#facc15"): THREE.
   texture.minFilter = THREE.NearestFilter;
   return texture;
 }
+

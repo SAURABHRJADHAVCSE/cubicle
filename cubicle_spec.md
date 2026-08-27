@@ -32,6 +32,58 @@ What makes Cubicle different from every other agent harness:
 | LLM | Requires existing CLI agent subscription | Ollama ($0) or BYOK cloud API |
 | Output | Raw terminal text | Structured cards, PDFs, downloadable results |
 
+> The table above and the bullets in Section 1 describe the target vision. For what's actually running today, see **Current Status** immediately below.
+
+### Current Status — What's Actually Built Today
+
+This section is the accurate, current-reality companion to Section 9's versioned checklist — read this for "what does Cubicle do right now," read Section 9 for "what's left and when." Last verified: 2026-08-27.
+
+**3D Office (React Three Fiber)**
+- Procedural voxel office rendered client-side, no asset pipeline — "Tycoon AI Office" theme, isometric camera
+- 8 zones with dedicated camera presets and click-to-inspect object cards: Overview, Reception, Workstations, Server Core, CEO Suite, Cafeteria, Rec Arcade, War Room
+- Floor-zone picker collapses to a single pill showing the active zone and expands into the full picker on hover/focus, keeping most of the viewport clear for the 3D scene
+- Agent avatars: idle sway (per-agent phase offset so it's not synchronized), working animation, celebration jump-and-spin, status ring + glow color-coded to agent status, optional glasses/headset variation per agent, speech bubbles driven by real backend events
+- WebGL stability: capped `dpr`, no real-time shadows, capped point-light count regardless of room size, and automatic canvas remount on context loss
+- Z-fighting-safe: every room's floor tile uses `polygonOffset` so it doesn't flicker against the shared office floor slab underneath it
+
+**Agent Management**
+- 4-step "Add Agent" wizard (Identity → Engine → Workspace → Briefing, Workspace step only shown for CLI engines) — fixed dialog size across all steps, no resizing between them
+- Personality trait picker: 6 categories (social, work, humor, habits, quirks, social_style), multi-select chips
+- Accent color picker (8-color wheel + custom color input) drives the agent's avatar shirt color and UI accents
+- Live avatar preview updates as you type
+- 9 engines selectable: Claude Code, OpenCode, Codex, Grok, Gemini, Antigravity, Qwen (CLI subprocess) plus Ollama and Anthropic API (direct LiteLLM calls)
+- Per-agent engine override, custom CLI command override for unverified providers, working directory, allowed-tools list
+
+**Task Execution**
+- Task creation with an optional "route via boss agent" picker — when set, the orchestrator's engine breaks the brief into subtasks (JSON-parsed with a graceful single-subtask fallback) and delegates them to the rest of the roster
+- Real-time status updates over Socket.io (no polling)
+- Structured result cards, not raw terminal dumps
+- Task statuses: queued, assigned, in progress, in review, completed, failed, routed
+
+**Social Behavior**
+- Celery Beat scheduler (runs every 60s) drives: idle-to-coffee-break detection, random desk-visit pairings, once-daily end-of-day wind-down
+- Dialogue is genuinely LLM-generated per event (a cheap local Ollama model, personality-flavored from the agent's traits/quirks), not canned strings, with a safe fallback line if generation fails
+- Celebration animation + emitted event on task completion
+- Not yet built: gossip and flirt triggers (the `social_style` personality traits exist but aren't wired to a scheduler trigger)
+
+**Memory**
+- Per-agent semantic memory backed by pgvector, written to after task completion
+
+**Settings & Onboarding**
+- Both are in-place centered dialogs — the dashboard stays mounted behind them, no page navigation, closing either returns to a clean dashboard state
+- Settings: Claude Code OAuth connect/disconnect flow (the only engine with editable credentials), live status+guidance cards for the other 8 engines (detected/not-detected, install/config guidance — no editable API-key storage yet), Appearance tab (light/dark theme)
+- Onboarding: same live engine-detection grid, then a real demo task run against a starter agent template, polled to completion
+
+**Engines**
+- CLI engines run as real subprocesses; API engines go through LiteLLM. `GET /engines` auto-detects what's actually available on the host/PATH and drives every "detected/not detected" badge in the UI live — nothing here is hardcoded
+
+**Infrastructure**
+- Docker Compose services: `cubicle-web` (Next.js, Turbopack dev), `cubicle-api` (FastAPI), `cubicle-worker` + `cubicle-beat` (Celery), Postgres 16 + pgvector, Redis 7
+- No Caddy/reverse-proxy yet — the app is reached directly on its exposed ports, not via auto-SSL
+- Alembic migrations for schema changes (3 so far)
+
+**Explicitly not built yet** (full detail and everything beyond this in Section 9): voice calls (WebRTC/Sarvam) and everything under it in V1.0, gossip/flirt social triggers, task history search, editable API keys and social-behavior toggles in Settings, a permissions system, keep-alive for closed-browser execution, result export (PDF/CSV/clipboard), and all of V2.0/V3.0 (multi-user auth, scheduled missions, webhooks, MCP server, plugin system).
+
 ---
 
 ## 2. Architecture
@@ -818,9 +870,9 @@ Ship it. Public launch.
 - [ ] Phone ring animation in Spline scene
 - [ ] Sarvam-105B as LLM option (Indian languages)
 - [ ] Download results as PDF / CSV / clipboard
-- [ ] Dark/light theme toggle
-- [ ] Settings page: all engine configs, API keys, social behavior toggles
-- [ ] Auto-detect installed CLI agents on startup
+- [x] Dark/light theme toggle
+- [ ] Settings page: all engine configs, API keys, social behavior toggles — status+guidance dialog for all 9 engines and Claude Code OAuth connect are built; editable API-key storage and social-behavior toggles are not
+- [x] Auto-detect installed CLI agents on startup
 - [ ] Permissions system (auto mode, allowed tools per agent)
 - [ ] Keep-alive: agents continue working when browser closes
 - [ ] README with demo GIF, comparison table, install instructions
