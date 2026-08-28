@@ -22,7 +22,7 @@ export function AgentList() {
           </div>
           <div>
             <h3 className="text-xs font-bold text-slate-900 dark:text-slate-200">Your agents</h3>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+            <p className="text-3xs text-slate-500 dark:text-slate-400">
               {agents?.length ?? 0} teammate{agents?.length === 1 ? "" : "s"}
             </p>
           </div>

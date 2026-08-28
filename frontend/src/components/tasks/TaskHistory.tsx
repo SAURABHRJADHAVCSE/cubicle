@@ -29,7 +29,7 @@ export function TaskHistory() {
           </div>
           <div>
             <h3 className="text-xs font-bold text-slate-900 dark:text-slate-200">Task feed</h3>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+            <p className="text-3xs text-slate-500 dark:text-slate-400">
               {activeCount > 0 ? `${activeCount} active` : `${tasks?.length ?? 0} total tasks`}
             </p>
           </div>

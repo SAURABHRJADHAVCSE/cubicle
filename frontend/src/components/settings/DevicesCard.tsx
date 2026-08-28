@@ -61,14 +61,14 @@ export function DevicesCard() {
         <p className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
           <Smartphone className="size-3.5 text-indigo-500" /> Devices
         </p>
-        <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+        <p className="mt-0.5 text-3xs leading-relaxed text-slate-500 dark:text-slate-400">
           Pair a phone to control this instance remotely. Point it at whatever address reaches this
           server from outside — a Tailscale hostname, a Cloudflare Tunnel URL, or your VPS&apos;s domain.
         </p>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="remote-url" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        <Label htmlFor="remote-url" className="text-3xs font-bold uppercase tracking-wider text-slate-400">
           Remote server address
         </Label>
         <Input
@@ -89,7 +89,7 @@ export function DevicesCard() {
             >
               <div className="min-w-0">
                 <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">{device.name}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                <p className="text-3xs text-slate-500 dark:text-slate-400">
                   Last seen {formatRelativeTime(device.last_seen_at)}
                 </p>
               </div>
@@ -113,17 +113,17 @@ export function DevicesCard() {
             <div className="rounded-lg bg-white p-3">
               <QRCode value={qrPayload} size={160} />
             </div>
-            <p className="font-mono text-[10px] break-all text-center text-slate-500 dark:text-slate-400">
+            <p className="font-mono text-3xs break-all text-center text-slate-500 dark:text-slate-400">
               No camera? Open this link on the phone instead:
               <br />
               {qrPayload}
             </p>
-            <p className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+            <p className="text-3xs font-semibold text-indigo-600 dark:text-indigo-400">
               Expires in {secondsLeft}s
             </p>
           </div>
         ) : (
-          <p className="text-center text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+          <p className="text-center text-3xs font-semibold text-amber-600 dark:text-amber-400">
             Code expired — generate a new one.
           </p>
         )

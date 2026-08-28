@@ -24,7 +24,7 @@ export function EngineCard({ engineKey }: EngineCardProps) {
         <p className="text-xs font-bold text-slate-900 dark:text-white">{info.label}</p>
         {!isLoading && (
           <span
-            className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold ${
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-4xs font-bold ${
               connected
                 ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                 : "border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
@@ -35,7 +35,7 @@ export function EngineCard({ engineKey }: EngineCardProps) {
           </span>
         )}
       </div>
-      <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">{info.guidance}</p>
+      <p className="text-3xs leading-relaxed text-slate-500 dark:text-slate-400">{info.guidance}</p>
     </div>
   );
 }

@@ -62,7 +62,7 @@ export function CallPanel() {
 
       <div className="flex items-center gap-3 border-b border-slate-200 dark:border-white/10 bg-slate-50/90 dark:bg-slate-900/80 px-4 py-3 backdrop-blur-xl">
         <Avatar className="size-8 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm" style={{ backgroundColor: agent?.accent_color }}>
-          <AvatarFallback className="text-[11px] font-bold text-white" style={{ backgroundColor: agent?.accent_color }}>
+          <AvatarFallback className="text-2xs font-bold text-white" style={{ backgroundColor: agent?.accent_color }}>
             {agent?.name.slice(0, 2).toUpperCase() ?? "?"}
           </AvatarFallback>
         </Avatar>
@@ -70,7 +70,7 @@ export function CallPanel() {
           <p className="truncate font-heading text-xs font-semibold text-slate-900 dark:text-slate-100">
             {agent?.name ?? "Agent"}
           </p>
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-1.5 text-3xs text-slate-500 dark:text-slate-400">
             <span className={`size-1.5 rounded-full ${STATE_DOT[state] ?? "bg-slate-400"}`} />
             {STATE_LABEL[state] ?? state}
           </div>
@@ -88,7 +88,7 @@ export function CallPanel() {
 
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4 soft-scrollbar">
         {statusMessage && (
-          <div className="mx-auto max-w-[280px] rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-center text-[11px] leading-relaxed text-primary">
+          <div className="mx-auto max-w-[280px] rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-center text-2xs leading-relaxed text-primary">
             {statusMessage}
           </div>
         )}

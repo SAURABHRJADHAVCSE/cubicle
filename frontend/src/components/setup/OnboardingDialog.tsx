@@ -117,7 +117,7 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
                     : "border-slate-200 bg-white/60 text-slate-400 dark:border-white/10 dark:bg-slate-900/40"
               }`}
             >
-              <span className="flex size-4 items-center justify-center rounded-full bg-black/20 text-[10px]">
+              <span className="flex size-4 items-center justify-center rounded-full bg-black/20 text-3xs">
                 {i + 1}
               </span>
               <span>{label}</span>
@@ -187,7 +187,7 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
                     onClick={() => runDemo(i)}
                   >
                     <span className="text-xs font-bold text-slate-900 dark:text-white">{template.name}</span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">{template.role}</span>
+                    <span className="text-3xs text-slate-500 dark:text-slate-400">{template.role}</span>
                   </Button>
                 ))}
               </div>

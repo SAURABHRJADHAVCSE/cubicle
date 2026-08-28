@@ -11,24 +11,44 @@
  * players later if real animated character assets get designed.
  */
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+
+// These loop forever (bounce/spin/pulse) to signal live agent state — exactly
+// the kind of motion prefers-reduced-motion users ask to avoid. The global
+// CSS transition/animation override in globals.css doesn't reach Framer
+// Motion's own transform engine, so each one checks the preference directly
+// and swaps to a static equivalent that still conveys the same state.
 
 export function TypingIndicator() {
+  const reduceMotion = useReducedMotion();
   return (
     <div className="flex items-center gap-1 px-1 py-2" aria-label="typing">
-      {[0, 1, 2].map((i) => (
-        <motion.span
-          key={i}
-          className="size-1.5 rounded-full bg-muted-foreground"
-          animate={{ y: [0, -3, 0] }}
-          transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
-        />
-      ))}
+      {[0, 1, 2].map((i) =>
+        reduceMotion ? (
+          <span key={i} className="size-1.5 rounded-full bg-muted-foreground" />
+        ) : (
+          <motion.span
+            key={i}
+            className="size-1.5 rounded-full bg-muted-foreground"
+            animate={{ y: [0, -3, 0] }}
+            transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
+          />
+        )
+      )}
     </div>
   );
 }
 
 export function ThinkingSpinner({ className = "" }: { className?: string }) {
+  const reduceMotion = useReducedMotion();
+  if (reduceMotion) {
+    return (
+      <span
+        className={`inline-block size-3 rounded-full border-2 border-muted-foreground border-t-transparent ${className}`}
+        aria-label="thinking"
+      />
+    );
+  }
   return (
     <motion.span
       className={`inline-block size-3 rounded-full border-2 border-muted-foreground border-t-transparent ${className}`}
@@ -40,6 +60,10 @@ export function ThinkingSpinner({ className = "" }: { className?: string }) {
 }
 
 export function IdlePulse({ className = "" }: { className?: string }) {
+  const reduceMotion = useReducedMotion();
+  if (reduceMotion) {
+    return <span className={`inline-block size-2 rounded-full bg-emerald-500 ${className}`} aria-label="idle" />;
+  }
   return (
     <motion.span
       className={`inline-block size-2 rounded-full bg-emerald-500 ${className}`}

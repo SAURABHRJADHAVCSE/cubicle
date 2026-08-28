@@ -46,6 +46,13 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* Micro-copy scale: this UI is dense with meta text (timestamps, status
+     pills, badges) below Tailwind's own text-xs (12px) floor. Naming these
+     instead of scattering text-[10px]/text-[11px] etc. keeps the smallest
+     tier of the app's typography intentional rather than copy-pasted. */
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-3xs: 0.625rem; /* 10px */
+  --text-4xs: 0.5625rem; /* 9px */
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -155,6 +162,26 @@
   input,
   textarea {
     -webkit-tap-highlight-color: transparent;
+  }
+  /* Safety net for keyboard focus: shadcn/ui primitives already define their
+     own focus-visible ring, but the app has plenty of bespoke <button>s
+     outside that system (dialog tabs, HUD controls, card actions) that
+     didn't. This guarantees every one of them gets a visible ring instead
+     of silently having none. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

@@ -217,7 +217,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   Add New Autonomous Agent
                 </DialogTitle>
               </div>
-              <span className="rounded-full bg-indigo-500/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-indigo-400 border border-indigo-500/20">
+              <span className="rounded-full bg-indigo-500/10 px-2.5 py-1 text-3xs font-extrabold uppercase tracking-wider text-indigo-400 border border-indigo-500/20">
                 Step {step + 1} of {steps.length}
               </span>
             </div>
@@ -261,7 +261,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                       {isCompleted ? <Check className="size-4 stroke-[3]" /> : <Icon className="size-4" />}
                     </div>
                     <span
-                      className={`text-[11px] font-bold ${
+                      className={`text-2xs font-bold ${
                         isActive
                           ? "text-indigo-400 font-extrabold"
                           : isCompleted
@@ -335,7 +335,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                       <div key={category} className="space-y-2">
                         <div className="flex items-center gap-1.5">
                           <span className="size-1 rounded-full bg-indigo-400" />
-                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          <span className="text-3xs font-black uppercase tracking-wider text-slate-400">
                             {category.replace(/_/g, " ")}
                           </span>
                         </div>
@@ -381,7 +381,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
 
               {/* Live Preview Avatar Card */}
               <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/60 p-4 text-center shadow-lg">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+                <span className="text-3xs font-bold uppercase tracking-wider text-slate-400 mb-3">
                   Live Avatar Preview
                 </span>
                 <div
@@ -393,7 +393,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                 <h4 className="mt-3 text-sm font-bold text-slate-900 dark:text-white">
                   {form.name.trim() || "Agent Name"}
                 </h4>
-                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-500 border border-emerald-500/20">
+                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-3xs font-bold text-emerald-500 border border-emerald-500/20">
                   <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Ready to join HQ
                 </span>
@@ -430,7 +430,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   <h4 className="mt-2 text-xs font-bold text-slate-900 dark:text-white">
                     Cloud / Local API Model
                   </h4>
-                  <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  <p className="mt-0.5 text-2xs text-slate-500 dark:text-slate-400">
                     Runs via Anthropic Claude or local Ollama LLM endpoint.
                   </p>
                 </button>
@@ -459,7 +459,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   <h4 className="mt-2 text-xs font-bold text-slate-900 dark:text-white">
                     CLI Terminal Agent
                   </h4>
-                  <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  <p className="mt-0.5 text-2xs text-slate-500 dark:text-slate-400">
                     Runs an autonomous terminal coding agent (Claude Code, OpenCode, etc.).
                   </p>
                 </button>
@@ -486,7 +486,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                         <div className="flex items-center justify-between w-full gap-2">
                           <span>{p.label}</span>
                           {"verified" in p && Boolean((p as { verified?: boolean }).verified) && (
-                            <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-500 border border-emerald-500/20">
+                            <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-4xs font-bold text-emerald-500 border border-emerald-500/20">
                               VERIFIED
                             </span>
                           )}
@@ -549,7 +549,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                     onChange={(e) => setForm((f) => ({ ...f, engineCommand: e.target.value }))}
                     className="bg-white dark:bg-slate-900 border-amber-500/40 text-xs"
                   />
-                  <p className="text-[11px] opacity-90">
+                  <p className="text-2xs opacity-90">
                     Use <code>{"{prompt}"}</code> as the substitution point for prompts.
                   </p>
                 </div>
@@ -649,7 +649,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
 
               {/* Agent Configuration Summary Review Card */}
               <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-xs space-y-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400">
+                <span className="text-3xs font-black uppercase tracking-wider text-indigo-400">
                   Final Configuration Review
                 </span>
                 <div className="grid grid-cols-2 gap-2 text-slate-700 dark:text-slate-300">

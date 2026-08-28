@@ -36,7 +36,7 @@ export function AppearanceSettingsCard() {
         <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 p-3">
           <div>
             <p className="text-xs font-bold text-slate-900 dark:text-white">Workspace Color Mode</p>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">Current theme: <span className="font-semibold uppercase">{resolvedTheme}</span></p>
+            <p className="text-3xs text-slate-500 dark:text-slate-400">Current theme: <span className="font-semibold uppercase">{resolvedTheme}</span></p>
           </div>
           <div className="flex gap-2">
             <Button

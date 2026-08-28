@@ -47,7 +47,7 @@ export function ChatPanel() {
       <div className="flex items-center gap-3 border-b border-slate-200 dark:border-white/10 bg-slate-50/90 dark:bg-slate-900/80 px-4 py-3 backdrop-blur-xl">
         <Avatar className="size-8 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm" style={{ backgroundColor: agent?.accent_color }}>
           <AvatarFallback
-            className="text-[11px] font-bold text-white"
+            className="text-2xs font-bold text-white"
             style={{ backgroundColor: agent?.accent_color }}
           >
             {agent?.name.slice(0, 2).toUpperCase() ?? "?"}
@@ -58,9 +58,9 @@ export function ChatPanel() {
             <p className="truncate font-heading text-xs font-semibold text-slate-900 dark:text-slate-100">{agent?.name ?? "Agent"}</p>
             <span className="size-1.5 rounded-full bg-success" />
           </div>
-          <p className="truncate text-[10px] text-slate-500 dark:text-slate-400">Direct line · {agent?.role}</p>
+          <p className="truncate text-3xs text-slate-500 dark:text-slate-400">Direct line · {agent?.role}</p>
         </div>
-        <div className="mr-1 hidden items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary sm:flex">
+        <div className="mr-1 hidden items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-4xs font-bold text-primary sm:flex">
           <Sparkles className="size-2.5" /> AI
         </div>
         <Button
@@ -82,7 +82,7 @@ export function ChatPanel() {
                 <Sparkles className="size-4" />
               </div>
               <p className="mt-3 text-xs font-semibold text-slate-900 dark:text-slate-200">Start a conversation</p>
-              <p className="mt-1 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-3xs leading-relaxed text-slate-500 dark:text-slate-400">
                 Ask for an update, discuss a task, or give {agent?.name ?? "this agent"} a new instruction.
               </p>
             </div>

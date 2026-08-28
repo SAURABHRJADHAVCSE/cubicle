@@ -23,7 +23,7 @@ export function TaskResult({ task }: { task: Task }) {
   if (task.status === "failed") {
     const authenticationFailure = /authentication|api.?key|unauthorized|401/i.test(summary ?? "");
     return (
-      <div className="mt-2.5 flex gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-[11px] text-rose-300">
+      <div className="mt-2.5 flex gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-2xs text-rose-300">
         <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-rose-400" />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-rose-200">
@@ -36,7 +36,7 @@ export function TaskResult({ task }: { task: Task }) {
           </p>
           {task.result_raw && (
             <Collapsible open={showRaw} onOpenChange={setShowRaw}>
-              <CollapsibleTrigger className="mt-1.5 flex items-center gap-1 font-medium text-rose-400 hover:text-rose-300 text-[10px]">
+              <CollapsibleTrigger className="mt-1.5 flex items-center gap-1 font-medium text-rose-400 hover:text-rose-300 text-3xs">
                 <ChevronDown className={`size-3 transition-transform ${showRaw ? "rotate-180" : ""}`} />
                 {showRaw ? "Hide error details" : "Technical error details"}
               </CollapsibleTrigger>
@@ -58,16 +58,16 @@ export function TaskResult({ task }: { task: Task }) {
 
   return (
     <div className="mt-2.5 flex flex-col gap-2 rounded-xl bg-slate-800/50 border border-white/5 px-3 py-2.5">
-      <p className="line-clamp-4 whitespace-pre-wrap text-[11px] leading-relaxed text-slate-300 break-words">{summary}</p>
+      <p className="line-clamp-4 whitespace-pre-wrap text-2xs leading-relaxed text-slate-300 break-words">{summary}</p>
 
-      <div className="flex flex-wrap gap-3 text-[9px] font-medium text-slate-400">
+      <div className="flex flex-wrap gap-3 text-4xs font-medium text-slate-400">
         {task.tokens_used > 0 && <span>{task.tokens_used} tokens</span>}
         {Number(task.cost_usd) > 0 && <span>${Number(task.cost_usd).toFixed(4)}</span>}
       </div>
 
       {task.result_raw && (
         <Collapsible open={showRaw} onOpenChange={setShowRaw}>
-          <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-200">
+          <CollapsibleTrigger className="flex items-center gap-1 text-3xs text-slate-400 hover:text-slate-200">
             <ChevronDown className={`size-3 transition-transform ${showRaw ? "rotate-180" : ""}`} />
             {showRaw ? "Hide raw output" : "Show raw output"}
           </CollapsibleTrigger>

@@ -1,7 +1,7 @@
 "use client";
 
-import { Activity, Building2, Settings, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { Activity, Boxes, Building2, Settings, Sparkles, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { AgentList } from "@/components/agents/AgentList";
 import { CallPanel } from "@/components/calls/CallPanel";
@@ -14,7 +14,25 @@ import { TaskHistory } from "@/components/tasks/TaskHistory";
 import { Button } from "@/components/ui/button";
 import { useAgents } from "@/hooks/useAgents";
 import { useTasks } from "@/hooks/useTasks";
+import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/uiStore";
+
+// The 3D office is a heavy always-rendering canvas — fine as a fixed side
+// panel on desktop, but on a phone it doesn't need to run (or even mount)
+// unless the user actually asks to see it. Below `md`, default to the
+// agents/command-center view and let the 3D office be an opt-in tab instead
+// of something always taking half the screen.
+function useIsMobileViewport(): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isMobile;
+}
 
 export default function Home() {
   const { data: agents } = useAgents();
@@ -23,6 +41,10 @@ export default function Home() {
   const activeCallAgentId = useUIStore((s) => s.activeCallAgentId);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const isMobile = useIsMobileViewport();
+  const [mobileTab, setMobileTab] = useState<"agents" | "office">("agents");
+  const showOffice = !isMobile || mobileTab === "office";
+  const showCommandCenter = !isMobile || mobileTab === "agents";
   const onlineAgents = agents?.filter((agent) => agent.status !== "offline").length ?? 0;
   const workingAgents =
     agents?.filter((agent) => ["working", "thinking"].includes(agent.status)).length ?? 0;
@@ -38,14 +60,14 @@ export default function Home() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-heading text-[16px] font-extrabold tracking-tight text-slate-900 dark:text-white">
+              <h1 className="font-heading text-base font-extrabold tracking-tight text-slate-900 dark:text-white">
                 Cubicle
               </h1>
-              <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[9px] font-bold tracking-wider text-primary">
+              <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-4xs font-bold tracking-wider text-primary">
                 AI OFFICE
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Autonomous Workspace</p>
+            <p className="text-2xs text-slate-500 dark:text-slate-400 font-medium">Autonomous Workspace</p>
           </div>
         </div>
 
@@ -87,39 +109,72 @@ export default function Home() {
 
       <div className="flex min-h-0 flex-1 overflow-y-auto md:overflow-hidden p-3 gap-3">
         <div className="grid flex-1 grid-cols-1 gap-3 md:h-full md:min-h-0 md:grid-cols-[1fr_440px]">
-          <OfficeScene className="h-[55vh] min-h-[320px] rounded-xl border border-slate-200 shadow-md md:h-full md:min-h-0 dark:border-white/10" />
+          {isMobile && (
+            <div className="flex shrink-0 gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 p-1 backdrop-blur-xl">
+              <button
+                type="button"
+                onClick={() => setMobileTab("agents")}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-bold transition-colors",
+                  mobileTab === "agents"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-slate-500 dark:text-slate-400"
+                )}
+              >
+                <Users className="size-3.5" /> Agents
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileTab("office")}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-bold transition-colors",
+                  mobileTab === "office"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-slate-500 dark:text-slate-400"
+                )}
+              >
+                <Boxes className="size-3.5" /> 3D Office
+              </button>
+            </div>
+          )}
 
-          <div className="glass-panel relative flex min-h-[420px] flex-col overflow-hidden rounded-xl md:h-full md:min-h-0">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 px-4 py-3 shrink-0">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Sparkles className="size-4 text-primary" />
-                  <h2 className="font-heading text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
-                    Command center
-                  </h2>
+          {showOffice && (
+            <OfficeScene className="h-[55vh] min-h-[320px] rounded-xl border border-slate-200 shadow-md md:h-full md:min-h-0 dark:border-white/10" />
+          )}
+
+          {showCommandCenter && (
+            <div className="glass-panel relative flex min-h-[420px] flex-col overflow-hidden rounded-xl md:h-full md:min-h-0">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 px-4 py-3 shrink-0">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="size-4 text-primary" />
+                    <h2 className="font-heading text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                      Command center
+                    </h2>
+                  </div>
+                  <p className="text-2xs font-medium text-slate-500 dark:text-slate-400">
+                    Agents roster & real-time task feed
+                  </p>
                 </div>
-                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                  Agents roster & real-time task feed
-                </p>
+                <span className="rounded-full border border-success/25 bg-success/12 px-2.5 py-0.5 text-4xs font-bold tracking-widest text-success">
+                  LIVE
+                </span>
               </div>
-              <span className="rounded-full border border-success/25 bg-success/12 px-2.5 py-0.5 text-[9px] font-bold tracking-widest text-success">
-                LIVE
-              </span>
-            </div>
 
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
-              <aside className="h-[210px] shrink-0 overflow-hidden">
-                <AgentList />
-              </aside>
-              <div className="h-px shrink-0 bg-gradient-to-r from-transparent via-slate-200 dark:via-white/10 to-transparent" />
-              <main className="min-h-0 flex-1 overflow-hidden">
-                <TaskHistory />
-              </main>
-            </div>
+              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
+                <aside className="h-[210px] shrink-0 overflow-hidden">
+                  <AgentList />
+                </aside>
+                <div className="h-px shrink-0 bg-gradient-to-r from-transparent via-slate-200 dark:via-white/10 to-transparent" />
+                <main className="min-h-0 flex-1 overflow-hidden">
+                  <TaskHistory />
+                </main>
+              </div>
 
-            {selectedAgentId && <ChatPanel key={selectedAgentId} />}
-            <CallPanel key={activeCallAgentId} />
-          </div>
+              {selectedAgentId && <ChatPanel key={selectedAgentId} />}
+              <CallPanel key={activeCallAgentId} />
+            </div>
+          )}
         </div>
       </div>
 

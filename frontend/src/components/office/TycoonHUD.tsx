@@ -13,8 +13,10 @@ import {
   UtensilsCrossed,
   X,
 } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { Agent } from "@/types/agent";
 
 export type CameraPreset =
@@ -71,6 +73,10 @@ export function TycoonHUD({
 }: TycoonHUDProps) {
   const activeFloor = CAMERA_PRESETS.find((p) => p.id === activePreset) ?? CAMERA_PRESETS[0];
   const ActiveIcon = activeFloor.icon;
+  // Hover/focus-within alone (the original design) never fires on a
+  // touchscreen, which silently broke the floor picker on mobile — tap is
+  // the primary way in now; hover stays as a bonus for desktop mouse users.
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <>
@@ -78,11 +84,11 @@ export function TycoonHUD({
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-wrap items-center justify-end p-3 gap-2 md:p-4">
         {/* Status Badges */}
         <div className="flex items-center gap-2 pointer-events-auto">
-          <div className="flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/80 px-3 py-1.5 text-[11px] font-bold text-slate-200 backdrop-blur-xl shadow-lg">
+          <div className="flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/80 px-3 py-1.5 text-2xs font-bold text-slate-200 backdrop-blur-xl shadow-lg">
             <UsersRound className="size-3.5 text-indigo-400" />
             {agentsCount} Agents
           </div>
-          <div className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/80 px-3 py-1.5 text-[11px] font-bold text-slate-200 backdrop-blur-xl shadow-lg md:flex">
+          <div className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/80 px-3 py-1.5 text-2xs font-bold text-slate-200 backdrop-blur-xl shadow-lg md:flex">
             <span className={`size-2 rounded-full ${workingCount ? "bg-indigo-400 shadow-[0_0_8px_#818cf8]" : "bg-emerald-400 shadow-[0_0_8px_#34d399]"}`} />
             {workingCount ? `${workingCount} Active` : "Settled"}
           </div>
@@ -101,20 +107,38 @@ export function TycoonHUD({
       {/* Bottom Camera Toolbar — collapsed to the active floor by default,
           expands on hover/focus so the 3D view keeps most of the screen. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex items-center justify-center p-2">
-        <div tabIndex={0} className="group pointer-events-auto relative outline-none">
-          {/* Collapsed pill */}
-          <div className="flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/85 px-4 py-1.5 text-[11px] font-bold text-white shadow-2xl backdrop-blur-xl transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0">
+        <div className="group pointer-events-auto relative outline-none">
+          {/* Collapsed pill — tap to toggle (works on touch); hover/focus
+              still expand it too, for desktop mouse/keyboard users. */}
+          <button
+            type="button"
+            onClick={() => setIsOpen((open) => !open)}
+            aria-expanded={isOpen}
+            aria-label="Choose floor"
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/85 px-4 py-1.5 text-2xs font-bold text-white shadow-2xl backdrop-blur-xl transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0",
+              isOpen && "opacity-0"
+            )}
+          >
             <ActiveIcon className="size-3.5" />
             {activeFloor.label}
-          </div>
+          </button>
 
           {/* Expanded floor picker */}
-          <div className="pointer-events-none absolute bottom-0 left-1/2 flex max-w-[95vw] -translate-x-1/2 scale-95 items-center gap-1 overflow-x-auto rounded-full border border-white/15 bg-slate-950/85 p-1.5 text-white opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:scale-100 group-focus-within:opacity-100">
+          <div
+            className={cn(
+              "pointer-events-none absolute bottom-0 left-1/2 flex max-w-[95vw] -translate-x-1/2 scale-95 items-center gap-1 overflow-x-auto rounded-full border border-white/15 bg-slate-950/85 p-1.5 text-white opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:scale-100 group-focus-within:opacity-100",
+              isOpen && "pointer-events-auto scale-100 opacity-100"
+            )}
+          >
             {CAMERA_PRESETS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
-                onClick={() => onSelectCameraPreset(id)}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition-all whitespace-nowrap ${
+                onClick={() => {
+                  onSelectCameraPreset(id);
+                  setIsOpen(false);
+                }}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-2xs font-bold transition-all whitespace-nowrap ${
                   activePreset === id
                     ? "bg-indigo-600 text-white shadow-[0_0_12px_rgba(79,70,229,0.5)]"
                     : "text-slate-400 hover:text-white hover:bg-white/10"

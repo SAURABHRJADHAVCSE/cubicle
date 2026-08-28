@@ -62,7 +62,7 @@ export function ClaudeAuthCard() {
         </h3>
         {!statusLoading && (
           <span
-            className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold ${
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-4xs font-bold ${
               isConnected
                 ? "border-success/30 bg-success/15 text-success"
                 : "border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"

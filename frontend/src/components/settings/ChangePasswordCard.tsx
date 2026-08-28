@@ -48,14 +48,14 @@ export function ChangePasswordCard() {
         <p className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
           <KeyRound className="size-3.5 text-indigo-500" /> Instance Password
         </p>
-        <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+        <p className="mt-0.5 text-3xs leading-relaxed text-slate-500 dark:text-slate-400">
           Changing this doesn&apos;t sign out devices already paired — revoke a specific one above if needed.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="current-password" className="text-[10px] font-bold text-slate-600 dark:text-slate-400">
+          <Label htmlFor="current-password" className="text-3xs font-bold text-slate-600 dark:text-slate-400">
             Current password
           </Label>
           <Input
@@ -68,7 +68,7 @@ export function ChangePasswordCard() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="new-password" className="text-[10px] font-bold text-slate-600 dark:text-slate-400">
+          <Label htmlFor="new-password" className="text-3xs font-bold text-slate-600 dark:text-slate-400">
             New password
           </Label>
           <Input
@@ -82,7 +82,7 @@ export function ChangePasswordCard() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="confirm-new-password" className="text-[10px] font-bold text-slate-600 dark:text-slate-400">
+          <Label htmlFor="confirm-new-password" className="text-3xs font-bold text-slate-600 dark:text-slate-400">
             Confirm new password
           </Label>
           <Input
