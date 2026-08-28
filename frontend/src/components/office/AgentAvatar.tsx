@@ -2,11 +2,11 @@
 
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
+import { Html } from "@react-three/drei";
 import * as THREE from "three";
 
-import { getVoxelMaterial } from "@/lib/voxelMaterials";
 import { useOfficeStore } from "@/stores/officeStore";
-import type { Agent, AgentStatus } from "@/types/agent";
+import type { AgentMood, AgentStatus } from "@/types/agent";
 
 /** Deterministic per-agent phase offset so idle sway isn't synchronized
  * across every avatar in the room. */
@@ -24,21 +24,54 @@ const STATUS_COLORS: Record<AgentStatus, string> = {
   offline: "#6b7280",
 };
 
-interface AgentAvatarProps {
-  agent: Agent;
-  position: [number, number, number];
+/** Only what AgentAvatar actually renders from — narrower than the full
+ * `Agent` record so BossCabin can reuse this component for a synthetic "you,
+ * the CEO" figure that isn't a real agent row at all. */
+export interface AgentAvatarSubject {
+  id: string;
+  name?: string;
+  role?: string;
+  status: AgentStatus;
+  accent_color: string;
+  mood: AgentMood;
 }
 
-export function AgentAvatar({ agent, position }: AgentAvatarProps) {
+interface AgentAvatarProps {
+  agent: AgentAvatarSubject;
+  /** World position this avatar should be at right now — the desk if it has
+   * a task, a queue slot near reception if it doesn't (see Office.tsx). Not
+   * applied directly: the root group lerps toward it every frame so a
+   * status change reads as the agent actually walking there, not
+   * teleporting. */
+  targetPosition: [number, number, number];
+  targetRotationY: number;
+}
+
+const WALK_SPEED = 2.4; // world units/sec the lerp converges at, tuned by eye
+const ARRIVED_EPSILON = 0.04;
+
+export function AgentAvatar({ agent, targetPosition, targetRotationY }: AgentAvatarProps) {
+  const rootRef = useRef<THREE.Group>(null);
+  const currentPos = useRef(new THREE.Vector3(...targetPosition));
+  const isWalkingRef = useRef(false);
   const groupRef = useRef<THREE.Group>(null);
   const leftArmRef = useRef<THREE.Mesh>(null);
   const rightArmRef = useRef<THREE.Mesh>(null);
+  const leftLegRef = useRef<THREE.Group>(null);
+  const rightLegRef = useRef<THREE.Group>(null);
 
-  const animationState = useOfficeStore(
+  // Only ever read inside useFrame below, never in the JSX — R3F re-registers
+  // the useFrame callback every render, so it always sees the latest value
+  // here without a stale-closure risk, and this avoids a render subscription
+  // for a value nothing in the render output actually uses.
+  const storedAnimationState = useOfficeStore(
     (s) => s.agents[agent.id]?.animationState ?? "idle",
   );
   const ringColor = STATUS_COLORS[agent.status];
-  const skinMat = getVoxelMaterial("skin");
+  const skinMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#d99b78", roughness: 0.72 }),
+    [],
+  );
 
   const shoeMat = useMemo(
     () => new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.5 }),
@@ -75,18 +108,61 @@ export function AgentAvatar({ agent, position }: AgentAvatarProps) {
   const hasHeadset = Math.floor(seed) % 3 === 0;
 
   useFrame(({ clock }, delta) => {
-    if (!groupRef.current) return;
+    if (!rootRef.current || !groupRef.current) return;
     const t = clock.elapsedTime;
-    const isWorking = animationState === "working";
 
-    if (isWorking) {
+    // Root group: world position/facing — walks toward wherever this agent
+    // should currently be (desk if working, queue slot if not) instead of
+    // snapping there the instant `targetPosition` changes.
+    const target = new THREE.Vector3(...targetPosition);
+    const distance = rootRef.current.position.distanceTo(target);
+    const isWalking = distance > ARRIVED_EPSILON;
+    isWalkingRef.current = isWalking;
+    if (isWalking) {
+      currentPos.current.lerp(target, Math.min(1, delta * WALK_SPEED));
+      rootRef.current.position.copy(currentPos.current);
+      // Face the direction of travel while actually moving.
+      const dx = target.x - rootRef.current.position.x;
+      const dz = target.z - rootRef.current.position.z;
+      if (Math.hypot(dx, dz) > 0.01) rootRef.current.rotation.y = Math.atan2(dx, dz);
+    } else {
+      rootRef.current.position.copy(target);
+      currentPos.current.copy(target);
+      rootRef.current.rotation.y = targetRotationY;
+    }
+
+    // Inner group: local pose — walking overrides whatever the task-status
+    // pose would be, since an agent en route to its desk shouldn't play the
+    // "working" typing animation for the second before it actually sits.
+    if (isWalking) {
+      const stride = Math.sin(t * 9);
+      groupRef.current.position.set(0, SEAT_TOP_Y + Math.abs(Math.sin(t * 9)) * 0.05, SEAT_Z);
+      groupRef.current.rotation.y = 0;
+      if (leftArmRef.current && rightArmRef.current) {
+        leftArmRef.current.rotation.x = stride * 0.5;
+        rightArmRef.current.rotation.x = -stride * 0.5;
+      }
+      if (leftLegRef.current && rightLegRef.current) {
+        leftLegRef.current.rotation.x = -stride * 0.5;
+        rightLegRef.current.rotation.x = stride * 0.5;
+      }
+      return;
+    }
+    // Arrived — legs return to the seated/standing rest pose regardless of
+    // which state renders next below.
+    if (leftLegRef.current && rightLegRef.current) {
+      leftLegRef.current.rotation.x = 0;
+      rightLegRef.current.rotation.x = 0;
+    }
+
+    if (storedAnimationState === "working") {
       groupRef.current.position.set(0, SEAT_TOP_Y + Math.sin(t * 6) * 0.015, SEAT_Z - 0.05);
       groupRef.current.rotation.y = 0;
       if (leftArmRef.current && rightArmRef.current) {
         leftArmRef.current.rotation.x = -Math.PI / 3 + Math.sin(t * 14) * 0.12;
         rightArmRef.current.rotation.x = -Math.PI / 3 + Math.cos(t * 14) * 0.12;
       }
-    } else if (animationState === "celebrating") {
+    } else if (storedAnimationState === "celebrating") {
       const jump = Math.abs(Math.sin(t * 8)) * 0.35;
       groupRef.current.position.set(0, SEAT_TOP_Y + jump, SEAT_Z);
       groupRef.current.rotation.y += delta * 6;
@@ -105,42 +181,47 @@ export function AgentAvatar({ agent, position }: AgentAvatarProps) {
   });
 
   return (
-    <group position={position} scale={1.12}>
-      {/* Seat glowing status ring */}
+    <group ref={rootRef} position={targetPosition} scale={1.12}>
+      {agent.name && (
+        <Html position={[0, 1.72, SEAT_Z]} center zIndexRange={[20, 0]}>
+          <div className="pointer-events-none flex min-w-max items-center gap-2 rounded-full border border-white/20 bg-slate-950/88 px-3 py-1.5 text-white shadow-xl backdrop-blur-md">
+            <span className="size-1.5 rounded-full" style={{ backgroundColor: ringColor }} />
+            <span className="text-[11px] font-bold leading-none">{agent.name}</span>
+            <span className="text-[9px] font-semibold capitalize text-slate-300">{agent.status}</span>
+          </div>
+        </Html>
+      )}
+
+      {/* Grounded status ring */}
       <mesh position={[0, 0.02, SEAT_Z]} rotation={[-Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.34, 0.04, 12, 32]} />
-        <meshStandardMaterial color={ringColor} emissive={ringColor} emissiveIntensity={0.8} />
+        <torusGeometry args={[0.31, 0.025, 10, 28]} />
+        <meshStandardMaterial color={ringColor} emissive={ringColor} emissiveIntensity={0.3} />
       </mesh>
 
-      {/* Ambient status light aura */}
-      <pointLight position={[0, 0.4, SEAT_Z]} color={ringColor} intensity={0.8} distance={2.5} />
-
       <group ref={groupRef} position={[0, SEAT_TOP_Y, SEAT_Z]}>
-        {/* Torso */}
+        {/* Soft low-poly torso */}
         <mesh position={[0, 0.22, 0]} material={shirtMat} castShadow receiveShadow>
-          <boxGeometry args={[0.32, 0.42, 0.2]} />
+          <capsuleGeometry args={[0.17, 0.28, 6, 12]} />
         </mesh>
         {/* Collar / Tie accent */}
         <mesh position={[0, 0.36, -0.105]} material={glassesMat}>
-          <boxGeometry args={[0.08, 0.12, 0.02]} />
+          <boxGeometry args={[0.065, 0.13, 0.018]} />
         </mesh>
 
-        {/* Head */}
+        {/* Head and hair cap */}
+        <mesh position={[0, 0.61, 0.015]} material={hairMat} castShadow>
+          <sphereGeometry args={[0.205, 16, 12]} />
+        </mesh>
         <mesh position={[0, 0.57, 0]} material={skinMat} castShadow receiveShadow>
-          <boxGeometry args={[0.3, 0.3, 0.3]} />
-        </mesh>
-
-        {/* Hair block */}
-        <mesh position={[0, 0.72, -0.02]} material={hairMat} castShadow>
-          <boxGeometry args={[0.32, 0.08, 0.32]} />
+          <sphereGeometry args={[0.19, 16, 12]} />
         </mesh>
 
         {/* Eyes */}
-        <mesh position={[-0.07, 0.58, -0.155]} material={eyeMat}>
-          <boxGeometry args={[0.04, 0.04, 0.02]} />
+        <mesh position={[-0.065, 0.585, -0.18]} material={eyeMat}>
+          <sphereGeometry args={[0.018, 8, 6]} />
         </mesh>
-        <mesh position={[0.07, 0.58, -0.155]} material={eyeMat}>
-          <boxGeometry args={[0.04, 0.04, 0.02]} />
+        <mesh position={[0.065, 0.585, -0.18]} material={eyeMat}>
+          <sphereGeometry args={[0.018, 8, 6]} />
         </mesh>
 
         {/* Glasses */}
@@ -175,20 +256,26 @@ export function AgentAvatar({ agent, position }: AgentAvatarProps) {
 
         {/* Left Arm */}
         <mesh ref={leftArmRef} position={[-0.22, 0.19, 0]} material={shirtMat} castShadow>
-          <boxGeometry args={[0.09, 0.36, 0.11]} />
+          <capsuleGeometry args={[0.055, 0.24, 5, 8]} />
         </mesh>
         {/* Right Arm */}
         <mesh ref={rightArmRef} position={[0.22, 0.19, 0]} material={shirtMat} castShadow>
-          <boxGeometry args={[0.09, 0.36, 0.11]} />
+          <capsuleGeometry args={[0.055, 0.24, 5, 8]} />
         </mesh>
 
-        {/* Seated Legs */}
-        <mesh position={[-0.09, -0.05, 0.05]} material={shoeMat} castShadow>
-          <boxGeometry args={[0.12, 0.14, 0.18]} />
-        </mesh>
-        <mesh position={[0.09, -0.05, 0.05]} material={shoeMat} castShadow>
-          <boxGeometry args={[0.12, 0.14, 0.18]} />
-        </mesh>
+        {/* Seated/walking legs — each is a group pivoted at the hip (not the
+            box's own center), so the walk-cycle swing below rotates it from
+            the top like a real leg instead of spinning around its middle. */}
+        <group ref={leftLegRef} position={[-0.09, 0.02, 0.05]}>
+          <mesh position={[0, -0.07, 0]} material={shoeMat} castShadow>
+            <capsuleGeometry args={[0.06, 0.15, 4, 8]} />
+          </mesh>
+        </group>
+        <group ref={rightLegRef} position={[0.09, 0.02, 0.05]}>
+          <mesh position={[0, -0.07, 0]} material={shoeMat} castShadow>
+            <capsuleGeometry args={[0.06, 0.15, 4, 8]} />
+          </mesh>
+        </group>
 
         {/* Mood crown / celebrate indicator */}
         {agent.mood === "excited" && (

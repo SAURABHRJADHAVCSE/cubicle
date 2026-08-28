@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -54,10 +54,28 @@ export function ClaudeAuthCard() {
   const isConnected = Boolean(status?.connected);
   const awaitingCode = startAuth.isSuccess;
 
+  // The explicit "Cancel" button below already tells the backend to kill
+  // the `claude setup-token` subprocess it spawned — but this card can also
+  // disappear other ways (Settings dialog closed, browser back button,
+  // backing out of the Add Agent stepper mid-flow) that just unmount it
+  // with no click involved. Without this, that leaves a live subprocess and
+  // a stuck "connection attempt already in progress" lock server-side that
+  // nothing in the UI can clear — the exact bug this fixes.
+  const awaitingCodeRef = useRef(awaitingCode);
+  useEffect(() => {
+    awaitingCodeRef.current = awaitingCode;
+  }, [awaitingCode]);
+  useEffect(() => {
+    return () => {
+      if (awaitingCodeRef.current) cancelAuth.mutate();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className="glass-panel rounded-lg border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
+    <div className="glass-panel rounded-lg border border-border bg-card/80 p-4 shadow-sm">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="font-heading text-sm font-bold tracking-wide text-slate-900 uppercase dark:text-slate-100">
+        <h3 className="font-heading text-sm font-bold tracking-wide text-foreground uppercase">
           Claude Code CLI
         </h3>
         {!statusLoading && (
@@ -65,7 +83,7 @@ export function ClaudeAuthCard() {
             className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-4xs font-bold ${
               isConnected
                 ? "border-success/30 bg-success/15 text-success"
-                : "border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                : "border-border bg-secondary text-muted-foreground"
             }`}
           >
             {isConnected ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
@@ -95,7 +113,7 @@ export function ClaudeAuthCard() {
         )}
 
         {awaitingCode && startAuth.data && (
-          <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/60">
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted p-3">
             <p className="text-xs text-slate-600 dark:text-slate-300">
               1. Sign in at the tab that just opened (or{" "}
               <a
@@ -119,7 +137,7 @@ export function ClaudeAuthCard() {
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="Paste the code here"
                   onKeyDown={(e) => e.key === "Enter" && handleSubmitCode()}
-                  className="border-slate-200 dark:border-white/10 dark:bg-slate-900 rounded-lg"
+                  className="border-border bg-card rounded-lg"
                 />
                 <Button
                   size="sm"

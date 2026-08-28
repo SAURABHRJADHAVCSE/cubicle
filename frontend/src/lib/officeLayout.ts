@@ -6,62 +6,82 @@ export interface DeskLayout {
   rotationY: number;
 }
 
-const DESK_SPACING_X = 2.2;
-const DESK_SPACING_Z = 2.4;
+export const WORKSTATION_SLOTS: Omit<DeskLayout, "agentId">[] = [
+  ...[-4.8, -1.6, 1.6, 4.8].map((x) => ({
+    position: [x, 0, 0.25] as [number, number, number],
+    rotationY: 0,
+  })),
+  ...[-4.8, -1.6, 1.6, 4.8].map((x) => ({
+    position: [x, 0, 3.15] as [number, number, number],
+    rotationY: 0,
+  })),
+];
 
 /**
- * Square-ish grid, centered on the origin, that reflows automatically as
- * agents are added/removed. `desk_position` is only ever used as an
- * ordering hint here (it was never a real coordinate, even under Spline —
- * just an opaque key into a `desk-{n}-{status}` object-name string), so
- * agents without one sort last rather than being dropped.
+ * Two long rows facing a shared central walkway, extending forward (+Z, away
+ * from the CEO cabin) as more agents join — not a reflowing grid. Agents
+ * alternate left/right row by index, so both rows grow at roughly the same
+ * rate rather than filling one row before starting the next.
+ * `desk_position` is only ever used as an ordering hint (see the original
+ * note this replaced: it was never a real coordinate, just an opaque
+ * ordering key), so agents without one sort last rather than being dropped.
  */
 export function computeDeskLayout(agents: Agent[]): DeskLayout[] {
-  const count = agents.length || 1;
-  const cols = Math.ceil(Math.sqrt(count));
-  const rows = Math.ceil(count / cols);
-  const offsetX = ((cols - 1) * DESK_SPACING_X) / 2;
-  const offsetZ = ((rows - 1) * DESK_SPACING_Z) / 2;
-
   const ordered = [...agents].sort(
     (a, b) => (a.desk_position ?? Infinity) - (b.desk_position ?? Infinity),
   );
 
   return ordered.map((agent, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
+    const fixed = WORKSTATION_SLOTS[i];
+    if (fixed) return { agentId: agent.id, ...fixed };
+
+    const overflowIndex = i - WORKSTATION_SLOTS.length;
+    const col = overflowIndex % 4;
+    const row = Math.floor(overflowIndex / 4);
     return {
       agentId: agent.id,
-      position: [col * DESK_SPACING_X - offsetX, 0, row * DESK_SPACING_Z - offsetZ],
+      position: [-4.8 + col * 3.2, 0, 5.95 + row * 2.9],
       rotationY: 0,
     };
   });
 }
 
-const ROOM_PADDING_X = 3;
-const ROOM_PADDING_Z = 4;
-const MIN_ROOM_WIDTH = 8;
-const MIN_ROOM_DEPTH = 8;
-
-export function computeLayoutBounds(layout: DeskLayout[]): { width: number; depth: number } {
-  if (layout.length === 0) return { width: MIN_ROOM_WIDTH, depth: MIN_ROOM_DEPTH };
-
-  const xs = layout.map((d) => d.position[0]);
-  const zs = layout.map((d) => d.position[2]);
-  const width = Math.max(MIN_ROOM_WIDTH, Math.max(...xs) - Math.min(...xs) + DESK_SPACING_X + ROOM_PADDING_X * 2);
-  const depth = Math.max(MIN_ROOM_DEPTH, Math.max(...zs) - Math.min(...zs) + DESK_SPACING_Z + ROOM_PADDING_Z * 2);
-  return { width, depth };
+/** How far the two cubicle rows currently extend in +Z — Office.tsx uses
+ * this to size the floor/walls so they always cover every desk, however
+ * many agents have joined. */
+export function computeRowDepth(layout: DeskLayout[]): number {
+  if (layout.length === 0) return 5.8;
+  return Math.max(5.8, Math.max(...layout.map((desk) => desk.position[2])) + 1.5);
 }
 
-/** Raw footprint of the desk grid, no room padding — used by Office.tsx to
- * compose the desk zone with a fixed-size cafeteria zone into one room. */
-export function computeDeskExtent(layout: DeskLayout[]): { width: number; depth: number } {
-  if (layout.length === 0) return { width: DESK_SPACING_X, depth: DESK_SPACING_Z };
+const WAITING_SEAT_SPACING_X = 0.9;
+const WAITING_ROW_Z = -2.85;
+const WAITING_CENTER_X = -4.55;
+const WAITING_MAX_PER_ROW = 4;
+const WAITING_ROW_SPACING_Z = 0.9;
 
-  const xs = layout.map((d) => d.position[0]);
-  const zs = layout.map((d) => d.position[2]);
-  return {
-    width: Math.max(...xs) - Math.min(...xs) + DESK_SPACING_X,
-    depth: Math.max(...zs) - Math.min(...zs) + DESK_SPACING_Z,
-  };
+/**
+ * Where an agent stands/sits while it has no task assigned — clustered in
+ * the waiting area at the front of the office, facing back toward the
+ * cubicle rows it'll walk to once given work. Same stable-ordering idea as
+ * computeDeskLayout: keyed by the full roster (not just currently-idle
+ * agents) so a given agent's waiting spot doesn't jump around as *other*
+ * agents' statuses change.
+ */
+export function computeQueueLayout(agents: Agent[]): DeskLayout[] {
+  const ordered = [...agents].sort(
+    (a, b) => (a.desk_position ?? Infinity) - (b.desk_position ?? Infinity),
+  );
+  const perRow = Math.min(WAITING_MAX_PER_ROW, Math.max(1, ordered.length));
+  const offsetX = ((Math.min(perRow, ordered.length) - 1) * WAITING_SEAT_SPACING_X) / 2;
+
+  return ordered.map((agent, i) => {
+    const col = i % perRow;
+    const row = Math.floor(i / perRow);
+    return {
+      agentId: agent.id,
+      position: [WAITING_CENTER_X + col * WAITING_SEAT_SPACING_X - offsetX, 0, WAITING_ROW_Z + row * WAITING_ROW_SPACING_Z],
+      rotationY: 0,
+    };
+  });
 }

@@ -43,8 +43,8 @@ export function ChatPanel() {
   const waitingForFirstToken = sendMessage.isPending && !streamingText;
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-white/95 dark:bg-slate-950/95 shadow-2xl backdrop-blur-2xl md:absolute md:inset-0 md:border-l md:border-slate-200 dark:md:border-white/10 text-slate-900 dark:text-slate-100">
-      <div className="flex items-center gap-3 border-b border-slate-200 dark:border-white/10 bg-slate-50/90 dark:bg-slate-900/80 px-4 py-3 backdrop-blur-xl">
+    <div className="fixed inset-0 z-40 flex flex-col bg-background/95 shadow-2xl backdrop-blur-2xl md:absolute md:inset-0 md:border-l md:border-border text-foreground">
+      <div className="flex items-center gap-3 border-b border-border bg-muted/90 px-4 py-3 backdrop-blur-xl">
         <Avatar className="size-8 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm" style={{ backgroundColor: agent?.accent_color }}>
           <AvatarFallback
             className="text-2xs font-bold text-white"
@@ -55,7 +55,7 @@ export function ChatPanel() {
         </Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="truncate font-heading text-xs font-semibold text-slate-900 dark:text-slate-100">{agent?.name ?? "Agent"}</p>
+            <p className="truncate font-heading text-xs font-semibold text-foreground">{agent?.name ?? "Agent"}</p>
             <span className="size-1.5 rounded-full bg-success" />
           </div>
           <p className="truncate text-3xs text-slate-500 dark:text-slate-400">Direct line · {agent?.role}</p>
@@ -66,7 +66,7 @@ export function ChatPanel() {
         <Button
           variant="ghost"
           size="icon-xs"
-          className="rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white"
+          className="rounded-full bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground"
           onClick={() => selectAgent(null)}
           aria-label="Close chat"
         >
@@ -81,7 +81,7 @@ export function ChatPanel() {
               <div className="mx-auto flex size-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
                 <Sparkles className="size-4" />
               </div>
-              <p className="mt-3 text-xs font-semibold text-slate-900 dark:text-slate-200">Start a conversation</p>
+              <p className="mt-3 text-xs font-semibold text-foreground">Start a conversation</p>
               <p className="mt-1 text-3xs leading-relaxed text-slate-500 dark:text-slate-400">
                 Ask for an update, discuss a task, or give {agent?.name ?? "this agent"} a new instruction.
               </p>
@@ -107,10 +107,10 @@ export function ChatPanel() {
         </div>
       </ScrollArea>
 
-      <div className="border-t border-slate-200 dark:border-white/10 bg-slate-50/90 dark:bg-slate-900/90 p-3 backdrop-blur-xl">
-        <div className="flex gap-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100/80 dark:bg-slate-800/80 p-1.5 pl-3 shadow-inner">
+      <div className="border-t border-border bg-muted/90 p-3 backdrop-blur-xl">
+        <div className="flex gap-2 rounded-lg border border-border bg-muted/80 p-1.5 pl-3 shadow-inner">
           <Input
-            className="h-8 flex-1 border-0 bg-transparent px-0 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-none focus-visible:ring-0"
+            className="h-8 flex-1 border-0 bg-transparent px-0 text-xs text-foreground placeholder:text-muted-foreground shadow-none focus-visible:ring-0"
             placeholder={`Message ${agent?.name ?? "agent"}…`}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}

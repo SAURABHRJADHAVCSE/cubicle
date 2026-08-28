@@ -1,119 +1,145 @@
-import { useMemo } from "react";
+"use client";
 
-import { createSignMaterial, getTiledVoxelMaterial, getVoxelMaterial, preventZFighting } from "@/lib/voxelMaterials";
+import { modernMaterials } from "@/lib/modernMaterials";
 
 interface BossCabinProps {
-  /** Center position of the cabin footprint (floor level). */
   position: [number, number, number];
-  onSelect?: () => void;
 }
 
-const CABIN_WIDTH = 3.0;
-const CABIN_DEPTH = 2.6;
-const CABIN_HEIGHT = 2.2;
+const WIDTH = 5.4;
+const DEPTH = 3.55;
+const HEIGHT = 2.15;
+const FRAME = 0.07;
 
-/** A enclosed private executive office — glass-walled ("CEO Cabin"),
- * with a luxury L-shaped mahogany desk, leather chair, trophy cabinet, and nameplate. */
-export function BossCabin({ position, onSelect }: BossCabinProps) {
-  const darkOak = getVoxelMaterial("dark_oak");
-  const iron = getVoxelMaterial("iron");
-  const redWool = getVoxelMaterial("red_wool");
-  const seaLantern = getVoxelMaterial("sea_lantern");
-  const monitorScreen = getVoxelMaterial("monitor_screen");
-  const marble = useMemo(() => preventZFighting(getTiledVoxelMaterial("marble_tile", CABIN_WIDTH, CABIN_DEPTH)), []);
-  const glassBack = useMemo(() => getTiledVoxelMaterial("glass", CABIN_WIDTH, CABIN_HEIGHT), []);
-  const glassSide = useMemo(() => getTiledVoxelMaterial("glass", CABIN_DEPTH, CABIN_HEIGHT), []);
-  const signMat = useMemo(() => createSignMaterial("CEO SUITE", "#ffaa00"), []);
-
-  const doorGap = 1.0;
+function GlassPanel({
+  width,
+  position,
+  rotationY = 0,
+}: {
+  width: number;
+  position: [number, number, number];
+  rotationY?: number;
+}) {
+  const glass = modernMaterials.cabinGlass();
+  const frame = modernMaterials.cabinFrame();
 
   return (
-    <group
-      position={position}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect?.();
-      }}
-    >
-      {/* Polished Marble Subfloor Box */}
-      <mesh position={[0, 0.06, 0]} material={marble} receiveShadow>
-        <boxGeometry args={[CABIN_WIDTH, 0.04, CABIN_DEPTH]} />
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh position={[0, HEIGHT / 2, 0]} material={glass}>
+        <boxGeometry args={[width, HEIGHT, 0.045]} />
+      </mesh>
+      {[0, HEIGHT].map((y) => (
+        <mesh key={y} position={[0, y, 0]} material={frame} castShadow>
+          <boxGeometry args={[width + FRAME, FRAME, 0.085]} />
+        </mesh>
+      ))}
+      {[-width / 2, width / 2].map((x) => (
+        <mesh key={x} position={[x, HEIGHT / 2, 0]} material={frame} castShadow>
+          <boxGeometry args={[FRAME, HEIGHT, 0.085]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+export function BossCabin({ position }: BossCabinProps) {
+  const floor = modernMaterials.rug();
+  const wall = modernMaterials.wallWarmGrey();
+  const frame = modernMaterials.cabinFrame();
+  const desk = modernMaterials.cabinDeskWood();
+  const chair = modernMaterials.cabinChairLeather();
+  const visitorChair = modernMaterials.sofaFabric();
+  const metal = modernMaterials.deskLegMetal();
+  const screen = modernMaterials.monitorScreen();
+  const storage = modernMaterials.storageCabinet();
+  const art = modernMaterials.wallArt();
+  const doorGap = 1.15;
+  const frontPanelWidth = (WIDTH - doorGap) / 2;
+
+  return (
+    <group position={position}>
+      <mesh position={[0, 0.025, 0]} material={floor} receiveShadow>
+        <boxGeometry args={[WIDTH, 0.035, DEPTH]} />
       </mesh>
 
-      {/* Glass Walls */}
-      <mesh position={[0, CABIN_HEIGHT / 2, -CABIN_DEPTH / 2]} material={glassBack}>
-        <boxGeometry args={[CABIN_WIDTH, CABIN_HEIGHT, 0.08]} />
+      <mesh position={[0, HEIGHT / 2, -DEPTH / 2]} material={wall} castShadow receiveShadow>
+        <boxGeometry args={[WIDTH, HEIGHT, 0.12]} />
       </mesh>
-      <mesh position={[-CABIN_WIDTH / 2, CABIN_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} material={glassSide}>
-        <boxGeometry args={[CABIN_DEPTH, CABIN_HEIGHT, 0.08]} />
-      </mesh>
-      {/* Front wall with doorway */}
-      <mesh
-        position={[(CABIN_WIDTH / 2 + doorGap / 2) / 2, CABIN_HEIGHT / 2, CABIN_DEPTH / 2]}
-        rotation={[0, Math.PI / 2, 0]}
-        material={glassSide}
-      >
-        <boxGeometry args={[CABIN_WIDTH / 2 - doorGap / 2, CABIN_HEIGHT, 0.08]} />
-      </mesh>
-      <mesh
-        position={[-(CABIN_WIDTH / 2 + doorGap / 2) / 2, CABIN_HEIGHT / 2, CABIN_DEPTH / 2]}
-        rotation={[0, Math.PI / 2, 0]}
-        material={glassSide}
-      >
-        <boxGeometry args={[CABIN_WIDTH / 2 - doorGap / 2, CABIN_HEIGHT, 0.08]} />
+      <mesh position={[0, 0.05, -DEPTH / 2 + 0.075]} material={frame}>
+        <boxGeometry args={[WIDTH, 0.1, 0.08]} />
       </mesh>
 
-      {/* Nameplate */}
-      <mesh position={[0, CABIN_HEIGHT + 0.15, CABIN_DEPTH / 2 + 0.05]} material={signMat}>
-        <boxGeometry args={[1.6, 0.55, 0.06]} />
-      </mesh>
+      <GlassPanel width={DEPTH} position={[-WIDTH / 2, 0, 0]} rotationY={Math.PI / 2} />
+      <GlassPanel width={DEPTH} position={[WIDTH / 2, 0, 0]} rotationY={Math.PI / 2} />
+      <GlassPanel
+        width={frontPanelWidth}
+        position={[-(doorGap + frontPanelWidth) / 2, 0, DEPTH / 2]}
+      />
+      <GlassPanel
+        width={frontPanelWidth}
+        position={[(doorGap + frontPanelWidth) / 2, 0, DEPTH / 2]}
+      />
 
-      {/* L-Shaped Executive Desk Setup */}
       <group position={[0, 0, -0.55]}>
-        <mesh position={[0, 0.85, 0]} material={darkOak}>
-          <boxGeometry args={[1.6, 0.08, 0.7]} />
+        <mesh position={[0, 0.76, 0]} material={desk} castShadow receiveShadow>
+          <boxGeometry args={[2.35, 0.09, 0.82]} />
         </mesh>
-        <mesh position={[-0.55, 0.85, 0.5]} material={darkOak}>
-          <boxGeometry args={[0.5, 0.08, 0.7]} />
+        {[-0.98, 0.98].flatMap((x) =>
+          [-0.31, 0.31].map((z) => (
+            <mesh key={`${x}-${z}`} position={[x, 0.39, z]} material={metal} castShadow>
+              <boxGeometry args={[0.065, 0.72, 0.065]} />
+            </mesh>
+          )),
+        )}
+        <mesh position={[0, 0.83, -0.25]} material={metal}>
+          <boxGeometry args={[0.04, 0.18, 0.04]} />
         </mesh>
-        <mesh position={[-0.7, 0.42, -0.28]} material={iron}>
-          <boxGeometry args={[0.08, 0.84, 0.08]} />
+        <mesh position={[0, 1.08, -0.25]} material={screen}>
+          <boxGeometry args={[0.7, 0.42, 0.04]} />
         </mesh>
-        <mesh position={[0.7, 0.42, -0.28]} material={iron}>
-          <boxGeometry args={[0.08, 0.84, 0.08]} />
-        </mesh>
-        {/* CEO Curved Monitor */}
-        <mesh position={[0, 1.18, -0.2]} material={monitorScreen}>
-          <boxGeometry args={[0.65, 0.38, 0.05]} />
-        </mesh>
+      </group>
 
-        {/* Executive Leather Armchair */}
-        <group position={[0, 0, -0.65]}>
-          <mesh position={[0, 0.5, 0]} material={redWool}>
-            <boxGeometry args={[0.5, 0.1, 0.5]} />
+      <group position={[0, 0, -1.28]}>
+        <mesh position={[0, 0.49, 0]} material={chair} castShadow receiveShadow>
+          <boxGeometry args={[0.65, 0.09, 0.58]} />
+        </mesh>
+        <mesh position={[0, 0.87, -0.23]} material={chair} castShadow>
+          <boxGeometry args={[0.66, 0.72, 0.1]} />
+        </mesh>
+        <mesh position={[0, 0.24, 0]} material={metal}>
+          <cylinderGeometry args={[0.04, 0.04, 0.46, 10]} />
+        </mesh>
+        <mesh position={[0, 0.03, 0]} material={metal}>
+          <cylinderGeometry args={[0.28, 0.28, 0.045, 16]} />
+        </mesh>
+      </group>
+
+      {[-0.62, 0.62].map((x) => (
+        <group key={x} position={[x, 0, 0.72]} rotation={[0, Math.PI, 0]}>
+          <mesh position={[0, 0.43, 0]} material={visitorChair} castShadow receiveShadow>
+            <boxGeometry args={[0.5, 0.09, 0.48]} />
           </mesh>
-          <mesh position={[0, 0.85, -0.22]} material={redWool}>
-            <boxGeometry args={[0.5, 0.6, 0.1]} />
+          <mesh position={[0, 0.69, 0.18]} material={visitorChair} castShadow>
+            <boxGeometry args={[0.5, 0.5, 0.08]} />
           </mesh>
-          <mesh position={[-0.28, 0.65, 0]} material={iron}>
-            <boxGeometry args={[0.06, 0.3, 0.4]} />
-          </mesh>
-          <mesh position={[0.28, 0.65, 0]} material={iron}>
-            <boxGeometry args={[0.06, 0.3, 0.4]} />
-          </mesh>
+          {[-0.19, 0.19].flatMap((legX) =>
+            [-0.17, 0.17].map((legZ) => (
+              <mesh key={`${legX}-${legZ}`} position={[legX, 0.2, legZ]} material={metal}>
+                <cylinderGeometry args={[0.022, 0.022, 0.4, 8]} />
+              </mesh>
+            )),
+          )}
         </group>
-      </group>
+      ))}
 
-      {/* Trophy & Awards Bookshelf on Side Wall */}
-      <group position={[-CABIN_WIDTH / 2 + 0.3, 0, 0.2]}>
-        <mesh position={[0, 0.9, 0]} material={darkOak}>
-          <boxGeometry args={[0.3, 1.7, 0.9]} />
+      <mesh position={[WIDTH / 2 - 0.34, 0.48, -0.85]} material={storage} castShadow receiveShadow>
+        <boxGeometry args={[0.5, 0.92, 1.05]} />
+      </mesh>
+      {[-0.58, 0, 0.58].map((x) => (
+        <mesh key={x} position={[x, 1.45, -DEPTH / 2 + 0.07]} material={art}>
+          <boxGeometry args={[0.38, 0.42, 0.035]} />
         </mesh>
-        {/* Glowing Trophy */}
-        <mesh position={[0, 1.1, 0]} material={seaLantern}>
-          <boxGeometry args={[0.16, 0.28, 0.16]} />
-        </mesh>
-      </group>
+      ))}
     </group>
   );
 }

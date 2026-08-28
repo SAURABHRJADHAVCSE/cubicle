@@ -57,17 +57,17 @@ export function CallPanel() {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-white/95 dark:bg-slate-950/95 shadow-2xl backdrop-blur-2xl md:absolute md:inset-0 md:border-l md:border-slate-200 dark:md:border-white/10 text-slate-900 dark:text-slate-100">
+    <div className="fixed inset-0 z-40 flex flex-col bg-background/95 shadow-2xl backdrop-blur-2xl md:absolute md:inset-0 md:border-l md:border-border text-foreground">
       <audio ref={remoteAudioRef} autoPlay className="hidden" />
 
-      <div className="flex items-center gap-3 border-b border-slate-200 dark:border-white/10 bg-slate-50/90 dark:bg-slate-900/80 px-4 py-3 backdrop-blur-xl">
+      <div className="flex items-center gap-3 border-b border-border bg-muted/90 px-4 py-3 backdrop-blur-xl">
         <Avatar className="size-8 ring-1 ring-slate-200 dark:ring-white/10 shadow-sm" style={{ backgroundColor: agent?.accent_color }}>
           <AvatarFallback className="text-2xs font-bold text-white" style={{ backgroundColor: agent?.accent_color }}>
             {agent?.name.slice(0, 2).toUpperCase() ?? "?"}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-heading text-xs font-semibold text-slate-900 dark:text-slate-100">
+          <p className="truncate font-heading text-xs font-semibold text-foreground">
             {agent?.name ?? "Agent"}
           </p>
           <div className="flex items-center gap-1.5 text-3xs text-slate-500 dark:text-slate-400">
@@ -98,7 +98,7 @@ export function CallPanel() {
             <div className="mx-auto flex size-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
               <Phone className="size-4" />
             </div>
-            <p className="mt-3 text-xs font-semibold text-slate-900 dark:text-slate-200">
+            <p className="mt-3 text-xs font-semibold text-foreground">
               {STATE_LABEL[state] ?? "Calling…"}
             </p>
           </div>
@@ -110,7 +110,7 @@ export function CallPanel() {
             className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
               entry.role === "user"
                 ? "ml-auto bg-primary text-primary-foreground"
-                : "mr-auto bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                : "mr-auto bg-muted text-foreground"
             }`}
           >
             {entry.text}

@@ -4,8 +4,8 @@
   "description": "Self-hosted AI office. Watch your agents work.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#6366f1",
+  "background_color": "#fdfaf3",
+  "theme_color": "#4135dd",
   "icons": [
     {
       "src": "/icon.svg",

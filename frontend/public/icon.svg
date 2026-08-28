@@ -1,6 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#6366f1"/>
-  <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle"
-        font-family="Arial, Helvetica, sans-serif" font-weight="700"
-        font-size="300" fill="#ffffff">C</text>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4135dd"/>
+      <stop offset="1" stop-color="#6a5cf0"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- "Cubicle window" 2x2 grid, kept inside the ~65% safe zone maskable
+       icons need — the old plain letter filled the full square edge to
+       edge, so Android's circle/squircle icon masks cropped it. -->
+  <rect x="141" y="141" width="96" height="96" rx="24" fill="#ffffff"/>
+  <rect x="275" y="141" width="96" height="96" rx="24" fill="#ffffff"/>
+  <rect x="141" y="275" width="96" height="96" rx="24" fill="#ffffff"/>
+  <rect x="275" y="275" width="96" height="96" rx="24" fill="#ffffff"/>
 </svg>

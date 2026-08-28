@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, ChevronRight, Phone, Trash2 } from "lucide-react";
+import { Bot, ChevronRight, FolderOpen, Phone, Trash2 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,15 @@ import { useUIStore } from "@/stores/uiStore";
 import type { Agent, AgentMood, AgentStatus } from "@/types/agent";
 
 const STATUS_STYLES: Record<AgentStatus, { label: string; dot: string; surface: string }> = {
-  idle: { label: "Available", dot: "bg-success", surface: "bg-success/12 text-success border border-success/25" },
-  working: { label: "Working", dot: "bg-info", surface: "bg-info/12 text-info border border-info/25" },
-  thinking: { label: "Thinking", dot: "bg-primary", surface: "bg-primary/12 text-primary border border-primary/25" },
-  break: { label: "On break", dot: "bg-warning", surface: "bg-warning/12 text-warning border border-warning/25" },
-  offline: { label: "Offline", dot: "bg-slate-400", surface: "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700" },
+  idle: { label: "Available", dot: "bg-success", surface: "bg-success/12 text-success border-success/40" },
+  working: { label: "Working", dot: "bg-info", surface: "bg-info/12 text-info border-info/40" },
+  thinking: { label: "Thinking", dot: "bg-primary", surface: "bg-primary/12 text-primary border-primary/40" },
+  break: { label: "On break", dot: "bg-warning", surface: "bg-warning/12 text-warning border-warning/40" },
+  offline: {
+    label: "Offline",
+    dot: "bg-slate-400",
+    surface: "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-400/40 dark:border-slate-600/40",
+  },
 };
 
 const MOOD_EMOJI: Record<AgentMood, string> = {
@@ -29,10 +33,18 @@ function initials(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
+// A stable, deterministic "badge number" derived from the agent's own id —
+// no schema change, just borrows the id's own entropy to look like a printed
+// employee number on the card.
+function badgeNumber(id: string): string {
+  return id.replace(/-/g, "").slice(0, 6).toUpperCase();
+}
+
 export function AgentCard({ agent }: { agent: Agent }) {
   const deleteAgent = useDeleteAgent();
   const selectAgent = useUIStore((s) => s.selectAgent);
   const selectCallAgent = useUIStore((s) => s.selectCallAgent);
+  const selectFilesAgent = useUIStore((s) => s.selectFilesAgent);
   const { data: tasks } = useTasks();
   const status = STATUS_STYLES[agent.status];
   const currentTask = agent.current_task_id
@@ -41,9 +53,14 @@ export function AgentCard({ agent }: { agent: Agent }) {
 
   return (
     <div
-      className="group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-lg border border-slate-200 bg-white/70 p-2 shadow-sm transition-all hover:border-primary/40 hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:hover:bg-slate-900/90"
+      className="group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-lg border border-border bg-card/70 p-2 shadow-sm transition-all hover:border-primary/40 hover:bg-card dark:hover:bg-card/90"
       onClick={() => selectAgent(agent.id)}
     >
+      {/* Badge clip: the accent stripe. A punched-hole "grommet" dot sat here
+          through three placement attempts and never actually read as
+          attached to the stripe on screen — removed rather than a fourth
+          guess; the badge number + stamp pill already carry the ID-badge
+          concept on their own. */}
       <span
         className="absolute inset-y-2 left-0 w-[3px] rounded-r-full"
         style={{ backgroundColor: agent.accent_color }}
@@ -61,9 +78,10 @@ export function AgentCard({ agent }: { agent: Agent }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{agent.name}</p>
+          <p className="truncate text-xs font-semibold text-foreground">{agent.name}</p>
           {MOOD_EMOJI[agent.mood] && <span aria-label={agent.mood}>{MOOD_EMOJI[agent.mood]}</span>}
-          <span className={`ml-auto inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-4xs font-medium ${status.surface}`}>
+          <span className="text-4xs font-mono text-slate-400 dark:text-slate-500">#{badgeNumber(agent.id)}</span>
+          <span className={`stamp-badge ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-4xs font-bold uppercase ${status.surface}`}>
             <span className={`size-1.5 rounded-full ${status.dot}`} />
             {status.label}
           </span>
@@ -81,11 +99,27 @@ export function AgentCard({ agent }: { agent: Agent }) {
         )}
       </div>
 
-      {/* max-md:opacity-100: hover-to-reveal declutters the row for desktop
-          mouse users, but a touchscreen never fires :hover — without this
-          escape hatch these buttons (the only way to call/delete an agent)
-          would just be permanently invisible and untappable on mobile. */}
-      <div className="absolute right-1 bottom-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">
+      {/* Always visible, not hover-gated: hover-to-reveal hid the only entry
+          point to this agent's file browser behind a desktop-only :hover
+          affordance nobody found — a touchscreen never fires :hover either,
+          so it also needed a mobile escape hatch. Simpler and more
+          discoverable to just always show the row. A normal flex child (not
+          absolutely positioned) so it vertically centers with the chevron
+          via the row's own items-center, instead of being pinned to the
+          card's bottom edge independent of it. */}
+      <div className="flex shrink-0 items-center gap-0.5">
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800"
+          aria-label={`Browse ${agent.name}'s files`}
+          onClick={(event) => {
+            event.stopPropagation();
+            selectFilesAgent(agent.id);
+          }}
+        >
+          <FolderOpen className="size-3" />
+        </Button>
         {agent.engine_type === "api" && (
           <Button
             variant="ghost"

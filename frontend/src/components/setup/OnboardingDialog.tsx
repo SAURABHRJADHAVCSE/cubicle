@@ -95,38 +95,45 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto soft-scrollbar sm:max-w-xl" showCloseButton>
-        <DialogHeader className="items-center text-center">
-          <DialogTitle className="font-heading text-xl font-extrabold tracking-tight text-slate-900 uppercase dark:text-white">
-            Welcome to Cubicle
-          </DialogTitle>
-          <DialogDescription>
-            Set up your autonomous AI office in 3 quick steps.
-          </DialogDescription>
-        </DialogHeader>
+      {/* Three fixed zones (header/step-dots, scrollable body, Back/Next
+          footer), not one scrolling box — the previous single overflow-y-auto
+          container let the title and step indicator scroll away with the
+          content, and the dialog's overall height changed per step. */}
+      <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-xl" showCloseButton>
+        <div className="shrink-0 p-4 pb-0">
+          <DialogHeader className="items-center text-center">
+            <DialogTitle className="font-heading text-xl font-extrabold tracking-tight text-foreground uppercase">
+              Welcome to Cubicle
+            </DialogTitle>
+            <DialogDescription>
+              Set up your autonomous AI office in 3 quick steps.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="flex items-center justify-center gap-2">
-          {STEPS.map((label, i) => (
-            <div
-              key={label}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all ${
-                i === step
-                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                  : i < step
-                    ? "border-success/40 bg-success/10 text-success"
-                    : "border-slate-200 bg-white/60 text-slate-400 dark:border-white/10 dark:bg-slate-900/40"
-              }`}
-            >
-              <span className="flex size-4 items-center justify-center rounded-full bg-black/20 text-3xs">
-                {i + 1}
-              </span>
-              <span>{label}</span>
-            </div>
-          ))}
+          <div className="mt-3 flex items-center justify-center gap-2">
+            {STEPS.map((label, i) => (
+              <div
+                key={label}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all ${
+                  i === step
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                    : i < step
+                      ? "border-success/40 bg-success/10 text-success"
+                      : "border-border bg-card/60 text-muted-foreground"
+                }`}
+              >
+                <span className="flex size-4 items-center justify-center rounded-full bg-black/20 text-3xs">
+                  {i + 1}
+                </span>
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="glass-panel rounded-lg border border-slate-200 bg-white/90 p-5 shadow-lg dark:border-white/15 dark:bg-slate-900/80">
-          <h3 className="mb-4 font-heading text-lg font-bold tracking-wide text-slate-900 uppercase dark:text-slate-100">
+        <div className="h-[min(420px,55dvh)] overflow-y-auto soft-scrollbar p-4">
+        <div className="glass-panel rounded-lg border border-border bg-card/90 p-5 shadow-lg">
+          <h3 className="mb-4 font-heading text-lg font-bold tracking-wide text-foreground uppercase">
             {STEPS[step]}
           </h3>
 
@@ -160,9 +167,9 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
                   {missing.map((key) => (
                     <div
                       key={key}
-                      className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-600 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-300"
+                      className="rounded-lg border border-border bg-muted p-3 text-muted-foreground"
                     >
-                      <p className="font-bold text-slate-900 dark:text-white">{engineInfo(key).label}</p>
+                      <p className="font-bold text-foreground">{engineInfo(key).label}</p>
                       <p className="mt-1">{engineInfo(key).guidance}</p>
                     </div>
                   ))}
@@ -183,10 +190,10 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
                     size="sm"
                     variant="outline"
                     disabled={running}
-                    className="h-auto flex-col items-start justify-start rounded-lg border-slate-200 bg-white p-3 text-left hover:border-primary dark:border-white/10 dark:bg-slate-800"
+                    className="h-auto flex-col items-start justify-start rounded-lg border-border bg-card p-3 text-left hover:border-primary"
                     onClick={() => runDemo(i)}
                   >
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">{template.name}</span>
+                    <span className="text-xs font-bold text-foreground">{template.name}</span>
                     <span className="text-3xs text-slate-500 dark:text-slate-400">{template.role}</span>
                   </Button>
                 ))}
@@ -201,12 +208,13 @@ export function OnboardingDialog({ open, onOpenChange }: OnboardingDialogProps) 
             </div>
           )}
         </div>
+        </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between border-t border-border p-4">
           <Button
             variant="outline"
             disabled={step === 0}
-            className="rounded-lg border-slate-200 dark:border-white/10"
+            className="rounded-lg border-border"
             onClick={() => setStep((s) => s - 1)}
           >
             Back

@@ -28,7 +28,7 @@ export function TaskHistory() {
             <ListTodo className="size-3.5" />
           </div>
           <div>
-            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-200">Task feed</h3>
+            <h3 className="text-xs font-bold text-foreground">Task feed</h3>
             <p className="text-3xs text-slate-500 dark:text-slate-400">
               {activeCount > 0 ? `${activeCount} active` : `${tasks?.length ?? 0} total tasks`}
             </p>
@@ -37,7 +37,7 @@ export function TaskHistory() {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 rounded-lg border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800/80 px-2.5 text-xs text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-700"
+          className="h-7 rounded-lg border-border bg-card px-2.5 text-xs text-foreground/80 shadow-sm hover:bg-muted"
           onClick={() => setNewTaskOpen(true)}
         >
           <Plus className="size-3.5" />
@@ -48,10 +48,10 @@ export function TaskHistory() {
       <ScrollArea className="min-h-0 flex-1 soft-scrollbar">
         <div className="flex flex-col gap-2.5 pr-2.5 pb-2">
           {isLoading && (
-            <div className="h-28 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5" />
+            <div className="h-28 animate-pulse rounded-lg bg-muted border border-border" />
           )}
           {sorted.length === 0 && !isLoading && (
-            <div className="rounded-lg border border-dashed border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/40 p-4 text-center text-xs text-slate-500 dark:text-slate-400">
+            <div className="rounded-lg border border-dashed border-border bg-muted p-4 text-center text-xs text-muted-foreground">
               No tasks yet. Create a new task to get started.
             </div>
           )}

@@ -1,6 +1,12 @@
 import { getApiUrl } from "@/lib/constants";
 import { clearAuthToken, getAuthToken } from "@/lib/authToken";
-import type { Agent, AgentCreate, AgentUpdate } from "@/types/agent";
+import type {
+  Agent,
+  AgentCreate,
+  AgentUpdate,
+  WorkspaceFileContent,
+  WorkspaceListing,
+} from "@/types/agent";
 import type {
   AuthStatus,
   Device,
@@ -101,6 +107,10 @@ export const api = {
     update: (id: string, payload: AgentUpdate) =>
       request<Agent>(`/agents/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
     remove: (id: string) => request<void>(`/agents/${id}`, { method: "DELETE" }),
+    listFiles: (id: string, path = "") =>
+      request<WorkspaceListing>(`/agents/${id}/files?path=${encodeURIComponent(path)}`),
+    readFile: (id: string, path: string) =>
+      request<WorkspaceFileContent>(`/agents/${id}/files/content?path=${encodeURIComponent(path)}`),
   },
   tasks: {
     list: () => request<Task[]>("/tasks"),

@@ -20,11 +20,11 @@ export function AppearanceSettingsCard() {
   if (!mounted) return null;
 
   return (
-    <Card className="glass-panel border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 p-4 rounded-lg shadow-sm">
+    <Card className="glass-panel border-border bg-card/80 p-4 rounded-lg shadow-sm">
       <CardHeader className="p-0 pb-3">
         <div className="flex items-center gap-2">
           <Palette className="size-4 text-primary" />
-          <CardTitle className="font-heading text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+          <CardTitle className="font-heading text-sm font-bold text-foreground uppercase tracking-wide">
             Appearance & Theme
           </CardTitle>
         </div>
@@ -33,9 +33,9 @@ export function AppearanceSettingsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 p-0 pt-2">
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 p-3">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted p-3">
           <div>
-            <p className="text-xs font-bold text-slate-900 dark:text-white">Workspace Color Mode</p>
+            <p className="text-xs font-bold text-foreground">Workspace Color Mode</p>
             <p className="text-3xs text-slate-500 dark:text-slate-400">Current theme: <span className="font-semibold uppercase">{resolvedTheme}</span></p>
           </div>
           <div className="flex gap-2">

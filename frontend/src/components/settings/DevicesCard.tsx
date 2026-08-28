@@ -56,10 +56,10 @@ export function DevicesCard() {
   const qrPayload = pairing ? `${remoteUrl.replace(/\/$/, "")}/?pair=${pairing.token}` : null;
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 p-4">
+    <div className="flex flex-col gap-4 rounded-xl border border-border bg-muted p-4">
       <div>
-        <p className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
-          <Smartphone className="size-3.5 text-indigo-500" /> Devices
+        <p className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+          <Smartphone className="size-3.5 text-primary" /> Devices
         </p>
         <p className="mt-0.5 text-3xs leading-relaxed text-slate-500 dark:text-slate-400">
           Pair a phone to control this instance remotely. Point it at whatever address reaches this
@@ -85,10 +85,10 @@ export function DevicesCard() {
           {devices.map((device) => (
             <div
               key={device.id}
-              className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/60 px-2.5 py-1.5"
+              className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5"
             >
               <div className="min-w-0">
-                <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">{device.name}</p>
+                <p className="truncate text-xs font-semibold text-foreground">{device.name}</p>
                 <p className="text-3xs text-slate-500 dark:text-slate-400">
                   Last seen {formatRelativeTime(device.last_seen_at)}
                 </p>
@@ -109,8 +109,8 @@ export function DevicesCard() {
 
       {pairing && qrPayload ? (
         secondsLeft > 0 ? (
-          <div className="flex flex-col items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4">
-            <div className="rounded-lg bg-white p-3">
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 p-4">
+            <div className="rounded-lg bg-card p-3">
               <QRCode value={qrPayload} size={160} />
             </div>
             <p className="font-mono text-3xs break-all text-center text-slate-500 dark:text-slate-400">
@@ -118,7 +118,7 @@ export function DevicesCard() {
               <br />
               {qrPayload}
             </p>
-            <p className="text-3xs font-semibold text-indigo-600 dark:text-indigo-400">
+            <p className="text-3xs font-semibold text-primary">
               Expires in {secondsLeft}s
             </p>
           </div>

@@ -203,21 +203,21 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(o) : close())}>
       <DialogContent
         showCloseButton={false}
-        className="sm:max-w-2xl p-0 overflow-hidden border border-slate-200 dark:border-white/10 shadow-2xl bg-white dark:bg-slate-950"
+        className="sm:max-w-2xl p-0 overflow-hidden border border-border shadow-2xl bg-card"
       >
         {/* Stepper Header Header Banner */}
         <div className="bg-slate-900 border-b border-white/10 px-6 py-5 text-white">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="flex size-7 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                <span className="flex size-7 items-center justify-center rounded-lg bg-primary/20 text-primary border border-primary/30">
                   <Sparkles className="size-4" />
                 </span>
                 <DialogTitle className="text-base font-bold text-slate-100">
                   Add New Autonomous Agent
                 </DialogTitle>
               </div>
-              <span className="rounded-full bg-indigo-500/10 px-2.5 py-1 text-3xs font-extrabold uppercase tracking-wider text-indigo-400 border border-indigo-500/20">
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-3xs font-extrabold uppercase tracking-wider text-primary border border-primary/20">
                 Step {step + 1} of {steps.length}
               </span>
             </div>
@@ -230,7 +230,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
           <div className="mt-5 relative">
             <div className="absolute top-1/2 left-0 right-0 h-0.5 -translate-y-1/2 bg-slate-800 z-0" />
             <div
-              className="absolute top-1/2 left-0 h-0.5 -translate-y-1/2 bg-indigo-500 transition-all duration-300 z-0"
+              className="absolute top-1/2 left-0 h-0.5 -translate-y-1/2 bg-primary transition-all duration-300 z-0"
               style={{ width: `${(step / (steps.length - 1)) * 100}%` }}
             />
 
@@ -254,7 +254,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                         isCompleted
                           ? "bg-emerald-500 border-emerald-400 text-slate-950 shadow-[0_0_12px_rgba(16,185,129,0.4)]"
                           : isActive
-                            ? "bg-indigo-600 border-indigo-400 text-white shadow-[0_0_12px_rgba(99,102,241,0.5)] ring-4 ring-indigo-500/20"
+                            ? "bg-primary border-primary/70 text-primary-foreground shadow-[0_0_12px_color-mix(in_oklab,var(--primary)_50%,transparent)] ring-4 ring-primary/20"
                             : "bg-slate-950 border-slate-800 text-slate-500"
                       }`}
                     >
@@ -263,7 +263,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                     <span
                       className={`text-2xs font-bold ${
                         isActive
-                          ? "text-indigo-400 font-extrabold"
+                          ? "text-primary font-extrabold"
                           : isCompleted
                             ? "text-emerald-400"
                             : "text-slate-500"
@@ -309,7 +309,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                         type="button"
                         onClick={() => setForm((f) => ({ ...f, accentColor: color }))}
                         className={`size-7 rounded-full transition-transform hover:scale-110 flex items-center justify-center shadow-md ${
-                          form.accentColor === color ? "ring-2 ring-indigo-500 ring-offset-2 scale-110" : ""
+                          form.accentColor === color ? "ring-2 ring-primary ring-offset-2 scale-110" : ""
                         }`}
                         style={{ backgroundColor: color }}
                       >
@@ -330,11 +330,11 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Personality Traits
                   </Label>
-                  <div className="soft-scrollbar flex max-h-48 flex-col gap-3 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/50 p-3">
+                  <div className="soft-scrollbar flex max-h-48 flex-col gap-3 overflow-y-auto rounded-xl border border-border bg-muted p-3">
                     {Object.entries(PERSONALITY_TRAIT_CATEGORIES).map(([category, traits]) => (
                       <div key={category} className="space-y-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="size-1 rounded-full bg-indigo-400" />
+                          <span className="size-1 rounded-full bg-primary" />
                           <span className="text-3xs font-black uppercase tracking-wider text-slate-400">
                             {category.replace(/_/g, " ")}
                           </span>
@@ -349,8 +349,8 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                                 onClick={() => toggleTrait(trait)}
                                 className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
                                   isSelected
-                                    ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/30"
-                                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-white/10 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                                    : "bg-card text-muted-foreground border border-border hover:border-primary/70 hover:text-primary"
                                 }`}
                               >
                                 {isSelected && <Check className="size-3 stroke-[3]" />}
@@ -380,7 +380,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
               </div>
 
               {/* Live Preview Avatar Card */}
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/60 p-4 text-center shadow-lg">
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-muted p-4 text-center shadow-lg">
                 <span className="text-3xs font-bold uppercase tracking-wider text-slate-400 mb-3">
                   Live Avatar Preview
                 </span>
@@ -390,7 +390,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                 >
                   {form.name.trim() ? form.name.trim()[0].toUpperCase() : "?"}
                 </div>
-                <h4 className="mt-3 text-sm font-bold text-slate-900 dark:text-white">
+                <h4 className="mt-3 text-sm font-bold text-foreground">
                   {form.name.trim() || "Agent Name"}
                 </h4>
                 <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-3xs font-bold text-emerald-500 border border-emerald-500/20">
@@ -417,17 +417,17 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   }
                   className={`flex flex-col items-start p-4 rounded-xl border transition-all text-left ${
                     form.engineType === "api"
-                      ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 ring-2 ring-indigo-500/20 shadow-md"
-                      : "border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/40 hover:border-slate-300"
+                      ? "border-primary bg-primary/10 ring-2 ring-primary/20 shadow-md"
+                      : "border-border bg-card hover:border-primary/40"
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">
-                    <div className="flex size-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500">
+                    <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       <Cpu className="size-4" />
                     </div>
-                    {form.engineType === "api" && <CheckCircle2 className="size-4 text-indigo-500" />}
+                    {form.engineType === "api" && <CheckCircle2 className="size-4 text-primary" />}
                   </div>
-                  <h4 className="mt-2 text-xs font-bold text-slate-900 dark:text-white">
+                  <h4 className="mt-2 text-xs font-bold text-foreground">
                     Cloud / Local API Model
                   </h4>
                   <p className="mt-0.5 text-2xs text-slate-500 dark:text-slate-400">
@@ -446,8 +446,8 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   }
                   className={`flex flex-col items-start p-4 rounded-xl border transition-all text-left ${
                     form.engineType === "cli"
-                      ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 ring-2 ring-indigo-500/20 shadow-md"
-                      : "border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/40 hover:border-slate-300"
+                      ? "border-primary bg-primary/10 ring-2 ring-primary/20 shadow-md"
+                      : "border-border bg-card hover:border-primary/40"
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">
@@ -456,7 +456,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                     </div>
                     {form.engineType === "cli" && <CheckCircle2 className="size-4 text-emerald-500" />}
                   </div>
-                  <h4 className="mt-2 text-xs font-bold text-slate-900 dark:text-white">
+                  <h4 className="mt-2 text-xs font-bold text-foreground">
                     CLI Terminal Agent
                   </h4>
                   <p className="mt-0.5 text-2xs text-slate-500 dark:text-slate-400">
@@ -547,7 +547,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                     placeholder={`${form.engineProvider} exec {prompt}`}
                     value={form.engineCommand}
                     onChange={(e) => setForm((f) => ({ ...f, engineCommand: e.target.value }))}
-                    className="bg-white dark:bg-slate-900 border-amber-500/40 text-xs"
+                    className="bg-card border-amber-500/40 text-xs"
                   />
                   <p className="text-2xs opacity-90">
                     Use <code>{"{prompt}"}</code> as the substitution point for prompts.
@@ -595,7 +595,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                       key={path}
                       type="button"
                       onClick={() => setForm((f) => ({ ...f, workingDirectory: path }))}
-                      className="rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/60 px-2.5 py-1 text-xs font-mono text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-400 transition-all"
+                      className="rounded-lg border border-border bg-muted px-2.5 py-1 text-xs font-mono text-muted-foreground hover:border-primary/70 hover:text-primary transition-all"
                     >
                       {path}
                     </button>
@@ -611,7 +611,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
               {/* Quick Role Preset Chips */}
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Wand2 className="size-3.5 text-indigo-500" /> Quick Role Templates
+                  <Wand2 className="size-3.5 text-primary" /> Quick Role Templates
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {ROLE_PRESETS.map((preset) => (
@@ -619,9 +619,9 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                       key={preset.title}
                       type="button"
                       onClick={() => setForm((f) => ({ ...f, role: `${preset.title}: ${preset.description}` }))}
-                      className="flex flex-col items-start p-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/50 hover:border-indigo-500 text-left transition-all group"
+                      className="flex flex-col items-start p-2.5 rounded-xl border border-border bg-muted hover:border-primary text-left transition-all group"
                     >
-                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-indigo-500">
+                      <span className="text-xs font-bold text-foreground group-hover:text-primary">
                         {preset.title}
                       </span>
                       <span className="text-[10.5px] text-slate-500 line-clamp-1">
@@ -648,18 +648,18 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
               </div>
 
               {/* Agent Configuration Summary Review Card */}
-              <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-xs space-y-2">
-                <span className="text-3xs font-black uppercase tracking-wider text-indigo-400">
+              <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-xs space-y-2">
+                <span className="text-3xs font-black uppercase tracking-wider text-primary">
                   Final Configuration Review
                 </span>
                 <div className="grid grid-cols-2 gap-2 text-slate-700 dark:text-slate-300">
                   <div>
                     <span className="text-slate-400">Name: </span>
-                    <span className="font-bold text-slate-900 dark:text-white">{form.name || "—"}</span>
+                    <span className="font-bold text-foreground">{form.name || "—"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400">Engine: </span>
-                    <span className="font-bold uppercase text-indigo-400">
+                    <span className="font-bold uppercase text-primary">
                       {form.engineType} ({form.engineProvider})
                     </span>
                   </div>
@@ -674,8 +674,8 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
         </div>
 
         {/* Stepper Footer Controls */}
-        <DialogFooter className="m-0 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-white/10 px-6 py-3.5 flex items-center justify-between sm:justify-between">
-          <Button variant="ghost" size="sm" onClick={close} className="text-slate-500 hover:text-slate-900">
+        <DialogFooter className="m-0 bg-muted border-t border-border px-6 py-3.5 flex items-center justify-between sm:justify-between">
+          <Button variant="ghost" size="sm" onClick={close} className="text-muted-foreground hover:text-foreground">
             Cancel
           </Button>
 
@@ -692,7 +692,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                 size="sm"
                 disabled={!canGoNext}
                 onClick={() => setStep((s) => s + 1)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 Next
                 <ArrowRight className="size-3.5 ml-1" />

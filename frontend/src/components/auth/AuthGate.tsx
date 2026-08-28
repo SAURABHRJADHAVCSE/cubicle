@@ -99,13 +99,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     <div className="app-bg flex h-screen w-screen items-center justify-center p-4">
       <form
         onSubmit={handleSubmit}
-        className="glass-panel brutal-card w-full max-w-sm rounded-2xl border border-slate-300 dark:border-white/10 bg-white/90 dark:bg-slate-900/80 p-6 shadow-xl"
+        className="glass-panel w-full max-w-sm rounded-2xl border border-border bg-card/90 p-6 shadow-xl"
       >
         <div className="mb-5 flex flex-col items-center text-center">
-          <div className="mb-3 flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-[0_4px_16px_rgba(99,102,241,0.4)]">
+          {/* Same engraved-plaque mark as the header nameplate — the first
+              thing a visitor sees should already look like this app's
+              paperwork, not a generic gradient app icon. */}
+          <div className="mb-3 flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-[oklch(0.58_0.24_292)] text-white shadow-[0_4px_16px_color-mix(in_oklab,var(--primary)_40%,transparent),inset_0_1px_1px_color-mix(in_oklab,white_35%,transparent),inset_0_-1.5px_2px_color-mix(in_oklab,black_25%,transparent)]">
             <Building2 className="size-5" strokeWidth={2.2} />
           </div>
-          <h1 className="font-heading text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="font-heading text-lg font-extrabold tracking-tight text-foreground">
             {passwordSet ? "Welcome back" : "Set up Cubicle"}
           </h1>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">

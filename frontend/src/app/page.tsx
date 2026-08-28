@@ -7,6 +7,7 @@ import { AgentList } from "@/components/agents/AgentList";
 import { CallPanel } from "@/components/calls/CallPanel";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
+import { FilesPanel } from "@/components/files/FilesPanel";
 import { OfficeScene } from "@/components/office/OfficeScene";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { OnboardingDialog } from "@/components/setup/OnboardingDialog";
@@ -39,6 +40,7 @@ export default function Home() {
   const { data: tasks } = useTasks();
   const selectedAgentId = useUIStore((s) => s.selectedAgentId);
   const activeCallAgentId = useUIStore((s) => s.activeCallAgentId);
+  const activeFilesAgentId = useUIStore((s) => s.activeFilesAgentId);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const isMobile = useIsMobileViewport();
@@ -54,16 +56,22 @@ export default function Home() {
   return (
     <div className="app-bg flex h-screen w-screen flex-col overflow-hidden">
       <header className="glass-header z-20 flex h-[60px] shrink-0 items-center justify-between px-4 md:px-6">
+        {/* Nameplate: the one place the header takes the "engraved office
+            plaque" signature — a beveled mark plus a subtle emboss on the
+            wordmark itself, everything else around it stays quiet. */}
         <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_6px_18px_color-mix(in_oklab,var(--primary)_28%,transparent)]">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_6px_18px_color-mix(in_oklab,var(--primary)_28%,transparent),inset_0_1px_1px_color-mix(in_oklab,white_35%,transparent),inset_0_-1.5px_2px_color-mix(in_oklab,black_25%,transparent)]">
             <Building2 className="size-4.5" strokeWidth={2.2} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-heading text-base font-extrabold tracking-tight text-slate-900 dark:text-white">
+              <h1
+                className="font-heading text-base font-extrabold tracking-tight text-foreground"
+                style={{ textShadow: "0 1px 0 color-mix(in oklab, white 60%, transparent)" }}
+              >
                 Cubicle
               </h1>
-              <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-4xs font-bold tracking-wider text-primary">
+              <span className="stamp-badge rounded border-primary/30 bg-primary/10 px-2 py-0.5 text-4xs font-bold text-primary">
                 AI OFFICE
               </span>
             </div>
@@ -72,12 +80,12 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <div className="hidden items-center gap-3 rounded-full border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 px-3.5 py-1.5 shadow-sm backdrop-blur-xl md:flex">
+          <div className="hidden items-center gap-3 rounded-full border border-border bg-card/80 px-3.5 py-1.5 shadow-sm backdrop-blur-xl md:flex">
             <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
               <span className="size-2 rounded-full bg-success shadow-[0_0_8px_color-mix(in_oklab,var(--success)_55%,transparent)]" />
               {onlineAgents} online
             </span>
-            <span className="h-3.5 w-px bg-slate-200 dark:bg-white/10" />
+            <span className="h-3.5 w-px bg-border" />
             <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
               <Activity className="size-3.5 text-primary" />
               {workingAgents || activeTasks} active
@@ -98,7 +106,7 @@ export default function Home() {
           <Button
             variant="ghost"
             size="icon"
-            className="rounded-lg border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="rounded-lg border border-border bg-card/80 text-foreground/80 hover:bg-muted"
             onClick={() => setSettingsOpen(true)}
             aria-label="Settings"
           >
@@ -110,7 +118,7 @@ export default function Home() {
       <div className="flex min-h-0 flex-1 overflow-y-auto md:overflow-hidden p-3 gap-3">
         <div className="grid flex-1 grid-cols-1 gap-3 md:h-full md:min-h-0 md:grid-cols-[1fr_440px]">
           {isMobile && (
-            <div className="flex shrink-0 gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 p-1 backdrop-blur-xl">
+            <div className="flex shrink-0 gap-1 rounded-lg border border-border bg-card/80 p-1 backdrop-blur-xl">
               <button
                 type="button"
                 onClick={() => setMobileTab("agents")}
@@ -139,16 +147,16 @@ export default function Home() {
           )}
 
           {showOffice && (
-            <OfficeScene className="h-[55vh] min-h-[320px] rounded-xl border border-slate-200 shadow-md md:h-full md:min-h-0 dark:border-white/10" />
+            <OfficeScene className="h-[55vh] min-h-[320px] rounded-xl border border-border shadow-md md:h-full md:min-h-0" />
           )}
 
           {showCommandCenter && (
             <div className="glass-panel relative flex min-h-[420px] flex-col overflow-hidden rounded-xl md:h-full md:min-h-0">
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 px-4 py-3 shrink-0">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
                 <div>
                   <div className="flex items-center gap-2">
                     <Sparkles className="size-4 text-primary" />
-                    <h2 className="font-heading text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                    <h2 className="font-heading text-sm font-bold text-foreground uppercase tracking-wider">
                       Command center
                     </h2>
                   </div>
@@ -165,14 +173,20 @@ export default function Home() {
                 <aside className="h-[210px] shrink-0 overflow-hidden">
                   <AgentList />
                 </aside>
-                <div className="h-px shrink-0 bg-gradient-to-r from-transparent via-slate-200 dark:via-white/10 to-transparent" />
+                <div className="h-px shrink-0 bg-gradient-to-r from-transparent via-border to-transparent" />
                 <main className="min-h-0 flex-1 overflow-hidden">
                   <TaskHistory />
                 </main>
               </div>
 
+              {/* Prefixed, not bare ids: activeCallAgentId and
+                  activeFilesAgentId are both null whenever neither panel is
+                  open (the common case), and two siblings both keyed
+                  literal `null` is a real React duplicate-key collision —
+                  caught live via the dev overlay, not just reasoning. */}
               {selectedAgentId && <ChatPanel key={selectedAgentId} />}
-              <CallPanel key={activeCallAgentId} />
+              <CallPanel key={`call-${activeCallAgentId}`} />
+              <FilesPanel key={`files-${activeFilesAgentId}`} />
             </div>
           )}
         </div>

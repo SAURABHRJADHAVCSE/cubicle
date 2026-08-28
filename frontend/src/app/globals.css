@@ -62,89 +62,95 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* "Office Stationery" palette: the 2D dashboard is deliberately styled as
+   the paperwork of the office rendered in 3D (ID badges, memo cards,
+   nameplates, rubber-stamp status labels) rather than a generic SaaS
+   glass-dashboard look. Ink is the existing brand indigo, deepened; every
+   neutral is warmed a few degrees toward paper/kraft instead of cool slate,
+   which is what actually sells the "paper" idea, not just the accent color. */
 :root {
   color-scheme: light;
-  --background: oklch(0.984 0.003 247.858);
-  --foreground: oklch(0.208 0.042 265.755);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.208 0.042 265.755);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.208 0.042 265.755);
-  --primary: oklch(0.511 0.262 276.966);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.279 0.041 260.031);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.962 0.018 272.314);
-  --accent-foreground: oklch(0.457 0.24 277.023);
-  --destructive: oklch(0.586 0.253 17.585);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --success: oklch(0.508 0.118 165.612);
-  --success-foreground: oklch(0.984 0.003 247.858);
-  --info: oklch(0.546 0.245 262.881);
-  --info-foreground: oklch(0.984 0.003 247.858);
-  --warning: oklch(0.666 0.179 58.318);
+  --background: oklch(0.985 0.010 90);
+  --foreground: oklch(0.225 0.03 60);
+  --card: oklch(0.995 0.006 90);
+  --card-foreground: oklch(0.225 0.03 60);
+  --popover: oklch(0.995 0.006 90);
+  --popover-foreground: oklch(0.225 0.03 60);
+  --primary: oklch(0.47 0.24 275);
+  --primary-foreground: oklch(0.985 0.010 90);
+  --secondary: oklch(0.93 0.02 80);
+  --secondary-foreground: oklch(0.32 0.035 65);
+  --muted: oklch(0.94 0.018 80);
+  --muted-foreground: oklch(0.5 0.035 65);
+  --accent: oklch(0.93 0.045 275);
+  --accent-foreground: oklch(0.42 0.22 276);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.985 0.010 90);
+  --success: oklch(0.5 0.12 162);
+  --success-foreground: oklch(0.985 0.010 90);
+  --info: oklch(0.52 0.22 264);
+  --info-foreground: oklch(0.985 0.010 90);
+  --warning: oklch(0.68 0.18 58);
   --warning-foreground: oklch(0.24 0.06 48);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.869 0.022 252.894);
-  --ring: oklch(0.673 0.182 276.935);
-  --chart-1: oklch(0.511 0.262 276.966);
-  --chart-2: oklch(0.606 0.25 292.717);
-  --chart-3: oklch(0.666 0.179 58.318);
-  --chart-4: oklch(0.546 0.245 262.881);
-  --chart-5: oklch(0.586 0.253 17.585);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.976 0.004 256);
-  --sidebar-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-primary: oklch(0.511 0.262 276.966);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.962 0.018 272.314);
-  --sidebar-accent-foreground: oklch(0.457 0.24 277.023);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.673 0.182 276.935);
+  --border: oklch(0.89 0.02 75);
+  --input: oklch(0.82 0.025 72);
+  --ring: oklch(0.6 0.2 276);
+  --chart-1: oklch(0.47 0.24 275);
+  --chart-2: oklch(0.58 0.24 292);
+  --chart-3: oklch(0.68 0.18 58);
+  --chart-4: oklch(0.52 0.22 264);
+  --chart-5: oklch(0.55 0.22 25);
+  --radius: 0.375rem;
+  --sidebar: oklch(0.96 0.015 82);
+  --sidebar-foreground: oklch(0.225 0.03 60);
+  --sidebar-primary: oklch(0.47 0.24 275);
+  --sidebar-primary-foreground: oklch(0.985 0.010 90);
+  --sidebar-accent: oklch(0.93 0.045 275);
+  --sidebar-accent-foreground: oklch(0.42 0.22 276);
+  --sidebar-border: oklch(0.89 0.02 75);
+  --sidebar-ring: oklch(0.6 0.2 276);
 }
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.177 0.04 265);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.19 0.042 265);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.673 0.182 276.935);
-  --primary-foreground: oklch(0.257 0.09 281.288);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.249 0.04 262);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.257 0.09 281.288);
-  --accent-foreground: oklch(0.87 0.065 274.039);
-  --destructive: oklch(0.712 0.194 13.428);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --success: oklch(0.765 0.177 163.223);
+  --background: oklch(0.19 0.018 70);
+  --foreground: oklch(0.96 0.012 85);
+  --card: oklch(0.235 0.02 68);
+  --card-foreground: oklch(0.96 0.012 85);
+  --popover: oklch(0.25 0.022 68);
+  --popover-foreground: oklch(0.96 0.012 85);
+  --primary: oklch(0.7 0.17 277);
+  --primary-foreground: oklch(0.22 0.08 281);
+  --secondary: oklch(0.32 0.022 65);
+  --secondary-foreground: oklch(0.96 0.012 85);
+  --muted: oklch(0.29 0.02 65);
+  --muted-foreground: oklch(0.72 0.03 75);
+  --accent: oklch(0.32 0.08 280);
+  --accent-foreground: oklch(0.87 0.065 274);
+  --destructive: oklch(0.72 0.18 20);
+  --destructive-foreground: oklch(0.96 0.012 85);
+  --success: oklch(0.76 0.17 163);
   --success-foreground: oklch(0.18 0.055 166);
-  --info: oklch(0.707 0.165 254.624);
+  --info: oklch(0.71 0.16 255);
   --info-foreground: oklch(0.18 0.05 265);
-  --warning: oklch(0.828 0.189 84.429);
+  --warning: oklch(0.83 0.19 84);
   --warning-foreground: oklch(0.22 0.055 48);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.673 0.182 276.935);
-  --chart-1: oklch(0.673 0.182 276.935);
-  --chart-2: oklch(0.702 0.183 293.541);
-  --chart-3: oklch(0.828 0.189 84.429);
-  --chart-4: oklch(0.707 0.165 254.624);
-  --chart-5: oklch(0.712 0.194 13.428);
-  --sidebar: oklch(0.15 0.042 265);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.673 0.182 276.935);
-  --sidebar-primary-foreground: oklch(0.257 0.09 281.288);
-  --sidebar-accent: oklch(0.257 0.09 281.288);
-  --sidebar-accent-foreground: oklch(0.87 0.065 274.039);
+  --ring: oklch(0.7 0.17 277);
+  --chart-1: oklch(0.7 0.17 277);
+  --chart-2: oklch(0.71 0.18 293);
+  --chart-3: oklch(0.83 0.19 84);
+  --chart-4: oklch(0.71 0.16 255);
+  --chart-5: oklch(0.72 0.18 20);
+  --sidebar: oklch(0.165 0.018 68);
+  --sidebar-foreground: oklch(0.96 0.012 85);
+  --sidebar-primary: oklch(0.7 0.17 277);
+  --sidebar-primary-foreground: oklch(0.22 0.08 281);
+  --sidebar-accent: oklch(0.32 0.08 280);
+  --sidebar-accent-foreground: oklch(0.87 0.065 274);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.72 0.16 277);
+  --sidebar-ring: oklch(0.72 0.15 277);
 }
 
 @layer base {
@@ -240,5 +246,27 @@
   }
   .soft-scrollbar::-webkit-scrollbar-track {
     background: transparent;
+  }
+
+  /* "Office Stationery" signature primitives — used on the components that
+     read as physical office paperwork (agent ID badges, task memo cards,
+     the header nameplate): a rubber-stamp label style and a barely-there
+     paper-grain texture. Kept subtle deliberately — this is the one place
+     the redesign takes a visible risk, so it shouldn't fight for attention
+     everywhere at once. */
+  .stamp-badge {
+    font-family: var(--font-mono);
+    letter-spacing: 0.05em;
+    border-width: 1.5px;
+    border-style: solid;
+  }
+
+  .paper-grain {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      color-mix(in oklab, var(--foreground) 5%, transparent) 1px,
+      transparent 0
+    );
+    background-size: 13px 13px;
   }
 }

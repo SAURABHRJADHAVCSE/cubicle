@@ -42,11 +42,11 @@ export function ChangePasswordCard() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-3 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-800/50 p-4"
+      className="flex flex-col gap-3 rounded-xl border border-border bg-muted p-4"
     >
       <div>
-        <p className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white">
-          <KeyRound className="size-3.5 text-indigo-500" /> Instance Password
+        <p className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+          <KeyRound className="size-3.5 text-primary" /> Instance Password
         </p>
         <p className="mt-0.5 text-3xs leading-relaxed text-slate-500 dark:text-slate-400">
           Changing this doesn&apos;t sign out devices already paired — revoke a specific one above if needed.

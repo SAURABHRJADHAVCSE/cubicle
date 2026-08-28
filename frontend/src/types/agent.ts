@@ -59,3 +59,23 @@ export interface AgentUpdate {
   mood?: AgentMood;
   [key: string]: unknown;
 }
+
+export interface WorkspaceEntry {
+  name: string;
+  path: string;
+  type: "file" | "dir";
+  size: number | null;
+}
+
+export interface WorkspaceListing {
+  path: string;
+  entries: WorkspaceEntry[];
+}
+
+export interface WorkspaceFileContent {
+  path: string;
+  size: number;
+  readable: boolean;
+  content?: string | null;
+  reason?: string | null;
+}

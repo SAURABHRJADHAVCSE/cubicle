@@ -32,7 +32,7 @@ services:
     volumes:
       - ./backend/app:/app/app
       - agent-workspaces:/workspaces
-      - claude-cli-home:/root/.claude
+      - claude-cli-home:/home/appuser/.claude
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,7 +55,7 @@ services:
     volumes:
       - ./backend/app:/app/app
       - agent-workspaces:/workspaces
-      - claude-cli-home:/root/.claude
+      - claude-cli-home:/home/appuser/.claude
     depends_on:
       postgres:
         condition: service_healthy

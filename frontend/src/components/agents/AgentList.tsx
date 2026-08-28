@@ -40,10 +40,10 @@ export function AgentList() {
       <ScrollArea className="min-h-0 flex-1 soft-scrollbar">
         <div className="flex flex-col gap-2 pr-2.5 pb-1">
           {isLoading && (
-            <div className="h-16 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5" />
+            <div className="h-16 animate-pulse rounded-lg bg-muted border border-border" />
           )}
           {agents?.length === 0 && !isLoading && (
-            <div className="rounded-lg border border-dashed border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/40 p-4 text-center text-xs text-slate-500 dark:text-slate-400">
+            <div className="rounded-lg border border-dashed border-border bg-muted p-4 text-center text-xs text-muted-foreground">
               No agents yet. Click &quot;Add agent&quot; to bring your office live.
             </div>
           )}

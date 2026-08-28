@@ -23,9 +23,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // Matches globals.css's --background exactly (warm paper / warm charcoal,
+  // not the old cool slate) — this is what tints the mobile browser's own
+  // address-bar chrome and the PWA splash screen, so a stale value here
+  // shows as a visible seam around the app's actual background the instant
+  // it loads.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+    { media: "(prefers-color-scheme: light)", color: "#fdfaf3" },
+    { media: "(prefers-color-scheme: dark)", color: "#19120b" },
   ],
 };
 

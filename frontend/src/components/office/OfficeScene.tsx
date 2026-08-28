@@ -1,22 +1,18 @@
 "use client";
 
-import { Maximize2, Minimize2, Radio, UsersRound } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
 
 import { SpeechBubbleOverlay } from "@/components/office/SpeechBubble";
-import { Button } from "@/components/ui/button";
 import { useAgents } from "@/hooks/useAgents";
 import { useSpeechBubbles } from "@/hooks/useSpeechBubbles";
 import { cn } from "@/lib/utils";
+import { TycoonHUD } from "@/components/office/TycoonHUD";
 
 const OfficeCanvas = dynamic(
   () => import("@/components/office/OfficeCanvas").then((module) => module.OfficeCanvas),
   { ssr: false },
 );
-
-import type { CameraPreset, SelectedObjectType } from "@/components/office/TycoonHUD";
-import { TycoonHUD } from "@/components/office/TycoonHUD";
 
 interface OfficeSceneProps {
   className?: string;
@@ -28,8 +24,6 @@ export function OfficeScene({ className }: OfficeSceneProps) {
   const { data: agents } = useAgents();
   const [resetKey, setResetKey] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activePreset, setActivePreset] = useState<CameraPreset>("overview");
-  const [selectedObject, setSelectedObject] = useState<SelectedObjectType>(null);
 
   const workingCount =
     agents?.filter((agent) => ["working", "thinking"].includes(agent.status)).length ?? 0;
@@ -51,25 +45,16 @@ export function OfficeScene({ className }: OfficeSceneProps) {
     <section
       ref={containerRef}
       className={cn(
-        "relative isolate overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-900",
+        "relative isolate overflow-hidden border border-border bg-[#d7d0c4]",
         className,
       )}
     >
-      <OfficeCanvas
-        key={resetKey}
-        onContextLost={handleContextLost}
-        onSelectObject={(obj) => setSelectedObject(obj)}
-        activePreset={activePreset}
-      />
+      <OfficeCanvas key={resetKey} onContextLost={handleContextLost} />
       <SpeechBubbleOverlay bubbles={bubbles} />
 
       <TycoonHUD
         agentsCount={agents?.length ?? 0}
         workingCount={workingCount}
-        selectedObject={selectedObject}
-        onClearSelection={() => setSelectedObject(null)}
-        onSelectCameraPreset={(preset) => setActivePreset(preset)}
-        activePreset={activePreset}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
       />

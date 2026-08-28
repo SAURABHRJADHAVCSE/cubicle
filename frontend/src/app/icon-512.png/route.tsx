@@ -5,6 +5,7 @@ export const runtime = "edge";
 /** A fixed, predictable URL (unlike Next's icon.tsx convention, which
  * hashes its own query string) — referenced directly from manifest.json's
  * icons array so Android/iOS install prompts get a real 512px PNG. */
+// Same maskable safe-zone reasoning as icon-192 — scaled 512/192 ≈ 2.67x.
 export async function GET() {
   return new ImageResponse(
     (
@@ -15,13 +16,19 @@ export async function GET() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#6366f1",
-          color: "white",
-          fontSize: 340,
-          fontWeight: 700,
+          background: "linear-gradient(145deg, #4135dd, #6a5cf0)",
         }}
       >
-        C
+        <div style={{ display: "flex", flexDirection: "column", gap: 38 }}>
+          <div style={{ display: "flex", gap: 38 }}>
+            <div style={{ width: 96, height: 96, background: "white", borderRadius: 24 }} />
+            <div style={{ width: 96, height: 96, background: "white", borderRadius: 24 }} />
+          </div>
+          <div style={{ display: "flex", gap: 38 }}>
+            <div style={{ width: 96, height: 96, background: "white", borderRadius: 24 }} />
+            <div style={{ width: 96, height: 96, background: "white", borderRadius: 24 }} />
+          </div>
+        </div>
       </div>
     ),
     { width: 512, height: 512 },

@@ -10,7 +10,7 @@ export function ChatMessage({ message }: { message: ConversationMessage }) {
           "max-w-[85%] rounded-lg px-3.5 py-2.5 text-2xs leading-relaxed whitespace-pre-wrap shadow-sm",
           isUser
             ? "rounded-br-xs bg-primary text-primary-foreground font-medium"
-            : "rounded-bl-xs border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800/90 text-slate-800 dark:text-slate-100",
+            : "rounded-bl-xs border border-border bg-card text-card-foreground",
         )}
       >
         {message.content}

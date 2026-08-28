@@ -34,9 +34,14 @@ FROM python:3.12-slim AS runtime
 # The libav*/libopus/libvpx/libsrtp2 set is aiortc's runtime linkage (see
 # the matching -dev install in the builder stage) — needed here too since
 # these are shared libraries, not something `uv sync` bundles statically.
+# gosu: drops root back to `appuser` in the entrypoint below, after the one
+# thing that genuinely needs root (chown'ing the mounted volumes on first
+# boot) — see the comment on `USER`/entrypoint.sh for why running as root at
+# all past that point is a real functional bug here, not just a hardening
+# nicety.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        curl ca-certificates gnupg \
+        curl ca-certificates gnupg gosu \
         libavdevice-dev libavfilter-dev libavformat-dev libavcodec-dev \
         libswresample-dev libswscale-dev libopus-dev libvpx-dev libsrtp2-dev \
     && curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
@@ -44,15 +49,33 @@ RUN apt-get update \
     && npm install -g @anthropic-ai/claude-code \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
+# The Claude Code CLI itself refuses --dangerously-skip-permissions when
+# running as root/sudo (a safety check on its side) — and every base image
+# here runs as root by default unless a container explicitly opts out. Since
+# ClaudeCodeEngine's headless subprocess has no TTY to answer an interactive
+# permission prompt (see claude_code.py), it *needs* that flag to actually
+# write files at all, so running as root isn't just less hardened, it
+# silently breaks every CLI-engine agent's write/edit/bash tool calls.
+RUN groupadd --gid 1000 appuser \
+    && useradd --uid 1000 --gid appuser --create-home --shell /bin/sh appuser
+ENV HOME=/home/appuser
+
 WORKDIR /app
 
-COPY --from=builder /app /app
-COPY alembic.ini ./
-COPY alembic ./alembic
-COPY tests ./tests
+COPY --from=builder --chown=appuser:appuser /app /app
+COPY --chown=appuser:appuser alembic.ini ./
+COPY --chown=appuser:appuser alembic ./alembic
+COPY --chown=appuser:appuser tests ./tests
+COPY --chown=appuser:appuser docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8000
 
+# Starts as root (required to chown bind/named-mount volumes that were
+# created by an older root-owned container, or by Docker itself on first
+# use — an unprivileged user can't chown those) then `exec gosu appuser`
+# hands off to the real process, which never runs as root.
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:socket_app --host 0.0.0.0 --port 8000 --reload"]
