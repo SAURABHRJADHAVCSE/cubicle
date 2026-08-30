@@ -25,6 +25,24 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 MAX_PREVIEW_BYTES = 512_000
 
 
+def _host_path_for(absolute_container_path: str) -> str | None:
+    """Map a path under ``settings.workspaces_dir`` to its host-machine
+    equivalent under ``settings.host_workspaces_path``, for the UI's
+    "open this folder on my PC" affordance. Returns None when that setting
+    isn't configured — the bind mount works either way, this is cosmetic.
+    """
+    settings = get_settings()
+    if not settings.host_workspaces_path:
+        return None
+    relative = os.path.relpath(absolute_container_path, settings.workspaces_dir)
+    host_root = settings.host_workspaces_path.rstrip("/\\")
+    if relative == ".":
+        return host_root
+    # Host is Windows in the common case; backslashes read as a real,
+    # paste-into-Explorer path instead of a POSIX one that'd confuse users.
+    return f"{host_root}\\{relative.replace('/', '\\')}"
+
+
 async def _get_agent_or_404(agent_id: uuid.UUID, db: AsyncSession) -> Agent:
     agent = await db.get(Agent, agent_id)
     if agent is None:
@@ -121,7 +139,9 @@ async def list_workspace_files(
             )
     entries.sort(key=lambda e: (e.type != "dir", e.name.lower()))
 
-    return WorkspaceListing(path=resolved.relative, entries=entries)
+    return WorkspaceListing(
+        path=resolved.relative, entries=entries, host_path=_host_path_for(resolved.absolute)
+    )
 
 
 @router.get("/{agent_id}/files/content", response_model=WorkspaceFileContent)

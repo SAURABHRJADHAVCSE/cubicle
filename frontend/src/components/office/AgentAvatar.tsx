@@ -181,20 +181,20 @@ export function AgentAvatar({ agent, targetPosition, targetRotationY }: AgentAva
   });
 
   return (
-    <group ref={rootRef} position={targetPosition} scale={1.12}>
+    <group ref={rootRef} position={targetPosition} scale={0.94}>
       {agent.name && (
-        <Html position={[0, 1.72, SEAT_Z]} center zIndexRange={[20, 0]}>
-          <div className="pointer-events-none flex min-w-max items-center gap-2 rounded-full border border-white/20 bg-slate-950/88 px-3 py-1.5 text-white shadow-xl backdrop-blur-md">
-            <span className="size-1.5 rounded-full" style={{ backgroundColor: ringColor }} />
-            <span className="text-[11px] font-bold leading-none">{agent.name}</span>
-            <span className="text-[9px] font-semibold capitalize text-slate-300">{agent.status}</span>
+        <Html position={[0, 1.5, SEAT_Z]} center zIndexRange={[20, 0]}>
+          <div className="pointer-events-none flex min-w-max items-center gap-1.5 rounded-[4px] border border-[#777166] bg-[#fffaf0]/95 px-2 py-1 text-[#292724] shadow-[0_2px_0_rgba(38,35,31,0.18)] backdrop-blur-sm">
+            <span className="size-1.5 rounded-[2px]" style={{ backgroundColor: ringColor }} />
+            <span className="text-[9px] font-extrabold uppercase leading-none tracking-[0.04em]">{agent.name}</span>
+            <span className="border-l border-[#b8b0a3] pl-1.5 text-[8px] font-bold capitalize text-[#6b655c]">{agent.status}</span>
           </div>
         </Html>
       )}
 
       {/* Grounded status ring */}
       <mesh position={[0, 0.02, SEAT_Z]} rotation={[-Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.31, 0.025, 10, 28]} />
+        <torusGeometry args={[0.27, 0.022, 10, 24]} />
         <meshStandardMaterial color={ringColor} emissive={ringColor} emissiveIntensity={0.3} />
       </mesh>
 

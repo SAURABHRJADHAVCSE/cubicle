@@ -6,6 +6,41 @@ import * as THREE from "three";
  * caches: one instance per named material, reused across every mesh that
  * wants it. */
 const cache = new Map<string, THREE.MeshStandardMaterial>();
+let officeTileTexture: THREE.CanvasTexture | null = null;
+
+function getOfficeTileTexture(): THREE.CanvasTexture {
+  if (officeTileTexture) return officeTileTexture;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext("2d")!;
+  const tileSize = 32;
+
+  context.fillStyle = "#aebdb9";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let row = 0; row < 4; row += 1) {
+    for (let column = 0; column < 4; column += 1) {
+      context.fillStyle = (row + column) % 2 === 0 ? "#aebdb9" : "#a5b5b1";
+      context.fillRect(column * tileSize, row * tileSize, tileSize, tileSize);
+      context.strokeStyle = "rgba(69, 88, 88, 0.28)";
+      context.lineWidth = 2;
+      context.strokeRect(column * tileSize, row * tileSize, tileSize, tileSize);
+      context.fillStyle = "rgba(255, 255, 255, 0.09)";
+      context.fillRect(column * tileSize + 5, row * tileSize + 5, 2, 2);
+    }
+  }
+
+  officeTileTexture = new THREE.CanvasTexture(canvas);
+  officeTileTexture.colorSpace = THREE.SRGBColorSpace;
+  officeTileTexture.wrapS = THREE.RepeatWrapping;
+  officeTileTexture.wrapT = THREE.RepeatWrapping;
+  officeTileTexture.repeat.set(4, 3.5);
+  officeTileTexture.magFilter = THREE.NearestFilter;
+  officeTileTexture.minFilter = THREE.LinearMipmapLinearFilter;
+  return officeTileTexture;
+}
 
 function material(key: string, params: THREE.MeshStandardMaterialParameters): THREE.MeshStandardMaterial {
   const cached = cache.get(key);
@@ -19,10 +54,10 @@ function material(key: string, params: THREE.MeshStandardMaterialParameters): TH
 // indigo / warm paper direction rather than introducing a third color
 // language for the 3D scene.
 export const modernMaterials = {
-  floorWood: () => material("floorWood", { color: "#d7d0c4", roughness: 0.72, metalness: 0.0 }),
-  floorEdge: () => material("floorEdge", { color: "#8d8579", roughness: 0.68, metalness: 0.04 }),
-  workCarpet: () => material("workCarpet", { color: "#c8ceda", roughness: 0.96, metalness: 0.0 }),
-  zoneTrim: () => material("zoneTrim", { color: "#5146e5", roughness: 0.65, metalness: 0.04 }),
+  floorWood: () => material("floorWood", { color: "#ffffff", map: getOfficeTileTexture(), roughness: 0.88, metalness: 0.0 }),
+  floorEdge: () => material("floorEdge", { color: "#353947", roughness: 0.62, metalness: 0.14 }),
+  workCarpet: () => material("workCarpet", { color: "#8fa19e", roughness: 0.97, metalness: 0.0 }),
+  zoneTrim: () => material("zoneTrim", { color: "#4f46e5", roughness: 0.65, metalness: 0.04 }),
   deskWood: () => material("deskWood", { color: "#a8764f", roughness: 0.5, metalness: 0.02 }),
   deskLegMetal: () => material("deskLegMetal", { color: "#596273", roughness: 0.42, metalness: 0.55 }),
   chairSlate: () => material("chairSlate", { color: "#3f485a", roughness: 0.72, metalness: 0.04 }),
@@ -38,11 +73,11 @@ export const modernMaterials = {
       emissive: new THREE.Color("#5146e5"),
       emissiveIntensity: 0.3,
     }),
-  wallWarmGrey: () => material("wallWarmGrey", { color: "#e7e3dc", roughness: 0.86, metalness: 0.0 }),
-  wallSlate: () => material("wallSlate", { color: "#757d8d", roughness: 0.62, metalness: 0.08 }),
+  wallWarmGrey: () => material("wallWarmGrey", { color: "#eee8df", roughness: 0.88, metalness: 0.0 }),
+  wallSlate: () => material("wallSlate", { color: "#3d4350", roughness: 0.62, metalness: 0.12 }),
   cabinGlass: () =>
-    material("cabinGlass", { color: "#dce5f2", roughness: 0.12, metalness: 0.05, transparent: true, opacity: 0.38, depthWrite: false }),
-  cabinFrame: () => material("cabinFrame", { color: "#293142", roughness: 0.38, metalness: 0.56 }),
+    material("cabinGlass", { color: "#d8e7e6", roughness: 0.16, metalness: 0.02, transparent: true, opacity: 0.24, depthWrite: false }),
+  cabinFrame: () => material("cabinFrame", { color: "#56606d", roughness: 0.42, metalness: 0.48 }),
   cabinDeskWood: () => material("cabinDeskWood", { color: "#845839", roughness: 0.42, metalness: 0.04 }),
   cabinChairLeather: () => material("cabinChairLeather", { color: "#352f78", roughness: 0.5, metalness: 0.03 }),
   sofaFabric: () => material("sofaFabric", { color: "#5f6680", roughness: 0.9, metalness: 0.0 }),

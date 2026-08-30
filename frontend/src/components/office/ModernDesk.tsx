@@ -1,5 +1,7 @@
 "use client";
 
+import { RoundedBox } from "@react-three/drei";
+
 import { modernMaterials } from "@/lib/modernMaterials";
 
 interface ModernDeskProps {
@@ -8,16 +10,10 @@ interface ModernDeskProps {
   onSelect?: () => void;
 }
 
-/** A single modern cubicle workstation — desk, chair, monitor, and a low
- * fabric divider behind it. Replaces the old Desk.tsx + CubicleWalls.tsx
- * pair (voxel-block desk + floor-to-ceiling glass-block walls) with a
- * single low-poly unit: waist-height fabric divider instead of a full
- * wall, no pixelated texture maps, believable proportions (desk ~0.75
- * high, divider ~1.05 — you can see over it while seated). */
 export function ModernDesk({ position, rotationY, onSelect }: ModernDeskProps) {
   const desk = modernMaterials.deskWood();
-  const leg = modernMaterials.deskLegMetal();
-  const chairSlate = modernMaterials.chairSlate();
+  const metal = modernMaterials.deskLegMetal();
+  const chair = modernMaterials.chairSlate();
   const chairBase = modernMaterials.chairBase();
   const monitorBody = modernMaterials.monitorBody();
   const monitorScreen = modernMaterials.monitorScreen();
@@ -28,68 +24,132 @@ export function ModernDesk({ position, rotationY, onSelect }: ModernDeskProps) {
     <group
       position={position}
       rotation={[0, rotationY, 0]}
-      onClick={(e) => {
-        e.stopPropagation();
+      onClick={(event) => {
+        event.stopPropagation();
         onSelect?.();
       }}
     >
-      {/* Low fabric divider — waist height, not floor-to-ceiling, so agents
-          and desks stay visible from the front-facing camera. */}
-      <mesh position={[0, 0.56, -0.72]} material={divider} castShadow receiveShadow>
-        <boxGeometry args={[2.75, 1.12, 0.07]} />
+      <RoundedBox
+        args={[2.85, 0.88, 0.1]}
+        radius={0.07}
+        smoothness={4}
+        position={[0, 0.55, -0.7]}
+        material={divider}
+        castShadow
+        receiveShadow
+      />
+      <RoundedBox
+        args={[2.96, 0.055, 0.14]}
+        radius={0.025}
+        smoothness={3}
+        position={[0, 1, -0.7]}
+        material={dividerTrim}
+        castShadow
+      />
+      {[-1.41, 1.41].map((x) => (
+        <RoundedBox
+          key={x}
+          args={[0.09, 0.88, 0.72]}
+          radius={0.04}
+          smoothness={3}
+          position={[x, 0.55, -0.36]}
+          material={divider}
+          castShadow
+          receiveShadow
+        />
+      ))}
+
+      <RoundedBox
+        args={[2.3, 0.1, 0.82]}
+        radius={0.07}
+        smoothness={4}
+        position={[0, 0.76, 0]}
+        material={desk}
+        castShadow
+        receiveShadow
+      />
+      <RoundedBox
+        args={[1.75, 0.34, 0.055]}
+        radius={0.025}
+        smoothness={3}
+        position={[0, 0.49, -0.34]}
+        material={desk}
+        castShadow
+      />
+      {[-0.98, 0.98].flatMap((x) =>
+        [-0.31, 0.31].map((z) => (
+          <mesh key={`${x}-${z}`} position={[x, 0.38, z]} material={metal} castShadow>
+            <cylinderGeometry args={[0.035, 0.045, 0.72, 10]} />
+          </mesh>
+        )),
+      )}
+
+      <mesh position={[0, 0.85, -0.25]} material={metal} castShadow>
+        <cylinderGeometry args={[0.035, 0.05, 0.17, 10]} />
       </mesh>
-      <mesh position={[0, 1.11, -0.72]} material={dividerTrim} castShadow>
-        <boxGeometry args={[2.82, 0.05, 0.1]} />
-      </mesh>
-      <mesh position={[-1.38, 0.56, -0.36]} material={divider} castShadow receiveShadow>
-        <boxGeometry args={[0.07, 1.12, 0.72]} />
-      </mesh>
-      <mesh position={[1.38, 0.56, -0.36]} material={divider} castShadow receiveShadow>
-        <boxGeometry args={[0.07, 1.12, 0.72]} />
+      <RoundedBox
+        args={[0.68, 0.4, 0.07]}
+        radius={0.05}
+        smoothness={4}
+        position={[0, 1.08, -0.25]}
+        material={monitorBody}
+        castShadow
+      />
+      <RoundedBox
+        args={[0.59, 0.31, 0.015]}
+        radius={0.025}
+        smoothness={3}
+        position={[0, 1.08, -0.209]}
+        material={monitorScreen}
+      />
+      <RoundedBox
+        args={[0.48, 0.025, 0.17]}
+        radius={0.025}
+        smoothness={3}
+        position={[0, 0.825, 0.11]}
+        material={monitorBody}
+        castShadow
+      />
+      <mesh position={[0.73, 0.86, 0.08]} material={dividerTrim} castShadow>
+        <cylinderGeometry args={[0.08, 0.065, 0.17, 16]} />
       </mesh>
 
-      {/* Desk top + slim metal legs */}
-      <mesh position={[0, 0.74, 0]} material={desk} castShadow receiveShadow>
-        <boxGeometry args={[2.15, 0.07, 0.72]} />
-      </mesh>
-      <mesh position={[-0.92, 0.37, -0.28]} material={leg} castShadow>
-        <boxGeometry args={[0.05, 0.72, 0.05]} />
-      </mesh>
-      <mesh position={[0.92, 0.37, -0.28]} material={leg} castShadow>
-        <boxGeometry args={[0.05, 0.72, 0.05]} />
-      </mesh>
-      <mesh position={[-0.92, 0.37, 0.28]} material={leg} castShadow>
-        <boxGeometry args={[0.05, 0.72, 0.05]} />
-      </mesh>
-      <mesh position={[0.92, 0.37, 0.28]} material={leg} castShadow>
-        <boxGeometry args={[0.05, 0.72, 0.05]} />
-      </mesh>
-
-      {/* Monitor, slim stand */}
-      <mesh position={[0, 0.79, -0.22]} material={leg}>
-        <boxGeometry args={[0.04, 0.1, 0.04]} />
-      </mesh>
-      <mesh position={[0, 0.98, -0.22]} material={monitorBody}>
-        <boxGeometry args={[0.58, 0.34, 0.04]} />
-      </mesh>
-      <mesh position={[0, 0.98, -0.205]} material={monitorScreen}>
-        <boxGeometry args={[0.51, 0.27, 0.012]} />
-      </mesh>
-
-      {/* Ergonomic chair — seat, backrest, slim base */}
-      <group position={[0, 0, 0.62]}>
-        <mesh position={[0, 0.46, 0]} material={chairSlate} castShadow receiveShadow>
-          <boxGeometry args={[0.46, 0.06, 0.44]} />
+      <group position={[0, 0, 0.72]}>
+        <RoundedBox
+          args={[0.56, 0.1, 0.52]}
+          radius={0.08}
+          smoothness={4}
+          position={[0, 0.47, 0]}
+          material={chair}
+          castShadow
+          receiveShadow
+        />
+        <RoundedBox
+          args={[0.54, 0.58, 0.1]}
+          radius={0.09}
+          smoothness={5}
+          position={[0, 0.77, 0.22]}
+          rotation={[-0.1, 0, 0]}
+          material={chair}
+          castShadow
+        />
+        <mesh position={[0, 0.25, 0]} material={chairBase}>
+          <cylinderGeometry args={[0.035, 0.035, 0.44, 12]} />
         </mesh>
-        <mesh position={[0, 0.72, 0.19]} material={chairSlate} castShadow>
-          <boxGeometry args={[0.42, 0.5, 0.06]} />
-        </mesh>
-        <mesh position={[0, 0.24, 0]} material={chairBase}>
-          <cylinderGeometry args={[0.03, 0.03, 0.44, 8]} />
-        </mesh>
-        <mesh position={[0, 0.03, 0]} material={chairBase}>
-          <cylinderGeometry args={[0.22, 0.22, 0.04, 12]} />
-        </mesh>
+        {[0, Math.PI / 2, Math.PI, (Math.PI * 3) / 2].map((rotation) => (
+          <group key={rotation} rotation={[0, rotation, 0]}>
+            <RoundedBox
+              args={[0.055, 0.035, 0.36]}
+              radius={0.018}
+              smoothness={3}
+              position={[0, 0.055, 0.16]}
+              material={chairBase}
+            />
+            <mesh position={[0, 0.035, 0.34]} material={chairBase}>
+              <sphereGeometry args={[0.045, 10, 8]} />
+            </mesh>
+          </group>
+        ))}
       </group>
     </group>
   );

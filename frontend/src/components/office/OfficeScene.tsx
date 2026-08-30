@@ -45,7 +45,7 @@ export function OfficeScene({ className }: OfficeSceneProps) {
     <section
       ref={containerRef}
       className={cn(
-        "relative isolate overflow-hidden border border-border bg-[#d7d0c4]",
+        "relative isolate overflow-hidden border border-border bg-[#e8e7e3]",
         className,
       )}
     >

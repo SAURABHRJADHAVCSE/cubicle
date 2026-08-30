@@ -70,6 +70,7 @@ export interface WorkspaceEntry {
 export interface WorkspaceListing {
   path: string;
   entries: WorkspaceEntry[];
+  host_path: string | null;
 }
 
 export interface WorkspaceFileContent {

@@ -7,12 +7,12 @@ export interface DeskLayout {
 }
 
 export const WORKSTATION_SLOTS: Omit<DeskLayout, "agentId">[] = [
-  ...[-4.8, -1.6, 1.6, 4.8].map((x) => ({
-    position: [x, 0, 0.25] as [number, number, number],
+  ...[-6.4, -3.2, 0, 3.2, 6.4].map((x) => ({
+    position: [x, 0, 0.7] as [number, number, number],
     rotationY: 0,
   })),
-  ...[-4.8, -1.6, 1.6, 4.8].map((x) => ({
-    position: [x, 0, 3.15] as [number, number, number],
+  ...[-6.4, -3.2, 0, 3.2, 6.4].map((x) => ({
+    position: [x, 0, 4.2] as [number, number, number],
     rotationY: 0,
   })),
 ];
@@ -36,11 +36,11 @@ export function computeDeskLayout(agents: Agent[]): DeskLayout[] {
     if (fixed) return { agentId: agent.id, ...fixed };
 
     const overflowIndex = i - WORKSTATION_SLOTS.length;
-    const col = overflowIndex % 4;
-    const row = Math.floor(overflowIndex / 4);
+    const col = overflowIndex % 5;
+    const row = Math.floor(overflowIndex / 5);
     return {
       agentId: agent.id,
-      position: [-4.8 + col * 3.2, 0, 5.95 + row * 2.9],
+      position: [-6.4 + col * 3.2, 0, 7.5 + row * 3.2],
       rotationY: 0,
     };
   });
@@ -55,8 +55,8 @@ export function computeRowDepth(layout: DeskLayout[]): number {
 }
 
 const WAITING_SEAT_SPACING_X = 0.9;
-const WAITING_ROW_Z = -2.85;
-const WAITING_CENTER_X = -4.55;
+const WAITING_ROW_Z = -4.15;
+const WAITING_CENTER_X = -5.6;
 const WAITING_MAX_PER_ROW = 4;
 const WAITING_ROW_SPACING_Z = 0.9;
 

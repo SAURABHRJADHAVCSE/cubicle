@@ -1,7 +1,8 @@
 "use client";
 
-import { ChevronRight, File, Folder, FolderOpen, Loader2, X } from "lucide-react";
+import { ChevronRight, Copy, ExternalLink, File, Folder, FolderOpen, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,11 @@ import { useAgents } from "@/hooks/useAgents";
 import { ApiError, api } from "@/lib/api";
 import { useUIStore } from "@/stores/uiStore";
 import type { WorkspaceEntry, WorkspaceFileContent } from "@/types/agent";
+
+// vscode:// needs forward slashes and URI-escaping, not a raw Windows path.
+function vscodeUri(hostPath: string): string {
+  return `vscode://file/${encodeURI(hostPath.replace(/\\/g, "/"))}`;
+}
 
 function formatSize(bytes: number | null): string {
   if (bytes === null) return "";
@@ -25,6 +31,7 @@ export function FilesPanel() {
 
   const [currentPath, setCurrentPath] = useState("");
   const [entries, setEntries] = useState<WorkspaceEntry[] | null>(null);
+  const [hostPath, setHostPath] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [openFile, setOpenFile] = useState<WorkspaceFileContent | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -45,7 +52,9 @@ export function FilesPanel() {
     api.agents
       .listFiles(activeFilesAgentId, currentPath)
       .then((listing) => {
-        if (!cancelled) setEntries(listing.entries);
+        if (cancelled) return;
+        setEntries(listing.entries);
+        setHostPath(listing.host_path);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -64,6 +73,16 @@ export function FilesPanel() {
 
   function close() {
     selectFilesAgent(null);
+  }
+
+  async function copyHostPath() {
+    if (!hostPath) return;
+    try {
+      await navigator.clipboard.writeText(hostPath);
+      toast.success("Folder path copied");
+    } catch {
+      toast.error("Couldn't copy — your browser blocked clipboard access");
+    }
   }
 
   function openEntry(entry: WorkspaceEntry) {
@@ -95,9 +114,33 @@ export function FilesPanel() {
             {agent?.name ?? "Agent"}&apos;s workspace
           </p>
           <p className="truncate font-mono text-3xs text-muted-foreground">
-            {agent?.working_directory ?? "No workspace configured"}
+            {hostPath ?? agent?.working_directory ?? "No workspace configured"}
           </p>
         </div>
+        {hostPath && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="rounded-full bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground"
+              onClick={copyHostPath}
+              aria-label="Copy folder path"
+              title="Copy folder path"
+            >
+              <Copy className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="rounded-full bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground"
+              render={<a href={vscodeUri(hostPath)} />}
+              aria-label="Open this folder in VS Code"
+              title="Open in VS Code"
+            >
+              <ExternalLink className="size-3.5" />
+            </Button>
+          </>
+        )}
         <Button
           variant="ghost"
           size="icon-xs"

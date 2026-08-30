@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     embedding_dimensions: int = 768
 
     workspaces_dir: str = "/workspaces"
+    # The host-machine path that workspaces_dir is bind-mounted from (see
+    # docker-compose.yml's ./agent-workspaces:/workspaces). Purely cosmetic —
+    # only used to hand the frontend a real, host-native path to display/copy
+    # for "open this folder on my PC" — the container itself always reads and
+    # writes through workspaces_dir regardless of whether this is set.
+    host_workspaces_path: str | None = None
 
     # Extra explicit origins on top of cors_origin_regex below — normally
     # only needed for a public domain (e.g. a Caddy deployment) that isn't

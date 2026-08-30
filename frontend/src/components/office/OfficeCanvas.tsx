@@ -29,10 +29,9 @@ export function OfficeCanvas({ onContextLost }: OfficeCanvasProps) {
 
   return (
     <Canvas
-      orthographic
       shadows={!isLowPower}
       dpr={isLowPower ? 1 : [1, 1.5]}
-      camera={{ position: [0, 14, 20], zoom: 60, near: 0.1, far: 80 }}
+      camera={{ position: [2, 13, 18], fov: 30, near: 0.1, far: 100 }}
       gl={{ antialias: !isLowPower, alpha: false, powerPreference: "high-performance" }}
       className="!absolute inset-0"
       onCreated={({ gl }) => {

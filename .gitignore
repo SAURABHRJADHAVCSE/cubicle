@@ -25,3 +25,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Agent-written workspace files (bind-mounted into containers, not app source)
+/agent-workspaces/

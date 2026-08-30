@@ -27,11 +27,21 @@ services:
       - TURN_URL=${TURN_URL:-}
       - TURN_USERNAME=${TURN_USERNAME:-cubicle}
       - TURN_CREDENTIAL=${TURN_PASSWORD:-changeme}
+      # Absolute host-machine path that ./agent-workspaces (below) resolves
+      # to — the container can't derive this on its own (bind mounts don't
+      # expose their own host-side source path to the guest), so it's handed
+      # in explicitly just so the UI can show/copy a real path to open on
+      # your PC. Cosmetic only; leave unset and the file browser still works,
+      # it just won't offer "open on my PC".
+      - HOST_WORKSPACES_PATH=${HOST_WORKSPACES_PATH:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/app:/app/app
-      - agent-workspaces:/workspaces
+      # Bind mount, not a named volume: agents' written files need to show up
+      # as a real folder on the host (Explorer/VS Code), not sealed inside
+      # Docker Desktop's VM where only `docker cp`/`docker run` can reach them.
+      - ./agent-workspaces:/workspaces
       - claude-cli-home:/home/appuser/.claude
     depends_on:
       postgres:
@@ -54,7 +64,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/app:/app/app
-      - agent-workspaces:/workspaces
+      - ./agent-workspaces:/workspaces
       - claude-cli-home:/home/appuser/.claude
     depends_on:
       postgres:
@@ -165,7 +175,6 @@ services:
 volumes:
   pgdata:
   redisdata:
-  agent-workspaces:
   claude-cli-home:
   caddy-data:
   caddy-config:

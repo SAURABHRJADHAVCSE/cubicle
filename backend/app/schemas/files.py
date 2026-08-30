@@ -17,6 +17,10 @@ class WorkspaceListing(BaseModel):
 
     path: str
     entries: list[WorkspaceEntry]
+    # Host-machine equivalent of this directory (e.g. a Windows path), for
+    # "open this folder on my PC" in the UI. None when HOST_WORKSPACES_PATH
+    # isn't configured on the backend.
+    host_path: str | None = None
 
 
 class WorkspaceFileContent(BaseModel):
