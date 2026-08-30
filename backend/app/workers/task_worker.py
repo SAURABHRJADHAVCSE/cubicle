@@ -1,5 +1,13 @@
 """Celery tasks: execute a Task against its assigned agent's engine, or
-route it through a boss/orchestrator agent into subtasks first."""
+route it through a boss/orchestrator agent into subtasks first.
+
+Also home to the agents-as-tools delegation path: when an agent has an
+explicit teammate roster (AgentCollaborator, see app/utils/agent_tools.py),
+its engine call is given those teammates as callable tools, and a tool call
+recursively runs _run_task_execution() again for the target teammate — see
+make_tool_executor() below. api/chat.py reuses _run_task_execution() for
+the same delegation mechanics triggered from live chat rather than a Task.
+"""
 
 import asyncio
 import json
@@ -12,9 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import worker_session_factory
+from app.engines.base import ToolExecutor
 from app.engines.registry import get_engine
 from app.models.agent import Agent
 from app.models.task import Task
+from app.utils.agent_tools import build_tools_for_agent
 from app.utils.inbox import format_inbox_context, read_and_archive_inbox, write_delegation_notice
 from app.utils.memory_search import get_relevant_memories
 from app.utils.push import notify_all_devices
@@ -43,17 +53,26 @@ async def _cost_ceiling_exceeded(session: AsyncSession) -> bool:
 
 
 async def _maybe_complete_parent(session: AsyncSession, task: Task) -> None:
-    """If `task` was a boss-routed child and every sibling sharing its
-    parent_task_id has now reached a terminal state, aggregate their
-    results into the parent and mark it completed/failed too.
+    """If `task` was a boss-routed child (its parent's status is "routed" —
+    the marker _route_task_async sets right after dispatching children) and
+    every sibling sharing its parent_task_id has now reached a terminal
+    state, aggregate their results into the parent and mark it
+    completed/failed too.
 
-    route_task() dispatches children independently, so nothing previously
-    observed "all children are done" — a routed task's parent just sat in
-    "routed" forever. Called from both terminal paths a task can reach
-    (the success tail of _execute_task_async, and _mark_failed), since a
-    child can finish either way.
+    Gated on parent.status == "routed" specifically (not just "not
+    completed/failed") because parent_task_id is now also set on
+    agents-as-tools delegation children (see make_tool_executor) — there,
+    the "parent" is a task whose own engine call is still actively running
+    (status "in_progress"), and it completes itself via its own
+    _run_task_execution tail once that call returns. Treating an
+    in-progress delegator as if it were a decomposition parent would
+    complete it out from under its own still-running execution.
     """
     if task.parent_task_id is None:
+        return
+
+    parent = await session.get(Task, task.parent_task_id)
+    if parent is None or parent.status != "routed":
         return
 
     siblings = list(
@@ -65,15 +84,6 @@ async def _maybe_complete_parent(session: AsyncSession, task: Task) -> None:
     )
     if any(s.status not in ("completed", "failed") for s in siblings):
         return  # still waiting on at least one child
-
-    parent = await session.get(Task, task.parent_task_id)
-    if parent is None or parent.status in ("completed", "failed"):
-        # Already aggregated (or the parent's gone) — best-effort guard
-        # against two siblings finishing concurrently on different workers
-        # both observing "all done" before either commits. Worst case of
-        # that race is a second, harmless emit, not corrupted data, given
-        # how few subtasks a routed task realistically has.
-        return
 
     children_summary = [
         {"agent_id": str(s.assigned_agents[0]) if s.assigned_agents else None,
@@ -161,7 +171,10 @@ def execute_task(task_id: str) -> None:
 
 
 async def _execute_task_async(task_id: uuid.UUID) -> None:
-    """Load the task and its agent, run the engine, and persist the result."""
+    """Load the task and its agent and run it — the Celery-entrypoint-only
+    checks (task/agent actually exist) live here; the shared execution body
+    (cost ceiling, engine call, persistence, side effects) is
+    _run_task_execution, also used by agents-as-tools delegation."""
     async with worker_session_factory() as session:
         task = await session.get(Task, task_id)
         if task is None:
@@ -177,85 +190,198 @@ async def _execute_task_async(task_id: uuid.UUID) -> None:
             await _mark_failed(session, task, "Assigned agent not found")
             return
 
-        if await _cost_ceiling_exceeded(session):
-            await _mark_failed(session, task, "Daily cost ceiling exceeded", agent=agent)
-            return
+        await _run_task_execution(session, task, agent, call_chain=[agent.id])
 
-        task.status = "in_progress"
-        task.started_at = datetime.now(timezone.utc)
-        agent.status = "working"
-        agent.status_changed_at = datetime.now(timezone.utc)
-        agent.current_task_id = task.id
-        await session.commit()
-        emit_task_status(str(task.id), task.status)
-        emit_agent_status(str(agent.id), agent.status, agent.mood, str(task.id))
-        generate_and_emit_dialogue.delay(
-            str(agent.id), f"just started working on: {task.title}", "work_chat", "On it!"
-        )
 
-        try:
-            engine = get_engine(agent)
-            # Delegation notices left by route_task() (see app/utils/inbox.py)
-            # get folded into the transient prompt, not task.brief itself —
-            # engines only read context["system_prompt"]/["working_dir"],
-            # there's nowhere else for this to reach the model.
-            inbox_context = format_inbox_context(read_and_archive_inbox(agent))
-            # SOUL.md (identity/behavior, see app/utils/soul.py) and relevant
-            # past memories both belong in system_prompt, not the task-brief
-            # text — they're about who the agent is and what it already
-            # knows, not the specific job at hand. get_relevant_memories
-            # already fails soft internally (returns [] if embedding fails),
-            # so no extra error handling is needed here.
-            system_prompt = f"You are {agent.name}, a {agent.role}."
-            soul = read_soul(agent)
-            if soul:
-                system_prompt += f"\n\n{soul}"
-            memories = await get_relevant_memories(session, agent, task.brief)
-            if memories:
-                system_prompt += "\n\nRelevant past experience:\n" + "\n".join(
-                    f"- {m}" for m in memories
-                )
-            result = await engine.execute(
-                inbox_context + task.brief,
-                context={
-                    "system_prompt": system_prompt,
-                    "working_dir": agent.working_directory,
-                },
+def make_tool_executor(
+    calling_task_id: uuid.UUID | None,
+    tool_by_name: dict[str, uuid.UUID],
+    call_chain: list[uuid.UUID],
+    session_factory=None,
+    on_delegation_start=None,
+    on_delegation_end=None,
+) -> ToolExecutor:
+    """Builds the tool_executor an engine's tool loop calls per tool_use.
+
+    Shared by the task-dispatch path (_run_task_execution, below) and
+    api/chat.py's live-chat delegation — chat.py passes its own
+    `session_factory` (the API process's pooled `async_session_factory`,
+    not the Celery-only `worker_session_factory` default) plus
+    `on_delegation_start`/`on_delegation_end` callbacks that emit
+    `chat_tool_call_started`/`_finished` over the websocket, since chat has
+    no other way to show a mid-conversation delegation is happening.
+
+    `session_factory` defaults to None rather than binding
+    `worker_session_factory` directly as the parameter default — a default
+    value is evaluated once at function-definition time, which would freeze
+    in the pre-monkeypatch factory and break tests that patch
+    `task_worker_module.worker_session_factory`. Resolved by name inside
+    `tool_executor` instead (see below), same as every other call site in
+    this module.
+
+    Each call opens its own fresh session rather than reusing the session
+    `agent`/`tool_by_name` were loaded from — parallel tool calls run
+    concurrently via asyncio.gather in the engine's tool loop, and a single
+    AsyncSession isn't safe to use from more than one coroutine at a time.
+    Re-fetching the target agent by id in that fresh session is the price
+    of that safety; it's one extra cheap lookup per delegated call.
+    """
+
+    async def tool_executor(tool_name: str, args: dict) -> tuple[str, bool]:
+        target_id = tool_by_name.get(tool_name)
+        if target_id is None:
+            return f"Unknown tool: {tool_name}", True
+        if target_id in call_chain:
+            return (
+                "Cannot delegate here — this teammate is already earlier in this "
+                "delegation chain, which would create a cycle.",
+                True,
             )
-        except Exception as exc:  # noqa: BLE001 - any engine failure marks the task failed
-            logger.error("execute_task_failed", task_id=str(task.id), error=str(exc))
-            await _mark_failed(session, task, str(exc), agent=agent)
-            return
+        max_depth = get_settings().max_orchestration_depth
+        if len(call_chain) >= max_depth:
+            return (
+                f"Delegation depth limit ({max_depth}) reached — cannot delegate further.",
+                True,
+            )
+        brief = (args or {}).get("brief", "").strip()
+        if not brief:
+            return "Missing required 'brief' argument.", True
 
-        task.status = "completed"
-        task.result_raw = result.raw_output or result.output
-        task.result_structured = result.structured
-        task.result_files = result.files_changed or None
-        task.tokens_used = result.tokens_used
-        task.cost_usd = result.cost_usd
-        task.completed_at = datetime.now(timezone.utc)
+        factory = session_factory or worker_session_factory
+        async with factory() as child_session:
+            target = await child_session.get(Agent, target_id)
+            if target is None:
+                return "That teammate no longer exists.", True
 
-        agent.status = "idle"
-        agent.status_changed_at = datetime.now(timezone.utc)
-        agent.current_task_id = None
+            child = Task(
+                title=f"Delegated to {target.name}",
+                brief=brief,
+                assigned_agents=[target.id],
+                parent_task_id=calling_task_id,
+                status="pending",
+            )
+            child_session.add(child)
+            await child_session.flush()
 
-        await session.commit()
-        emit_task_status(str(task.id), task.status)
-        emit_agent_status(str(agent.id), agent.status, agent.mood, None)
-        emit_celebration(str(agent.id))
-        generate_and_emit_dialogue.delay(
-            str(agent.id), f"just finished working on: {task.title}", "work_chat", "Done! 🎉"
+            if on_delegation_start is not None:
+                await on_delegation_start(target, child, brief)
+
+            await _run_task_execution(
+                child_session, child, target, call_chain=[*call_chain, target.id]
+            )
+
+            if on_delegation_end is not None:
+                await on_delegation_end(target, child)
+
+            if child.status == "completed":
+                return child.result_raw or "(no output)", False
+            return child.result_raw or "Delegated task failed with no error message.", True
+
+    return tool_executor
+
+
+async def _run_task_execution(
+    session: AsyncSession, task: Task, agent: Agent, call_chain: list[uuid.UUID]
+) -> None:
+    """Run `task` against `agent`'s engine, persist the result, and emit the
+    usual status/dialogue/memory side effects. Shared by the Celery
+    entrypoint (execute_task, call_chain=[agent.id]) and recursive
+    agents-as-tools delegation (make_tool_executor, call_chain=[...,
+    agent.id]) — mutates `task`/`agent` in place; callers that need the
+    outcome read task.status/result_raw afterward (see make_tool_executor).
+    """
+    if await _cost_ceiling_exceeded(session):
+        await _mark_failed(session, task, "Daily cost ceiling exceeded", agent=agent)
+        return
+
+    task.status = "in_progress"
+    task.started_at = datetime.now(timezone.utc)
+    agent.status = "working"
+    agent.status_changed_at = datetime.now(timezone.utc)
+    agent.current_task_id = task.id
+    await session.commit()
+    emit_task_status(str(task.id), task.status)
+    emit_agent_status(str(agent.id), agent.status, agent.mood, str(task.id))
+    generate_and_emit_dialogue.delay(
+        str(agent.id), f"just started working on: {task.title}", "work_chat", "On it!"
+    )
+
+    try:
+        engine = get_engine(agent)
+        # Delegation notices left by route_task() (see app/utils/inbox.py)
+        # get folded into the transient prompt, not task.brief itself —
+        # engines only read context["system_prompt"]/["working_dir"],
+        # there's nowhere else for this to reach the model.
+        inbox_context = format_inbox_context(read_and_archive_inbox(agent))
+        # SOUL.md (identity/behavior, see app/utils/soul.py) and relevant
+        # past memories both belong in system_prompt, not the task-brief
+        # text — they're about who the agent is and what it already
+        # knows, not the specific job at hand. get_relevant_memories
+        # already fails soft internally (returns [] if embedding fails),
+        # so no extra error handling is needed here.
+        system_prompt = f"You are {agent.name}, a {agent.role}."
+        soul = read_soul(agent)
+        if soul:
+            system_prompt += f"\n\n{soul}"
+        memories = await get_relevant_memories(session, agent, task.brief)
+        if memories:
+            system_prompt += "\n\nRelevant past experience:\n" + "\n".join(
+                f"- {m}" for m in memories
+            )
+
+        # Agents-as-tools: a non-empty roster (API-engine agents only, see
+        # agent_tools.py) turns this into a tool-calling turn instead of a
+        # single-shot completion — the engine's own tool loop (see
+        # litellm_engine.py) drives it.
+        tools, tool_agents_by_name = await build_tools_for_agent(session, agent)
+        tool_executor = None
+        if tools:
+            tool_by_id = {name: a.id for name, a in tool_agents_by_name.items()}
+            tool_executor = make_tool_executor(task.id, tool_by_id, call_chain)
+
+        result = await engine.execute(
+            inbox_context + task.brief,
+            context={
+                "system_prompt": system_prompt,
+                "working_dir": agent.working_directory,
+                "tools": tools,
+                "tool_executor": tool_executor,
+            },
         )
-        store_memory.delay(
-            str(agent.id),
-            f"Task '{task.title}': {result.output}",
-            str(task.id),
-            "task",
-        )
-        await notify_all_devices(session, f"{agent.name} finished a task", task.title)
-        await _maybe_complete_parent(session, task)
-        await _promote_blocked_dependents(session, task)
-        logger.info("execute_task_completed", task_id=str(task.id))
+    except Exception as exc:  # noqa: BLE001 - any engine failure marks the task failed
+        logger.error("execute_task_failed", task_id=str(task.id), error=str(exc))
+        await _mark_failed(session, task, str(exc), agent=agent)
+        return
+
+    task.status = "completed"
+    task.result_raw = result.raw_output or result.output
+    task.result_structured = result.structured
+    task.result_files = result.files_changed or None
+    task.tokens_used = result.tokens_used
+    task.cost_usd = result.cost_usd
+    task.completed_at = datetime.now(timezone.utc)
+
+    agent.status = "idle"
+    agent.status_changed_at = datetime.now(timezone.utc)
+    agent.current_task_id = None
+
+    await session.commit()
+    emit_task_status(str(task.id), task.status)
+    emit_agent_status(str(agent.id), agent.status, agent.mood, None)
+    emit_celebration(str(agent.id))
+    generate_and_emit_dialogue.delay(
+        str(agent.id), f"just finished working on: {task.title}", "work_chat", "Done! 🎉"
+    )
+    store_memory.delay(
+        str(agent.id),
+        f"Task '{task.title}': {result.output}",
+        str(task.id),
+        "task",
+    )
+    await notify_all_devices(session, f"{agent.name} finished a task", task.title)
+    await _maybe_complete_parent(session, task)
+    await _promote_blocked_dependents(session, task)
+    logger.info("execute_task_completed", task_id=str(task.id))
 
 
 async def _mark_failed(
@@ -319,7 +445,14 @@ def _parse_subtasks(raw_output: str, roster_by_id: dict[str, Agent]) -> list[dic
 async def _route_task_async(task_id: uuid.UUID) -> None:
     """Have the task's orchestrator agent decompose it into subtasks and
     dispatch each to the assigned teammate, falling back to routing the
-    whole brief to the orchestrator itself if decomposition fails."""
+    whole brief to the orchestrator itself if decomposition fails.
+
+    This is the single-shot decompose-once path (task.orchestrator_agent_id)
+    — distinct from the recursive agents-as-tools delegation in
+    _run_task_execution/make_tool_executor above, which activates for any
+    task whose *assigned* agent has an explicit teammate roster, regardless
+    of orchestrator_agent_id.
+    """
     async with worker_session_factory() as session:
         task = await session.get(Task, task_id)
         if task is None:

@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     # ceiling, same "unconfigured = off" pattern as the other optional
     # settings below.
     daily_cost_ceiling_usd: float | None = None
+    # Caps how many levels deep an agent-calls-teammate-as-tool chain may
+    # recurse (see workers/task_worker.py's call_chain guard) — independent
+    # of litellm_engine.py's own per-turn tool-round cap, which bounds a
+    # single agent's back-and-forth within one turn, not cross-agent depth.
+    max_orchestration_depth: int = 4
 
     # POST /webhooks/tasks — lets an external system (CI, a script, a future
     # Slack integration) create+dispatch a task without a paired device.

@@ -7,6 +7,7 @@ from app.engines.generic_cli import GenericCliEngine
 from app.engines.litellm_engine import LiteLLMEngine
 from app.engines.opencode import OpenCodeEngine
 from app.models.agent import Agent
+from app.utils.encryption import decrypt_value
 
 _DEFAULT_OLLAMA_MODEL = "llama3.1:8b"
 _DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5"
@@ -53,6 +54,17 @@ def get_engine(agent: Agent) -> AgentEngine:
         if agent.engine_provider == "anthropic":
             model = agent.engine_model or _DEFAULT_ANTHROPIC_MODEL
             return LiteLLMEngine(model=model)
-        raise ValueError(f"Unsupported API engine provider: {agent.engine_provider!r}")
+        # Bring-your-own API provider: engine_provider holds a raw LiteLLM
+        # provider prefix (e.g. "gemini", "groq", "mistral") typed directly
+        # by the user — not a preset from the two branches above. Required
+        # fields are validated at creation/update time in api/agents.py;
+        # this is a defensive backstop for pre-existing or directly-edited
+        # rows, not the primary validation.
+        if not agent.engine_model:
+            raise ValueError(
+                f"Custom API provider {agent.engine_provider!r} requires an engine_model"
+            )
+        api_key = decrypt_value(agent.engine_api_key_encrypted) if agent.engine_api_key_encrypted else None
+        return LiteLLMEngine(model=f"{agent.engine_provider}/{agent.engine_model}", api_key=api_key)
 
     raise ValueError(f"Unsupported engine_type: {agent.engine_type!r}")

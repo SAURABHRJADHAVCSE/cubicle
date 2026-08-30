@@ -33,6 +33,22 @@ export interface ChatDoneEvent {
   message: ConversationMessage;
 }
 
+export interface ChatToolCallStartedEvent {
+  agent_id: string;
+  task_id: string;
+  target_agent_id: string;
+  target_agent_name: string;
+  brief: string;
+}
+
+export interface ChatToolCallFinishedEvent {
+  agent_id: string;
+  task_id: string;
+  target_agent_id: string;
+  target_agent_name: string;
+  status: string;
+}
+
 export interface CallAnswerEvent {
   call_id: string;
   sdp: string;
@@ -89,6 +105,8 @@ export interface ServerToClientEvents {
   task_status: (payload: TaskStatusEvent) => void;
   chat_chunk: (payload: ChatChunkEvent) => void;
   chat_done: (payload: ChatDoneEvent) => void;
+  chat_tool_call_started: (payload: ChatToolCallStartedEvent) => void;
+  chat_tool_call_finished: (payload: ChatToolCallFinishedEvent) => void;
   celebration: (payload: CelebrationEvent) => void;
   social_event: (payload: SocialEvent) => void;
   "call:answer": (payload: CallAnswerEvent) => void;

@@ -3,7 +3,9 @@
 import { Activity, Boxes, Building2, Maximize2, Minimize2, Settings, Sparkles, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AgentConfigPanel } from "@/components/agents/AgentConfigPanel";
 import { AgentList } from "@/components/agents/AgentList";
+import { TeamPanel } from "@/components/agents/TeamPanel";
 import { CallPanel } from "@/components/calls/CallPanel";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
@@ -41,6 +43,8 @@ export default function Home() {
   const selectedAgentId = useUIStore((s) => s.selectedAgentId);
   const activeCallAgentId = useUIStore((s) => s.activeCallAgentId);
   const activeFilesAgentId = useUIStore((s) => s.activeFilesAgentId);
+  const activeTeamAgentId = useUIStore((s) => s.activeTeamAgentId);
+  const activeConfigAgentId = useUIStore((s) => s.activeConfigAgentId);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const commandCenterRef = useRef<HTMLDivElement>(null);
@@ -223,6 +227,8 @@ export default function Home() {
               {selectedAgentId && <ChatPanel key={selectedAgentId} />}
               <CallPanel key={`call-${activeCallAgentId}`} />
               <FilesPanel key={`files-${activeFilesAgentId}`} />
+              <TeamPanel key={`team-${activeTeamAgentId}`} />
+              <AgentConfigPanel key={`config-${activeConfigAgentId}`} />
             </div>
           )}
         </div>

@@ -10,7 +10,7 @@ import structlog
 
 from app.config import get_settings
 from app.database import worker_session_factory
-from app.engines.base import AgentEngine, EngineResult
+from app.engines.base import AgentEngine, EngineResult, ToolExecutor
 from app.utils.secrets_store import CLAUDE_OAUTH_TOKEN_KEY, get_encrypted_setting
 
 logger = structlog.get_logger()
@@ -130,7 +130,16 @@ class ClaudeCodeEngine(AgentEngine):
             cost_usd=result.get("total_cost_usd", 0.0),
         )
 
-    async def chat_stream(self, message: str, history: list[dict]) -> AsyncIterator[str]:
+    async def chat_stream(
+        self,
+        message: str,
+        history: list[dict],
+        tools: list[dict] | None = None,
+        tool_executor: ToolExecutor | None = None,
+    ) -> AsyncIterator[str]:
+        # Accepts tools/tool_executor for signature parity with AgentEngine
+        # but ignores them — the CLI has no structured tool-calling protocol
+        # Cubicle can drive (see base.py's chat_stream docstring).
         # `--print` is a stateless, single-shot invocation with no native
         # session resumption wired up yet, so recent turns are folded into
         # the prompt text itself to give the CLI some conversational context.

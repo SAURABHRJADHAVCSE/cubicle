@@ -18,6 +18,11 @@ class AgentCreate(BaseModel):
     engine_command: str | None = None
     working_directory: str | None = None
     allowed_tools: list[str] | None = None
+    # Plaintext in the request only — encrypted before storage (see
+    # api/agents.py's create_agent) and never returned; AgentRead exposes
+    # only has_engine_api_key. Required for a bring-your-own API provider
+    # (engine_provider outside {"ollama", "anthropic"}), validated in the route.
+    engine_api_key: str | None = None
 
     personality_traits: list[str]
     personality_quirks: list[str] | None = None
@@ -42,6 +47,10 @@ class AgentUpdate(BaseModel):
     engine_command: str | None = None
     working_directory: str | None = None
     allowed_tools: list[str] | None = None
+    # Same plaintext-in/encrypted-at-rest contract as AgentCreate. Sent as
+    # "" to explicitly clear a stored key; omitted entirely (the default,
+    # via exclude_unset) to leave whatever's already stored untouched.
+    engine_api_key: str | None = None
 
     personality_traits: list[str] | None = None
     personality_quirks: list[str] | None = None
@@ -72,6 +81,9 @@ class AgentRead(BaseModel):
     engine_command: str | None
     working_directory: str | None
     allowed_tools: list[str] | None
+    # Never the raw key — just whether one is configured (see
+    # Agent.has_engine_api_key in models/agent.py).
+    has_engine_api_key: bool
 
     personality_traits: list[str]
     personality_quirks: list[str] | None

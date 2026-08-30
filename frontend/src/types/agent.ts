@@ -14,6 +14,8 @@ export interface Agent {
   engine_command: string | null;
   working_directory: string | null;
   allowed_tools: string[] | null;
+  // Never the raw key — just whether a bring-your-own API key is configured.
+  has_engine_api_key: boolean;
 
   personality_traits: string[];
   personality_quirks: string[] | null;
@@ -42,6 +44,10 @@ export interface AgentCreate {
   engine_command?: string | null;
   working_directory?: string | null;
   allowed_tools?: string[] | null;
+  // Plaintext here only — encrypted server-side, never returned. Required
+  // for a custom (bring-your-own) API provider, i.e. engine_provider
+  // outside {"anthropic", "ollama"}.
+  engine_api_key?: string | null;
   personality_traits: string[];
   personality_quirks?: string[] | null;
   voice_language?: string;
@@ -55,6 +61,15 @@ export interface AgentCreate {
 export interface AgentUpdate {
   name?: string;
   role?: string;
+  engine_type?: EngineType;
+  engine_provider?: string;
+  engine_model?: string | null;
+  engine_command?: string | null;
+  working_directory?: string | null;
+  allowed_tools?: string[] | null;
+  // Same contract as AgentCreate's field: omit to leave untouched, "" to
+  // clear, a value to rotate. Never present in any response.
+  engine_api_key?: string | null;
   status?: AgentStatus;
   mood?: AgentMood;
   [key: string]: unknown;
@@ -87,4 +102,12 @@ export interface SoulUpdate {
 
 export interface SoulRead {
   content: string;
+}
+
+export interface CollaboratorsUpdate {
+  collaborator_ids: string[];
+}
+
+export interface CollaboratorsRead {
+  collaborators: Agent[];
 }

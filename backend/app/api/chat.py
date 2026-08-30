@@ -9,13 +9,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import async_session_factory, get_db
 from app.engines.registry import get_engine
 from app.models.agent import Agent
 from app.models.conversation import Conversation
 from app.schemas.chat import ChatRequest, ConversationRead
+from app.utils.agent_tools import build_tools_for_agent
 from app.utils.memory_search import get_relevant_memories
 from app.workers.memory_worker import store_memory
+from app.workers.task_worker import make_tool_executor
 from app.ws.manager import sio
 
 logger = structlog.get_logger()
@@ -78,9 +80,56 @@ async def send_chat_message(
     )
 
     engine = get_engine(agent)
+
+    # Agents-as-tools: the same mechanism task_worker.py uses for task-based
+    # delegation, driven from a live chat turn instead. Each delegated call
+    # opens its own session (async_session_factory, the API process's own
+    # pooled factory — task_worker.py's worker_session_factory is Celery-
+    # only) since parallel tool calls run concurrently via asyncio.gather
+    # inside the engine's tool loop.
+    tools, tool_agents_by_name = await build_tools_for_agent(db, agent)
+    tool_executor = None
+    if tools:
+        tool_by_id = {name: a.id for name, a in tool_agents_by_name.items()}
+
+        async def _on_delegation_start(target: Agent, child_task, brief: str) -> None:
+            await sio.emit(
+                "chat_tool_call_started",
+                {
+                    "agent_id": str(agent.id),
+                    "task_id": str(child_task.id),
+                    "target_agent_id": str(target.id),
+                    "target_agent_name": target.name,
+                    "brief": brief,
+                },
+            )
+
+        async def _on_delegation_end(target: Agent, child_task) -> None:
+            await sio.emit(
+                "chat_tool_call_finished",
+                {
+                    "agent_id": str(agent.id),
+                    "task_id": str(child_task.id),
+                    "target_agent_id": str(target.id),
+                    "target_agent_name": target.name,
+                    "status": child_task.status,
+                },
+            )
+
+        tool_executor = make_tool_executor(
+            calling_task_id=None,
+            tool_by_name=tool_by_id,
+            call_chain=[agent.id],
+            session_factory=async_session_factory,
+            on_delegation_start=_on_delegation_start,
+            on_delegation_end=_on_delegation_end,
+        )
+
     full_reply = ""
     try:
-        async for delta in engine.chat_stream(augmented_message, history):
+        async for delta in engine.chat_stream(
+            augmented_message, history, tools=tools, tool_executor=tool_executor
+        ):
             full_reply += delta
             await sio.emit("chat_chunk", {"agent_id": str(agent.id), "delta": delta})
     except Exception as exc:  # noqa: BLE001 - surface engine failures as a chat message

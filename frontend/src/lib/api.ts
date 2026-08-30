@@ -4,6 +4,7 @@ import type {
   Agent,
   AgentCreate,
   AgentUpdate,
+  CollaboratorsRead,
   SoulRead,
   WorkspaceFileContent,
   WorkspaceListing,
@@ -114,6 +115,12 @@ export const api = {
       request<WorkspaceFileContent>(`/agents/${id}/files/content?path=${encodeURIComponent(path)}`),
     writeSoul: (id: string, content: string) =>
       request<SoulRead>(`/agents/${id}/soul`, { method: "PUT", body: JSON.stringify({ content }) }),
+    getCollaborators: (id: string) => request<CollaboratorsRead>(`/agents/${id}/collaborators`),
+    setCollaborators: (id: string, collaboratorIds: string[]) =>
+      request<CollaboratorsRead>(`/agents/${id}/collaborators`, {
+        method: "PUT",
+        body: JSON.stringify({ collaborator_ids: collaboratorIds }),
+      }),
   },
   tasks: {
     config: () => request<TaskConfig>("/tasks/config"),

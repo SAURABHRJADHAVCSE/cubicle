@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.engines.base import EngineResult
@@ -764,6 +764,162 @@ async def test_route_task_without_orchestrator_marks_failed(
 
     await db_session.refresh(task)
     assert task.status == "failed"
+
+
+async def test_maybe_complete_parent_ignores_non_routed_parent(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    """Regression test for the agents-as-tools delegation fix: a delegation
+    child also sets parent_task_id, but the "parent" there is a task whose
+    own engine call is still running (status "in_progress", not "routed")
+    — _maybe_complete_parent must leave it alone, not complete it out from
+    under its own still-running execution."""
+    parent = Task(title="Delegator", brief="x", assigned_agents=[], status="in_progress")
+    db_session.add(parent)
+    await db_session.flush()
+    child = Task(
+        title="Delegated", brief="x", assigned_agents=[], parent_task_id=parent.id,
+        status="completed",
+    )
+    db_session.add(child)
+    await db_session.commit()
+
+    status_calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        task_worker_module, "emit_task_status", lambda tid, status: status_calls.append((tid, status))
+    )
+
+    await task_worker_module._maybe_complete_parent(db_session, child)
+
+    await db_session.refresh(parent)
+    assert parent.status == "in_progress"  # untouched
+    assert status_calls == []
+
+
+# ---- agents-as-tools delegation (make_tool_executor) ----------------------
+
+
+class _StubToolCallingEngine:
+    """A stub engine that, given a tool_executor in its context, calls it
+    once with a fixed name/args — simulates an orchestrator LLM deciding to
+    delegate, without needing a real litellm tool loop (that's covered
+    separately in test_engines/test_litellm_engine.py)."""
+
+    def __init__(self, tool_name: str, tool_args: dict, final_output: str = "orchestrated") -> None:
+        self.tool_name = tool_name
+        self.tool_args = tool_args
+        self.final_output = final_output
+        self.captured_context: dict | None = None
+
+    async def execute(self, prompt: str, context: dict) -> EngineResult:
+        self.captured_context = context
+        tool_executor = context.get("tool_executor")
+        if tool_executor is None:
+            return EngineResult(output=self.final_output, tokens_used=1, cost_usd=0.0)
+        content, is_error = await tool_executor(self.tool_name, self.tool_args)
+        return EngineResult(
+            output=f"{self.final_output}: {content}", tokens_used=1, cost_usd=0.0
+        )
+
+
+async def test_delegation_creates_and_completes_child_task(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    main = Agent(
+        name="Manager", role="Boss", engine_type="api", engine_provider="anthropic",
+        personality_traits=[],
+    )
+    teammate = Agent(
+        name="Artist", role="Image Gen", engine_type="cli", engine_provider="claude_code",
+        personality_traits=[],
+    )
+    db_session.add_all([main, teammate])
+    await db_session.flush()
+    task = Task(title="Make a post", brief="do it", assigned_agents=[main.id])
+    db_session.add(task)
+    await db_session.flush()
+
+    async def fake_build_tools(session, agent):
+        if agent.id == main.id:
+            return (
+                [{"type": "function", "function": {"name": "delegate_to_artist"}}],
+                {"delegate_to_artist": teammate},
+            )
+        return [], {}
+
+    monkeypatch.setattr(task_worker_module, "build_tools_for_agent", fake_build_tools)
+
+    stub_teammate = _StubEngine(
+        result=EngineResult(output="a cute cat drawing", tokens_used=2, cost_usd=0.02)
+    )
+    stub_main = _StubToolCallingEngine("delegate_to_artist", {"brief": "draw a cat"})
+    monkeypatch.setattr(
+        task_worker_module, "get_engine", lambda a: stub_main if a.id == main.id else stub_teammate
+    )
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "emit_celebration", lambda *_: None)
+    monkeypatch.setattr(task_worker_module, "generate_and_emit_dialogue", _RecordingDelay())
+    monkeypatch.setattr(task_worker_module, "store_memory", _RecordingDelay())
+
+    await task_worker_module._execute_task_async(task.id)
+
+    await db_session.refresh(task)
+    assert task.status == "completed"
+    assert "a cute cat drawing" in task.result_raw
+
+    children = list(
+        (
+            await db_session.execute(select(Task).where(Task.parent_task_id == task.id))
+        )
+        .scalars()
+        .all()
+    )
+    assert len(children) == 1
+    child = children[0]
+    assert child.assigned_agents == [teammate.id]
+    assert child.status == "completed"
+    assert child.result_raw == "a cute cat drawing"
+
+    await db_session.refresh(teammate)
+    assert teammate.status == "idle"  # freed back up after the delegated call
+
+
+async def test_make_tool_executor_rejects_unknown_tool() -> None:
+    executor = task_worker_module.make_tool_executor(uuid.uuid4(), {}, [])
+    content, is_error = await executor("delegate_to_ghost", {"brief": "x"})
+    assert is_error is True
+    assert "unknown tool" in content.lower()
+
+
+async def test_make_tool_executor_rejects_missing_brief() -> None:
+    target_id = uuid.uuid4()
+    executor = task_worker_module.make_tool_executor(
+        uuid.uuid4(), {"delegate_to_x": target_id}, []
+    )
+    content, is_error = await executor("delegate_to_x", {})
+    assert is_error is True
+
+
+async def test_make_tool_executor_rejects_cycle() -> None:
+    target_id = uuid.uuid4()
+    executor = task_worker_module.make_tool_executor(
+        uuid.uuid4(), {"delegate_to_x": target_id}, call_chain=[target_id]
+    )
+    content, is_error = await executor("delegate_to_x", {"brief": "do it"})
+    assert is_error is True
+    assert "cycle" in content.lower()
+
+
+async def test_make_tool_executor_rejects_depth_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_settings = SimpleNamespace(max_orchestration_depth=2)
+    monkeypatch.setattr(task_worker_module, "get_settings", lambda: fake_settings)
+    target_id = uuid.uuid4()
+    executor = task_worker_module.make_tool_executor(
+        uuid.uuid4(), {"delegate_to_x": target_id}, call_chain=[uuid.uuid4(), uuid.uuid4()]
+    )
+    content, is_error = await executor("delegate_to_x", {"brief": "do it"})
+    assert is_error is True
+    assert "depth" in content.lower()
 
 
 async def test_route_task_missing_orchestrator_agent_marks_failed(

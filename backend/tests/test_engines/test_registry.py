@@ -8,6 +8,7 @@ from app.engines.litellm_engine import LiteLLMEngine
 from app.engines.opencode import OpenCodeEngine
 from app.engines.registry import get_engine
 from app.models.agent import Agent
+from app.utils.encryption import encrypt_value
 
 
 def _agent(**overrides) -> Agent:
@@ -70,11 +71,33 @@ def test_get_engine_unsupported_cli_provider_raises() -> None:
         get_engine(agent)
 
 
-def test_get_engine_unsupported_provider_raises() -> None:
-    agent = _agent(engine_type="api", engine_provider="grok")
+def test_get_engine_custom_provider_without_model_raises() -> None:
+    # Defensive backstop behind api/agents.py's own validation (which
+    # already 400s a create/update missing the model) — pins the behavior
+    # for pre-existing or directly-edited rows too.
+    agent = _agent(engine_type="api", engine_provider="gemini")
 
-    with pytest.raises(ValueError, match="Unsupported API engine provider"):
+    with pytest.raises(ValueError, match="requires an engine_model"):
         get_engine(agent)
+
+
+def test_get_engine_custom_provider_builds_prefixed_model_and_decrypts_key() -> None:
+    agent = _agent(engine_type="api", engine_provider="gemini", engine_model="gemini-1.5-pro")
+    agent.engine_api_key_encrypted = encrypt_value("sk-my-gemini-key")
+
+    engine = get_engine(agent)
+
+    assert isinstance(engine, LiteLLMEngine)
+    assert engine.model == "gemini/gemini-1.5-pro"
+    assert engine.api_key == "sk-my-gemini-key"
+
+
+def test_get_engine_custom_provider_without_stored_key_passes_none() -> None:
+    agent = _agent(engine_type="api", engine_provider="gemini", engine_model="gemini-1.5-pro")
+
+    engine = get_engine(agent)
+
+    assert engine.api_key is None
 
 
 def test_get_engine_unsupported_type_raises() -> None:

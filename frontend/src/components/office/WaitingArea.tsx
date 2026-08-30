@@ -9,6 +9,10 @@ interface WaitingAreaProps {
   onSelect?: () => void;
 }
 
+const LOUNGE_FLOOR_TOP = 0.048;
+const GLASS_HEIGHT = 1.55;
+const GLASS_FRAME = 0.045;
+
 function CafeChair({
   position,
   rotationY,
@@ -61,21 +65,24 @@ function GlassDivider({
 }) {
   const glass = modernMaterials.cabinGlass();
   const frame = modernMaterials.cabinFrame();
-  const height = 1.55;
+  const glassCenterY = LOUNGE_FLOOR_TOP + GLASS_HEIGHT / 2;
 
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
-      <mesh position={[0, height / 2, 0]} material={glass} receiveShadow>
-        <boxGeometry args={[width, height, 0.035]} />
+      <mesh position={[0, glassCenterY, 0]} material={glass}>
+        <boxGeometry args={[width, GLASS_HEIGHT - GLASS_FRAME * 2, 0.035]} />
       </mesh>
-      {[0, height].map((y) => (
+      {[
+        LOUNGE_FLOOR_TOP + GLASS_FRAME / 2,
+        LOUNGE_FLOOR_TOP + GLASS_HEIGHT - GLASS_FRAME / 2,
+      ].map((y) => (
         <mesh key={y} position={[0, y, 0]} material={frame} castShadow>
-          <boxGeometry args={[width + 0.05, 0.045, 0.065]} />
+          <boxGeometry args={[width + 0.05, GLASS_FRAME, 0.065]} />
         </mesh>
       ))}
       {[-width / 2, width / 2].map((x) => (
-        <mesh key={x} position={[x, height / 2, 0]} material={frame} castShadow>
-          <boxGeometry args={[0.045, height, 0.065]} />
+        <mesh key={x} position={[x, glassCenterY, 0]} material={frame} castShadow>
+          <boxGeometry args={[GLASS_FRAME, GLASS_HEIGHT, 0.065]} />
         </mesh>
       ))}
     </group>
@@ -117,10 +124,23 @@ export function WaitingArea({ position, onSelect }: WaitingAreaProps) {
         receiveShadow
       />
 
-      {/* Glass room enclosure with an intentional front-right doorway. */}
+      {/* One continuous enclosure: two front panes form the doorway, the
+          header makes that opening intentional, and the full-depth side
+          pane now meets the front corner instead of stopping behind it. */}
       <GlassDivider width={4.8} position={[-1.2, 0, 1.9]} />
       <GlassDivider width={1.05} position={[3.075, 0, 1.9]} />
-      <GlassDivider width={2.8} position={[3.6, 0, -0.5]} rotationY={Math.PI / 2} />
+      <GlassDivider width={3.8} position={[3.6, 0, 0]} rotationY={Math.PI / 2} />
+      <mesh
+        position={[
+          1.875,
+          LOUNGE_FLOOR_TOP + GLASS_HEIGHT - GLASS_FRAME / 2,
+          1.9,
+        ]}
+        material={modernMaterials.cabinFrame()}
+        castShadow
+      >
+        <boxGeometry args={[1.4, GLASS_FRAME, 0.065]} />
+      </mesh>
 
       {/* Full kitchenette: refrigerator, cabinets, worktop, sink and coffee station. */}
       <RoundedBox

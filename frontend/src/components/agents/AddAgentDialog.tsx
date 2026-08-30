@@ -38,6 +38,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateAgent } from "@/hooks/useAgents";
 import { api } from "@/lib/api";
+import {
+  API_PROVIDERS,
+  BUILTIN_API_PROVIDERS,
+  CLI_PROVIDERS,
+  VERIFIED_CLI_PROVIDERS,
+} from "@/lib/engineProviders";
 import type { EngineType } from "@/types/agent";
 
 interface AddAgentDialogProps {
@@ -52,6 +58,7 @@ interface FormState {
   engineProvider: string;
   engineModel: string;
   engineCommand: string;
+  engineApiKey: string;
   allowedTools: string;
   workingDirectory: string;
   role: string;
@@ -65,6 +72,7 @@ const DEFAULT_STATE: FormState = {
   engineProvider: "anthropic",
   engineModel: "",
   engineCommand: "",
+  engineApiKey: "",
   allowedTools: "",
   workingDirectory: "",
   role: "",
@@ -117,23 +125,12 @@ const COLOR_PRESETS = [
   "#8b5cf6", // Violet
 ];
 
-const CLI_PROVIDERS = [
-  { value: "claude_code", label: "Claude Code", verified: true },
-  { value: "opencode", label: "OpenCode", verified: true },
-  { value: "codex", label: "Codex", verified: false },
-  { value: "grok", label: "Grok", verified: false },
-  { value: "gemini", label: "Gemini", verified: false },
-  { value: "antigravity", label: "Antigravity", verified: false },
-  { value: "qwen", label: "Qwen", verified: false },
-];
-
-const VERIFIED_CLI_PROVIDERS = new Set(["claude_code", "opencode"]);
-
-const API_PROVIDERS = [
-  { value: "anthropic", label: "Anthropic API" },
-  { value: "ollama", label: "Ollama (Local)" },
-];
-
+// Deliberately not coding-only: agents in Cubicle are general-purpose
+// workers now (see the agents-as-tools delegation feature), not just dev
+// tools — a team should plausibly include an image generator or a
+// copywriter alongside a backend dev. These are quick-fill starting
+// points only; the textarea below has always been fully freeform, so
+// nothing here limits what a user can actually type.
 const ROLE_PRESETS = [
   {
     title: "Full-Stack Developer",
@@ -154,6 +151,42 @@ const ROLE_PRESETS = [
   {
     title: "AI & Data Engineer",
     description: "Processes data pipelines, analyzes telemetry, and tunes AI model prompts.",
+  },
+  {
+    title: "Image & Visual Generator",
+    description: "Generates illustrations, product shots, and social graphics from a brief.",
+  },
+  {
+    title: "Copywriter & Content Strategist",
+    description: "Drafts blog posts, landing pages, captions, and marketing copy.",
+  },
+  {
+    title: "Social Media Manager",
+    description: "Plans posts, writes captions, and packages content for social platforms.",
+  },
+  {
+    title: "Customer Support Agent",
+    description: "Answers customer questions, triages tickets, and drafts help responses.",
+  },
+  {
+    title: "Market & Competitive Researcher",
+    description: "Researches competitors, summarizes findings, and tracks industry trends.",
+  },
+  {
+    title: "Sales & Outreach Specialist",
+    description: "Drafts outreach emails, qualifies leads, and follows up on prospects.",
+  },
+  {
+    title: "Personal Assistant",
+    description: "Manages scheduling, reminders, research errands, and day-to-day admin.",
+  },
+  {
+    title: "Translator & Localizer",
+    description: "Translates and adapts content for a target language or region.",
+  },
+  {
+    title: "Financial Analyst",
+    description: "Reviews numbers, builds summaries, and flags anomalies in reports.",
   },
 ];
 
@@ -190,9 +223,23 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
 
   const currentStepId = steps[step]?.id;
 
+  // Selecting "Custom / Bring your own API" sets engineProvider to "" (see
+  // the Select's onValueChange below), which reveals a plain text input
+  // bound directly to engineProvider — the field the user types the real
+  // provider prefix (e.g. "gemini") into *is* the value that gets
+  // submitted, no parallel state needed. So "custom" is true whenever
+  // engineProvider isn't one of the two known presets, including while
+  // it's still empty right after picking Custom.
+  const isCustomApi = form.engineType === "api" && !BUILTIN_API_PROVIDERS.has(form.engineProvider);
+
   const canGoNext =
     (currentStepId === "identity" && form.name.trim().length > 0) ||
-    (currentStepId === "engine" && form.engineProvider.length > 0) ||
+    (currentStepId === "engine" &&
+      (isCustomApi
+        ? form.engineProvider.trim().length > 0 &&
+          form.engineModel.trim().length > 0 &&
+          form.engineApiKey.trim().length > 0
+        : form.engineProvider.length > 0)) ||
     currentStepId === "soul" ||
     currentStepId === "workspace" ||
     currentStepId === "briefing";
@@ -220,6 +267,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
         engine_provider: form.engineProvider,
         engine_model: form.engineModel.trim() || null,
         engine_command: form.engineType === "cli" ? form.engineCommand.trim() || null : null,
+        engine_api_key: form.engineType === "api" ? form.engineApiKey.trim() || null : null,
         // Every agent gets a real workspace now (SOUL.md, memory, the file
         // browser all live there), not just CLI-subprocess agents that
         // actually execute inside it — so this is no longer CLI-gated.
@@ -473,8 +521,14 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   Engine Provider
                 </Label>
                 <Select
-                  value={form.engineProvider}
-                  onValueChange={(v) => v && setForm((f) => ({ ...f, engineProvider: v }))}
+                  value={isCustomApi ? "custom" : form.engineProvider}
+                  onValueChange={(v) => {
+                    if (!v) return;
+                    // "custom" is a UI-only pseudo-selection — engineProvider
+                    // is cleared so the text input below becomes the actual
+                    // value the user types the real provider prefix into.
+                    setForm((f) => ({ ...f, engineProvider: v === "custom" ? "" : v }));
+                  }}
                   items={Object.fromEntries(
                     (form.engineType === "cli" ? CLI_PROVIDERS : API_PROVIDERS).map((p) => [p.value, p.label]),
                   )}
@@ -499,6 +553,28 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                 </Select>
               </div>
 
+              {/* Custom Provider Prefix — the field the user types into IS
+                  form.engineProvider (e.g. "gemini", "groq", "mistral"); no
+                  parallel state, see isCustomApi above. */}
+              {isCustomApi && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="agent-custom-provider" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Provider Prefix <span className="text-rose-500">*</span>
+                  </Label>
+                  <Input
+                    id="agent-custom-provider"
+                    placeholder="gemini, openai, groq, mistral…"
+                    value={form.engineProvider}
+                    onChange={(e) => setForm((f) => ({ ...f, engineProvider: e.target.value }))}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-3xs text-slate-500 dark:text-slate-400">
+                    Any LiteLLM provider prefix — the model gets called as{" "}
+                    <code>{`${form.engineProvider || "provider"}/${form.engineModel || "model"}`}</code>.
+                  </p>
+                </div>
+              )}
+
               {/* Inline Claude Code connect flow — a new user picking this
                   provider shouldn't have to abandon the wizard, go to
                   Settings, connect, and start over. Same self-contained
@@ -507,22 +583,46 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                 <ClaudeAuthCard />
               )}
 
-              {/* Model Name */}
+              {/* Model Name — required for a custom API provider (there's
+                  no sensible default the way ollama/anthropic have one). */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="agent-model" className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Specific Model String (optional)
+                  Specific Model String {isCustomApi ? <span className="text-rose-500">*</span> : "(optional)"}
                 </Label>
                 <Input
                   id="agent-model"
                   placeholder={
-                    form.engineType === "cli"
-                      ? "claude-3-7-sonnet / gpt-4o"
-                      : "claude-3-7-sonnet-20250219 / llama3.1:8b"
+                    isCustomApi
+                      ? "gemini-1.5-pro"
+                      : form.engineType === "cli"
+                        ? "claude-3-7-sonnet / gpt-4o"
+                        : "claude-3-7-sonnet-20250219 / llama3.1:8b"
                   }
                   value={form.engineModel}
                   onChange={(e) => setForm((f) => ({ ...f, engineModel: e.target.value }))}
                 />
               </div>
+
+              {/* API Key — bring-your-own credential for a custom provider,
+                  encrypted at rest server-side, never echoed back. */}
+              {isCustomApi && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="agent-api-key" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    API Key <span className="text-rose-500">*</span>
+                  </Label>
+                  <Input
+                    id="agent-api-key"
+                    type="password"
+                    placeholder="sk-…"
+                    value={form.engineApiKey}
+                    onChange={(e) => setForm((f) => ({ ...f, engineApiKey: e.target.value }))}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-3xs text-slate-500 dark:text-slate-400">
+                    Stored encrypted — you can rotate or clear it later from the Command Center.
+                  </p>
+                </div>
+              )}
 
               {/* CLI Specific Tool Controls */}
               {form.engineType === "cli" && (

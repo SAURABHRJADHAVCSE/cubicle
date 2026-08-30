@@ -1,9 +1,15 @@
 """Abstract interface every agent engine (CLI or API) must implement."""
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 from pydantic import BaseModel, Field
+
+# A tool_executor takes (tool_name, parsed_arguments) and returns
+# (result_text, is_error) — is_error lets the engine's tool loop mark the
+# tool_result appropriately instead of the model seeing a failure as if it
+# were a normal answer (see litellm_engine.py's tool loop).
+ToolExecutor = Callable[[str, dict], Awaitable[tuple[str, bool]]]
 
 
 class EngineResult(BaseModel):
@@ -25,13 +31,26 @@ class AgentEngine(ABC):
         """Run a task and return a structured result."""
 
     @abstractmethod
-    def chat_stream(self, message: str, history: list[dict]) -> AsyncIterator[str]:
+    def chat_stream(
+        self,
+        message: str,
+        history: list[dict],
+        tools: list[dict] | None = None,
+        tool_executor: ToolExecutor | None = None,
+    ) -> AsyncIterator[str]:
         """Stream an interactive chat reply as incremental text deltas.
 
         API engines (LiteLLM) yield true token-by-token deltas. CLI engines
         can't stream mid-response (e.g. Claude Code CLI's `--print
         --output-format json` returns one blob) — they yield the complete
         reply as a single item once the subprocess finishes.
+
+        ``tools``/``tool_executor`` (optional, API engines only — see
+        litellm_engine.py) let the model call other agents as tools mid-chat.
+        The yielded type stays plain text either way: a tool round is a side
+        effect the caller's tool_executor performs (e.g. emitting websocket
+        events), not a new item type in this stream. CLI engine overrides
+        ignore these params — they have no tool-calling protocol to drive.
         """
 
     async def chat(self, message: str, history: list[dict]) -> str:

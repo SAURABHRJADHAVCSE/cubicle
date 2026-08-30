@@ -1,6 +1,6 @@
 "use client";
 
-import { Send, Sparkles, X } from "lucide-react";
+import { Loader2, Send, Sparkles, Wrench, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgents } from "@/hooks/useAgents";
 import { useConversations, useSendChatMessage } from "@/hooks/useChat";
 import { useChatStream } from "@/hooks/useChatStream";
+import { useDelegationEvents } from "@/hooks/useDelegationEvents";
 import { useUIStore } from "@/stores/uiStore";
 
 export function ChatPanel() {
@@ -23,13 +24,14 @@ export function ChatPanel() {
   const { data: history } = useConversations(selectedAgentId);
   const sendMessage = useSendChatMessage(selectedAgentId);
   const streamingText = useChatStream(selectedAgentId);
+  const delegationEvents = useDelegationEvents(selectedAgentId);
 
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [history, streamingText]);
+  }, [history, streamingText, delegationEvents]);
 
   if (!selectedAgentId) return null;
 
@@ -102,6 +104,21 @@ export function ChatPanel() {
               }}
             />
           )}
+          {delegationEvents.map((event) => (
+            <div
+              key={event.taskId}
+              className="mx-auto flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-3xs font-medium text-primary"
+            >
+              {event.status === "in_progress" ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <Wrench className="size-3" />
+              )}
+              {event.status === "in_progress" && `Delegating to ${event.targetAgentName}…`}
+              {event.status === "completed" && `${event.targetAgentName} finished`}
+              {event.status === "failed" && `${event.targetAgentName} failed`}
+            </div>
+          ))}
           {waitingForFirstToken && <TypingIndicator />}
           <div ref={scrollRef} />
         </div>

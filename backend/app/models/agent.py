@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ARRAY, DateTime, ForeignKey, Integer, String, func, text
+from sqlalchemy import ARRAY, DateTime, ForeignKey, Integer, LargeBinary, String, func, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,6 +41,12 @@ class Agent(Base):
     engine_command: Mapped[str | None] = mapped_column(String(500))
     working_directory: Mapped[str | None] = mapped_column(String(500))
     allowed_tools: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    # A user-supplied key for a bring-your-own API provider (e.g. Gemini) —
+    # encrypted at rest via app/utils/encryption.py, same Fernet/SECRET_KEY
+    # mechanism the Claude Code OAuth token already uses. Never exposed raw
+    # through the API; see the `has_engine_api_key` property below and
+    # AgentRead in schemas/agent.py.
+    engine_api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
 
     personality_traits: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)
     personality_quirks: Mapped[list[str] | None] = mapped_column(ARRAY(String))
@@ -75,3 +81,9 @@ class Agent(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    @property
+    def has_engine_api_key(self) -> bool:
+        """Whether a bring-your-own API key is configured, without exposing
+        it — picked up automatically by AgentRead's from_attributes=True."""
+        return self.engine_api_key_encrypted is not None

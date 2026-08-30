@@ -11,9 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.database import get_db
 from app.models.agent import Agent
+from app.models.agent_collaborator import AgentCollaborator
 from app.schemas.agent import AgentCreate, AgentRead, AgentUpdate
+from app.schemas.collaborators import CollaboratorsRead, CollaboratorsUpdate
 from app.schemas.files import WorkspaceEntry, WorkspaceFileContent, WorkspaceListing
 from app.schemas.soul import SoulRead, SoulUpdate
+from app.utils.agent_tools import get_collaborators
+from app.utils.encryption import encrypt_value
 from app.utils.soul import default_soul_content, write_soul
 from app.utils.workspace import WorkspacePathError, resolve_workspace_path
 
@@ -25,6 +29,35 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 # into memory and JSON-encoded whole — this is a text-preview endpoint, not
 # a general file server.
 MAX_PREVIEW_BYTES = 512_000
+
+# Mirrors engines/registry.py's own if/elif — anything else is a
+# bring-your-own LiteLLM provider prefix the user typed directly.
+_BUILTIN_API_PROVIDERS = {"ollama", "anthropic"}
+
+
+def _validate_engine_config(
+    engine_type: str,
+    engine_provider: str,
+    engine_model: str | None,
+    engine_api_key: str | None,
+    *,
+    require_key: bool,
+) -> None:
+    """A custom (bring-your-own) API provider needs a model name always,
+    and a key on creation — an update may be leaving an already-stored key
+    untouched, so it isn't forced to resend one."""
+    if engine_type != "api" or engine_provider in _BUILTIN_API_PROVIDERS:
+        return
+    if not engine_model:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Model name is required for a custom API provider.",
+        )
+    if require_key and not engine_api_key:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="An API key is required for a custom API provider.",
+        )
 
 
 def _host_path_for(absolute_container_path: str) -> str | None:
@@ -55,7 +88,15 @@ async def _get_agent_or_404(agent_id: uuid.UUID, db: AsyncSession) -> Agent:
 @router.post("", response_model=AgentRead, status_code=status.HTTP_201_CREATED)
 async def create_agent(payload: AgentCreate, db: AsyncSession = Depends(get_db)) -> Agent:
     """Create a new agent."""
-    agent = Agent(**payload.model_dump())
+    _validate_engine_config(
+        payload.engine_type, payload.engine_provider, payload.engine_model,
+        payload.engine_api_key, require_key=True,
+    )
+    fields = payload.model_dump()
+    engine_api_key = fields.pop("engine_api_key")
+    agent = Agent(**fields)
+    if engine_api_key:
+        agent.engine_api_key_encrypted = encrypt_value(engine_api_key)
     db.add(agent)
     # Flush (not commit) first so the DB-generated id is populated in time
     # to build the default workspace path below — working_directory is a
@@ -101,8 +142,26 @@ async def update_agent(
 ) -> Agent:
     """Partially update an agent."""
     agent = await _get_agent_or_404(agent_id, db)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    fields = payload.model_dump(exclude_unset=True)
+    # exclude_unset: absent = leave the stored key untouched (the common
+    # case — most edits aren't about the key), sent as "" = explicit clear,
+    # sent with a value = rotate it. Popped separately since it doesn't map
+    # 1:1 to a real column (engine_api_key_encrypted, not engine_api_key).
+    engine_api_key_sent = "engine_api_key" in fields
+    engine_api_key = fields.pop("engine_api_key", None)
+
+    _validate_engine_config(
+        fields.get("engine_type", agent.engine_type),
+        fields.get("engine_provider", agent.engine_provider),
+        fields.get("engine_model", agent.engine_model),
+        engine_api_key,
+        require_key=False,
+    )
+
+    for field, value in fields.items():
         setattr(agent, field, value)
+    if engine_api_key_sent:
+        agent.engine_api_key_encrypted = encrypt_value(engine_api_key) if engine_api_key else None
     await db.commit()
     await db.refresh(agent)
     logger.info("agent_updated", agent_id=str(agent.id))
@@ -205,3 +264,62 @@ async def update_soul(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     logger.info("agent_soul_updated", agent_id=str(agent.id))
     return SoulRead(content=payload.content)
+
+
+@router.get("/{agent_id}/collaborators", response_model=CollaboratorsRead)
+async def read_collaborators(
+    agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> CollaboratorsRead:
+    """The teammates this agent may delegate to as tools (see
+    app/utils/agent_tools.py)."""
+    agent = await _get_agent_or_404(agent_id, db)
+    return CollaboratorsRead(collaborators=await get_collaborators(db, agent))
+
+
+@router.put("/{agent_id}/collaborators", response_model=CollaboratorsRead)
+async def update_collaborators(
+    agent_id: uuid.UUID, payload: CollaboratorsUpdate, db: AsyncSession = Depends(get_db)
+) -> CollaboratorsRead:
+    """Replace this agent's full teammate roster. Only an API-engine agent
+    may hold a non-empty roster — only API engines (LiteLLM) have a
+    structured tool-calling protocol Cubicle can drive; a CLI-subprocess
+    agent can still be added as *someone else's* teammate, it just can't
+    have teammates of its own.
+    """
+    agent = await _get_agent_or_404(agent_id, db)
+    collaborator_ids = list(dict.fromkeys(payload.collaborator_ids))  # de-dupe, keep order
+
+    if collaborator_ids and agent.engine_type != "api":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Only API-engine agents can have teammates — CLI engines have no "
+            "structured tool-calling protocol to delegate through.",
+        )
+    if agent.id in collaborator_ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="An agent can't be its own teammate.")
+
+    if collaborator_ids:
+        found = list(
+            (
+                await db.execute(select(Agent.id).where(Agent.id.in_(collaborator_ids)))
+            )
+            .scalars()
+            .all()
+        )
+        missing = set(collaborator_ids) - set(found)
+        if missing:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown agent id(s): {', '.join(str(m) for m in missing)}",
+            )
+
+    await db.execute(
+        AgentCollaborator.__table__.delete().where(AgentCollaborator.agent_id == agent.id)
+    )
+    for collaborator_id in collaborator_ids:
+        db.add(AgentCollaborator(agent_id=agent.id, collaborator_agent_id=collaborator_id))
+    await db.commit()
+    logger.info(
+        "agent_collaborators_updated", agent_id=str(agent.id), count=len(collaborator_ids)
+    )
+    return CollaboratorsRead(collaborators=await get_collaborators(db, agent))

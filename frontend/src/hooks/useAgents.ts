@@ -36,3 +36,21 @@ export function useDeleteAgent() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: AGENTS_KEY }),
   });
 }
+
+export function useAgentCollaborators(agentId: string | null) {
+  return useQuery({
+    queryKey: ["agent-collaborators", agentId],
+    queryFn: () => api.agents.getCollaborators(agentId as string),
+    enabled: !!agentId,
+  });
+}
+
+export function useSetCollaborators() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, collaboratorIds }: { id: string; collaboratorIds: string[] }) =>
+      api.agents.setCollaborators(id, collaboratorIds),
+    onSuccess: (_data, variables) =>
+      queryClient.invalidateQueries({ queryKey: ["agent-collaborators", variables.id] }),
+  });
+}

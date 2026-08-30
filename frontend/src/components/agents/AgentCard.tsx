@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, ChevronRight, FolderOpen, Phone, Trash2 } from "lucide-react";
+import { Bot, ChevronRight, FolderOpen, Phone, Settings, Trash2, Users } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,8 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const selectAgent = useUIStore((s) => s.selectAgent);
   const selectCallAgent = useUIStore((s) => s.selectCallAgent);
   const selectFilesAgent = useUIStore((s) => s.selectFilesAgent);
+  const selectTeamAgent = useUIStore((s) => s.selectTeamAgent);
+  const selectConfigAgent = useUIStore((s) => s.selectConfigAgent);
   const { data: tasks } = useTasks();
   const status = STATUS_STYLES[agent.status];
   const currentTask = agent.current_task_id
@@ -119,6 +121,30 @@ export function AgentCard({ agent }: { agent: Agent }) {
           }}
         >
           <FolderOpen className="size-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800"
+          aria-label={`${agent.name}'s team`}
+          onClick={(event) => {
+            event.stopPropagation();
+            selectTeamAgent(agent.id);
+          }}
+        >
+          <Users className="size-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800"
+          aria-label={`${agent.name}'s config`}
+          onClick={(event) => {
+            event.stopPropagation();
+            selectConfigAgent(agent.id);
+          }}
+        >
+          <Settings className="size-3" />
         </Button>
         {agent.engine_type === "api" && (
           <Button

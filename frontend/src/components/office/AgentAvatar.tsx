@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Html, RoundedBox } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -73,6 +73,7 @@ function buildTravelRoute(start: THREE.Vector3, destination: THREE.Vector3): THR
 
 export interface AgentAvatarSubject {
   id: string;
+  character_id?: string | null;
   name?: string;
   role?: string;
   status: AgentStatus;
@@ -118,9 +119,13 @@ export function AgentAvatar({
     (state) => state.agents[agent.id]?.animationState ?? "idle",
   );
   const animationState = animationStateOverride ?? storedAnimationState;
-  const seed = useMemo(() => hashSeed(agent.id), [agent.id]);
+  const seed = useMemo(
+    () => hashSeed(agent.character_id || agent.id),
+    [agent.character_id, agent.id],
+  );
   const statusColor = STATUS_COLORS[agent.status];
   const hasGlasses = Math.floor(seed) % 3 === 0;
+  const hairStyle = Math.floor(seed * 13) % 3;
 
   const materials = useMemo(() => {
     const accent = new THREE.Color(agent.accent_color || "#4f46e5");
@@ -132,16 +137,24 @@ export function AgentAvatar({
       new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
     return {
-      skin: make(skin, 0.78),
-      hair: make(hair, 0.86),
-      jacket: make(jacket, 0.72),
-      shirt: make("#f4f1eb", 0.82),
-      trousers: make(trousers, 0.76),
-      shoe: make("#252525", 0.38, 0.08),
-      eye: make("#24201e", 0.65),
+      skin: make(skin, 0.62),
+      hair: make(hair, 0.72),
+      jacket: make(jacket, 0.84),
+      shirt: make("#f4f1eb", 0.88),
+      trousers: make(trousers, 0.88),
+      shoe: make("#252525", 0.42, 0.03),
+      eye: make("#29231f", 0.72),
+      mouth: make("#80564d", 0.78),
       detail: make("#4b5563", 0.34, 0.42),
     };
   }, [agent.accent_color, seed]);
+
+  useEffect(
+    () => () => {
+      Object.values(materials).forEach((material) => material.dispose());
+    },
+    [materials],
+  );
 
   useFrame(({ clock }, delta) => {
     if (!rootRef.current || !figureRef.current) return;
@@ -304,7 +317,7 @@ export function AgentAvatar({
   return (
     <group ref={rootRef} position={initialPosition}>
       {agent.name && (
-        <Html position={[0, 1.7, FIGURE_Z]} center zIndexRange={[20, 0]}>
+        <Html position={[0, 1.78, FIGURE_Z]} center zIndexRange={[20, 0]}>
           <div className="pointer-events-none flex min-w-max items-center gap-1.5 rounded-md border border-[#777166]/70 bg-[#fffdf8]/95 px-2 py-1 text-[#292724] shadow-[0_3px_10px_rgba(38,35,31,0.16)] backdrop-blur-sm">
             <span className="size-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
             <span className="text-[9px] font-extrabold uppercase leading-none tracking-[0.045em]">
@@ -327,53 +340,158 @@ export function AgentAvatar({
         />
       </mesh>
 
-      <group ref={figureRef} position={[0, 0.02, FIGURE_Z]} scale={0.94}>
-        <mesh position={[0, 0.94, 0]} material={materials.jacket} castShadow receiveShadow>
-          <cylinderGeometry args={[0.205, 0.155, 0.5, 12]} />
+      <group ref={figureRef} position={[0, 0.02, FIGURE_Z]} scale={0.96}>
+        {/* A restrained architectural-figure silhouette: defined pelvis,
+            tapered chest and shoulder line instead of one toy-like tube. */}
+        <RoundedBox
+          args={[0.3, 0.18, 0.21]}
+          radius={0.055}
+          smoothness={4}
+          position={[0, 0.75, 0]}
+          material={materials.trousers}
+          castShadow
+          receiveShadow
+        />
+        <mesh position={[0, 1, 0]} material={materials.jacket} castShadow receiveShadow>
+          <cylinderGeometry args={[0.205, 0.15, 0.5, 18]} />
+        </mesh>
+        <mesh position={[0, 1.18, 0]} rotation={[0, 0, Math.PI / 2]} material={materials.jacket} castShadow>
+          <capsuleGeometry args={[0.065, 0.3, 6, 12]} />
         </mesh>
         <RoundedBox
-          args={[0.095, 0.29, 0.022]}
-          radius={0.015}
+          args={[0.145, 0.22, 0.022]}
+          radius={0.018}
           smoothness={3}
-          position={[0, 0.99, -0.185]}
+          position={[0, 1.075, -0.193]}
           material={materials.shirt}
         />
-        <mesh position={[0, 1.01, -0.202]} material={materials.detail}>
-          <boxGeometry args={[0.024, 0.18, 0.012]} />
+        {([-1, 1] as const).map((side) => (
+          <RoundedBox
+            key={`lapel-${side}`}
+            args={[0.075, 0.23, 0.018]}
+            radius={0.012}
+            smoothness={3}
+            position={[side * 0.055, 1.09, -0.207]}
+            rotation={[0, 0, side * 0.24]}
+            material={materials.jacket}
+          />
+        ))}
+        <mesh position={[0, 0.765, -0.112]} material={materials.detail}>
+          <boxGeometry args={[0.295, 0.035, 0.018]} />
         </mesh>
-        <mesh position={[0, 1.205, 0]} material={materials.skin} castShadow>
-          <cylinderGeometry args={[0.07, 0.075, 0.1, 12]} />
+        <mesh position={[0, 1.29, 0]} material={materials.skin} castShadow>
+          <cylinderGeometry args={[0.052, 0.058, 0.12, 16]} />
         </mesh>
 
-        <mesh position={[0, 1.375, 0.025]} scale={[1.02, 0.78, 1.03]} material={materials.hair} castShadow>
-          <sphereGeometry args={[0.16, 18, 14]} />
+        {/* Smaller, slightly elongated head: the full figure now reads near
+            adult proportions while remaining legible from the office camera. */}
+        <mesh
+          position={[0, 1.445, -0.01]}
+          scale={[0.94, 1.06, 0.9]}
+          material={materials.skin}
+          castShadow
+          receiveShadow
+        >
+          <sphereGeometry args={[0.122, 24, 20]} />
         </mesh>
-        <mesh position={[0, 1.345, -0.018]} material={materials.skin} castShadow receiveShadow>
-          <sphereGeometry args={[0.145, 18, 14]} />
-        </mesh>
-        {[-0.145, 0.145].map((x) => (
-          <mesh key={x} position={[x, 1.35, -0.005]} material={materials.skin}>
-            <sphereGeometry args={[0.032, 10, 8]} />
+        {[-0.116, 0.116].map((x) => (
+          <mesh
+            key={`ear-${x}`}
+            position={[x, 1.445, -0.005]}
+            scale={[0.55, 1, 0.7]}
+            material={materials.skin}
+          >
+            <sphereGeometry args={[0.024, 12, 10]} />
           </mesh>
         ))}
-        <mesh position={[0, 1.33, -0.156]} scale={[0.7, 1, 0.65]} material={materials.skin}>
-          <sphereGeometry args={[0.027, 10, 8]} />
+
+        {/* A cropped scalp cap avoids the old double-sphere helmet. Stable
+            seed-based details create distinct, professional hair profiles. */}
+        <mesh
+          position={[0, 1.45, -0.006]}
+          scale={[1.02, 1.08, 0.95]}
+          material={materials.hair}
+          castShadow
+        >
+          <sphereGeometry args={[0.128, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.43]} />
         </mesh>
-        {[-0.052, 0.052].map((x) => (
-          <mesh key={x} position={[x, 1.375, -0.151]} material={materials.eye}>
-            <sphereGeometry args={[0.012, 8, 6]} />
-          </mesh>
+        {hairStyle === 0 && (
+          <>
+            <RoundedBox
+              args={[0.16, 0.04, 0.026]}
+              radius={0.014}
+              smoothness={3}
+              position={[-0.018, 1.535, -0.112]}
+              rotation={[0, 0, 0.13]}
+              material={materials.hair}
+              castShadow
+            />
+            <RoundedBox
+              args={[0.035, 0.09, 0.055]}
+              radius={0.012}
+              smoothness={3}
+              position={[-0.098, 1.49, -0.087]}
+              material={materials.hair}
+            />
+          </>
+        )}
+        {hairStyle === 1 && (
+          <RoundedBox
+            args={[0.205, 0.035, 0.03]}
+            radius={0.012}
+            smoothness={3}
+            position={[0, 1.525, -0.111]}
+            rotation={[0, 0, -0.04]}
+            material={materials.hair}
+            castShadow
+          />
+        )}
+        {hairStyle === 2 &&
+          ([-1, 1] as const).map((side) => (
+            <RoundedBox
+              key={`hair-side-${side}`}
+              args={[0.038, 0.16, 0.075]}
+              radius={0.016}
+              smoothness={3}
+              position={[side * 0.102, 1.438, 0.008]}
+              material={materials.hair}
+              castShadow
+            />
+          ))}
+
+        {/* Restrained facial planes—brows, inset eyes, nose and a mouth line
+            read as a face without returning to oversized cartoon features. */}
+        {[-0.043, 0.043].map((x) => (
+          <group key={`face-${x}`}>
+            <mesh position={[x, 1.458, -0.122]} scale={[1, 0.58, 0.42]} material={materials.eye}>
+              <sphereGeometry args={[0.008, 10, 8]} />
+            </mesh>
+            <RoundedBox
+              args={[0.048, 0.008, 0.009]}
+              radius={0.003}
+              smoothness={2}
+              position={[x, 1.482, -0.121]}
+              rotation={[0, 0, x < 0 ? -0.05 : 0.05]}
+              material={materials.hair}
+            />
+          </group>
         ))}
+        <mesh position={[0, 1.435, -0.128]} scale={[0.68, 1.1, 0.72]} material={materials.skin}>
+          <sphereGeometry args={[0.016, 12, 10]} />
+        </mesh>
+        <mesh position={[0, 1.4, -0.125]} rotation={[0, 0, Math.PI / 2]} material={materials.mouth}>
+          <capsuleGeometry args={[0.004, 0.032, 4, 8]} />
+        </mesh>
 
         {hasGlasses && (
-          <group position={[0, 1.372, -0.158]}>
-            {[-0.058, 0.058].map((x) => (
-              <mesh key={x} position={[x, 0, 0]} material={materials.detail}>
-                <torusGeometry args={[0.043, 0.006, 6, 14]} />
+          <group position={[0, 1.458, -0.127]}>
+            {[-0.046, 0.046].map((x) => (
+              <mesh key={x} position={[x, 0, 0]} scale={[1, 0.78, 1]} material={materials.detail}>
+                <torusGeometry args={[0.034, 0.004, 6, 16]} />
               </mesh>
             ))}
             <mesh material={materials.detail}>
-              <boxGeometry args={[0.04, 0.008, 0.008]} />
+              <boxGeometry args={[0.03, 0.005, 0.006]} />
             </mesh>
           </group>
         )}
@@ -382,16 +500,21 @@ export function AgentAvatar({
           const armRef = side === -1 ? leftArmRef : rightArmRef;
           const forearmRef = side === -1 ? leftForearmRef : rightForearmRef;
           return (
-            <group key={side} ref={armRef} position={[side * 0.235, 1.08, 0]}>
+            <group key={side} ref={armRef} position={[side * 0.23, 1.17, 0]}>
               <mesh position={[0, -0.145, 0]} material={materials.jacket} castShadow>
-                <capsuleGeometry args={[0.055, 0.2, 6, 10]} />
+                <capsuleGeometry args={[0.047, 0.2, 6, 12]} />
               </mesh>
               <group ref={forearmRef} position={[0, -0.29, 0]}>
                 <mesh position={[0, -0.115, 0]} material={materials.jacket} castShadow>
-                  <capsuleGeometry args={[0.05, 0.15, 6, 10]} />
+                  <capsuleGeometry args={[0.042, 0.15, 6, 12]} />
                 </mesh>
-                <mesh position={[0, -0.245, -0.005]} material={materials.skin} castShadow>
-                  <sphereGeometry args={[0.058, 10, 8]} />
+                <mesh
+                  position={[0, -0.245, -0.012]}
+                  scale={[0.78, 1.05, 0.7]}
+                  material={materials.skin}
+                  castShadow
+                >
+                  <sphereGeometry args={[0.047, 12, 10]} />
                 </mesh>
               </group>
             </group>
@@ -402,19 +525,19 @@ export function AgentAvatar({
           const legRef = side === -1 ? leftLegRef : rightLegRef;
           const kneeRef = side === -1 ? leftKneeRef : rightKneeRef;
           return (
-            <group key={side} ref={legRef} position={[side * 0.095, 0.72, 0]}>
-              <mesh position={[0, -0.17, 0]} material={materials.trousers} castShadow>
-                <capsuleGeometry args={[0.068, 0.24, 6, 10]} />
+            <group key={side} ref={legRef} position={[side * 0.09, 0.75, 0]}>
+              <mesh position={[0, -0.18, 0]} material={materials.trousers} castShadow>
+                <capsuleGeometry args={[0.058, 0.25, 6, 12]} />
               </mesh>
-              <group ref={kneeRef} position={[0, -0.35, 0]}>
+              <group ref={kneeRef} position={[0, -0.36, 0]}>
                 <mesh position={[0, -0.16, 0]} material={materials.trousers} castShadow>
-                  <capsuleGeometry args={[0.06, 0.22, 6, 10]} />
+                  <capsuleGeometry args={[0.052, 0.22, 6, 12]} />
                 </mesh>
                 <RoundedBox
-                  args={[0.14, 0.09, 0.25]}
-                  radius={0.035}
+                  args={[0.12, 0.075, 0.22]}
+                  radius={0.03}
                   smoothness={3}
-                  position={[0, -0.33, -0.045]}
+                  position={[0, -0.325, -0.045]}
                   material={materials.shoe}
                   castShadow
                 />
@@ -424,7 +547,7 @@ export function AgentAvatar({
         })}
 
         {agent.mood === "excited" && (
-          <group position={[0, 1.65, 0]}>
+          <group position={[0, 1.78, 0]}>
             {[-1, 0, 1].map((offset) => (
               <mesh key={offset} position={[offset * 0.12, Math.abs(offset) * 0.03, 0]} rotation={[0, 0, offset * -0.22]}>
                 <capsuleGeometry args={[0.012, 0.08, 4, 6]} />

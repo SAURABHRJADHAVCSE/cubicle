@@ -45,7 +45,7 @@ from collections.abc import AsyncIterator
 
 import structlog
 
-from app.engines.base import AgentEngine, EngineResult
+from app.engines.base import AgentEngine, EngineResult, ToolExecutor
 
 logger = structlog.get_logger()
 
@@ -132,7 +132,15 @@ class GenericCliEngine(AgentEngine):
 
         return EngineResult(output=output, raw_output=stdout.decode(errors="replace"))
 
-    async def chat_stream(self, message: str, history: list[dict]) -> AsyncIterator[str]:
+    async def chat_stream(
+        self,
+        message: str,
+        history: list[dict],
+        tools: list[dict] | None = None,
+        tool_executor: ToolExecutor | None = None,
+    ) -> AsyncIterator[str]:
+        # Accepts tools/tool_executor for signature parity with AgentEngine
+        # but ignores them — no structured tool-calling protocol here.
         transcript = "\n".join(
             f"{'User' if turn['role'] == 'user' else 'You'}: {turn['content']}"
             for turn in history
