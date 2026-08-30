@@ -36,7 +36,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateAgent } from "@/hooks/useAgents";
-import { PERSONALITY_TRAIT_CATEGORIES } from "@/lib/constants";
 import type { EngineType } from "@/types/agent";
 
 interface AddAgentDialogProps {
@@ -47,8 +46,6 @@ interface AddAgentDialogProps {
 interface FormState {
   name: string;
   accentColor: string;
-  traits: string[];
-  quirks: string;
   engineType: EngineType;
   engineProvider: string;
   engineModel: string;
@@ -61,8 +58,6 @@ interface FormState {
 const DEFAULT_STATE: FormState = {
   name: "",
   accentColor: "#6366f1",
-  traits: ["focused", "analytical"],
-  quirks: "",
   engineType: "api",
   engineProvider: "anthropic",
   engineModel: "",
@@ -155,15 +150,6 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
     reset();
   }
 
-  function toggleTrait(trait: string) {
-    setForm((f) => ({
-      ...f,
-      traits: f.traits.includes(trait)
-        ? f.traits.filter((t) => t !== trait)
-        : [...f.traits, trait],
-    }));
-  }
-
   const currentStepId = steps[step]?.id;
 
   const canGoNext =
@@ -186,10 +172,11 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
           form.engineType === "cli" && form.allowedTools.trim()
             ? form.allowedTools.split(",").map((t) => t.trim()).filter(Boolean)
             : null,
-        personality_traits: form.traits,
-        personality_quirks: form.quirks.trim()
-          ? form.quirks.split("\n").map((q) => q.trim()).filter(Boolean)
-          : null,
+        // Picker removed from this wizard for now (personality/quirks config
+        // is deferred to phase 2) — personality_traits is still a required
+        // field on the backend, so send an empty default rather than making
+        // it optional there for what's meant to be a temporary UI cut.
+        personality_traits: [],
         accent_color: form.accentColor,
       });
       toast.success(`${form.name} joined the office HQ`);
@@ -326,57 +313,6 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Personality Traits
-                  </Label>
-                  <div className="soft-scrollbar flex max-h-48 flex-col gap-3 overflow-y-auto rounded-xl border border-border bg-muted p-3">
-                    {Object.entries(PERSONALITY_TRAIT_CATEGORIES).map(([category, traits]) => (
-                      <div key={category} className="space-y-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="size-1 rounded-full bg-primary" />
-                          <span className="text-3xs font-black uppercase tracking-wider text-slate-400">
-                            {category.replace(/_/g, " ")}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {traits.map((trait) => {
-                            const isSelected = form.traits.includes(trait);
-                            return (
-                              <button
-                                key={trait}
-                                type="button"
-                                onClick={() => toggleTrait(trait)}
-                                className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                                  isSelected
-                                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
-                                    : "bg-card text-muted-foreground border border-border hover:border-primary/70 hover:text-primary"
-                                }`}
-                              >
-                                {isSelected && <Check className="size-3 stroke-[3]" />}
-                                {trait.replace(/_/g, " ")}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="agent-quirks" className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Quirks & Habits (one per line, optional)
-                  </Label>
-                  <Textarea
-                    id="agent-quirks"
-                    rows={2}
-                    placeholder="Always drinks espresso before coding&#10;Prefers functional code patterns"
-                    value={form.quirks}
-                    onChange={(e) => setForm((f) => ({ ...f, quirks: e.target.value }))}
-                    className="text-xs"
-                  />
-                </div>
               </div>
 
               {/* Live Preview Avatar Card */}

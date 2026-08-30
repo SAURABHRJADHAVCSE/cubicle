@@ -6,16 +6,27 @@ export interface DeskLayout {
   rotationY: number;
 }
 
-export const WORKSTATION_SLOTS: Omit<DeskLayout, "agentId">[] = [
-  ...[-6.4, -3.2, 0, 3.2, 6.4].map((x) => ({
-    position: [x, 0, 0.7] as [number, number, number],
+export type WorkstationSlot = Omit<DeskLayout, "agentId">;
+
+export const DESKS_PER_ROW = 5;
+const WORKSTATION_X = [-6.4, -3.2, 0, 3.2, 6.4];
+const FIRST_WORKSTATION_ROW_Z = 0.7;
+const WORKSTATION_ROW_SPACING = 3.5;
+
+/** Builds orderly desk rows without putting a ceiling on office capacity. */
+export function computeWorkstationSlots(count: number): WorkstationSlot[] {
+  const safeCount = Math.max(0, Math.floor(count));
+
+  return Array.from({ length: safeCount }, (_, index) => ({
+    position: [
+      WORKSTATION_X[index % DESKS_PER_ROW],
+      0,
+      FIRST_WORKSTATION_ROW_Z +
+        Math.floor(index / DESKS_PER_ROW) * WORKSTATION_ROW_SPACING,
+    ] as [number, number, number],
     rotationY: 0,
-  })),
-  ...[-6.4, -3.2, 0, 3.2, 6.4].map((x) => ({
-    position: [x, 0, 4.2] as [number, number, number],
-    rotationY: 0,
-  })),
-];
+  }));
+}
 
 /**
  * Two long rows facing a shared central walkway, extending forward (+Z, away
@@ -30,28 +41,22 @@ export function computeDeskLayout(agents: Agent[]): DeskLayout[] {
   const ordered = [...agents].sort(
     (a, b) => (a.desk_position ?? Infinity) - (b.desk_position ?? Infinity),
   );
+  const slots = computeWorkstationSlots(ordered.length);
 
-  return ordered.map((agent, i) => {
-    const fixed = WORKSTATION_SLOTS[i];
-    if (fixed) return { agentId: agent.id, ...fixed };
-
-    const overflowIndex = i - WORKSTATION_SLOTS.length;
-    const col = overflowIndex % 5;
-    const row = Math.floor(overflowIndex / 5);
-    return {
-      agentId: agent.id,
-      position: [-6.4 + col * 3.2, 0, 7.5 + row * 3.2],
-      rotationY: 0,
-    };
-  });
+  return ordered.map((agent, index) => ({
+    agentId: agent.id,
+    ...slots[index],
+  }));
 }
 
 /** How far the two cubicle rows currently extend in +Z — Office.tsx uses
  * this to size the floor/walls so they always cover every desk, however
  * many agents have joined. */
-export function computeRowDepth(layout: DeskLayout[]): number {
-  if (layout.length === 0) return 5.8;
-  return Math.max(5.8, Math.max(...layout.map((desk) => desk.position[2])) + 1.5);
+export function computeRowDepth(
+  layout: Array<Pick<WorkstationSlot, "position">>,
+): number {
+  if (layout.length === 0) return 2.9;
+  return Math.max(...layout.map((desk) => desk.position[2])) + 2.2;
 }
 
 const CAFE_SEAT_SPACING_X = 0.9;

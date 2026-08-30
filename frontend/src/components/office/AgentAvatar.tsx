@@ -32,28 +32,43 @@ const ARRIVED_EPSILON = 0.025;
 const FIGURE_Z = 0.72;
 const BREAK_ROOM_FRONT_Z = -3.1;
 const BREAK_ROOM_RIGHT_X = -2.1;
-const BREAK_ROOM_EXIT = new THREE.Vector3(-2.25, 0, -2.65);
+// Centre of the real gap between the two front glass dividers.
+const BREAK_ROOM_EXIT = new THREE.Vector3(-3.82, 0, -2.65);
+const OFFICE_CROSS_AISLE_Z = -1.05;
+const MODEL_FORWARD_OFFSET = Math.PI;
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 
 function buildTravelRoute(start: THREE.Vector3, destination: THREE.Vector3): THREE.Vector3[] {
   const startsInBreakRoom = start.z < BREAK_ROOM_FRONT_Z && start.x < BREAK_ROOM_RIGHT_X;
   const endsInBreakRoom = destination.z < BREAK_ROOM_FRONT_Z && destination.x < BREAK_ROOM_RIGHT_X;
 
+  if (startsInBreakRoom && endsInBreakRoom) return [destination.clone()];
+
   if (startsInBreakRoom && !endsInBreakRoom) {
     return [
       BREAK_ROOM_EXIT.clone(),
-      new THREE.Vector3(destination.x, 0, -1.05),
+      new THREE.Vector3(BREAK_ROOM_EXIT.x, 0, OFFICE_CROSS_AISLE_Z),
+      new THREE.Vector3(destination.x, 0, OFFICE_CROSS_AISLE_Z),
       destination.clone(),
     ];
   }
   if (!startsInBreakRoom && endsInBreakRoom) {
     return [
-      new THREE.Vector3(start.x, 0, -1.05),
+      new THREE.Vector3(start.x, 0, OFFICE_CROSS_AISLE_Z),
+      new THREE.Vector3(BREAK_ROOM_EXIT.x, 0, OFFICE_CROSS_AISLE_Z),
       BREAK_ROOM_EXIT.clone(),
       destination.clone(),
     ];
   }
-  return [destination.clone()];
+
+  // Work-area moves use the same front cross-aisle instead of cutting
+  // diagonally through desks. Each agent joins the lane, walks along it,
+  // then turns squarely into the destination workstation column.
+  return [
+    new THREE.Vector3(start.x, 0, OFFICE_CROSS_AISLE_Z),
+    new THREE.Vector3(destination.x, 0, OFFICE_CROSS_AISLE_Z),
+    destination.clone(),
+  ];
 }
 
 export interface AgentAvatarSubject {
@@ -166,7 +181,7 @@ export function AgentAvatar({
       if (Math.hypot(deltaX, deltaZ) > 0.01) {
         desiredRotation.current.setFromAxisAngle(
           UP_AXIS,
-          Math.atan2(deltaX, deltaZ),
+          Math.atan2(deltaX, deltaZ) + MODEL_FORWARD_OFFSET,
         );
         rootRef.current.quaternion.slerp(
           desiredRotation.current,
