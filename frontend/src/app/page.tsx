@@ -141,7 +141,7 @@ export default function Home() {
                     : "text-slate-500 dark:text-slate-400"
                 )}
               >
-                <Boxes className="size-3.5" /> 3D Office
+                  <Boxes className="size-3.5" /> Live office
               </button>
             </div>
           )}

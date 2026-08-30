@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 
 import structlog
 
+from app.config import get_settings
 from app.database import worker_session_factory
 from app.engines.base import AgentEngine, EngineResult
 from app.utils.secrets_store import CLAUDE_OAUTH_TOKEN_KEY, get_encrypted_setting
@@ -92,7 +93,17 @@ class ClaudeCodeEngine(AgentEngine):
             stderr=asyncio.subprocess.PIPE,
             env=subprocess_env,
         )
-        stdout, stderr = await process.communicate()
+        timeout = get_settings().task_timeout_seconds
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+        except TimeoutError:
+            # communicate() timing out leaves the process running — kill it
+            # and reap it (kill() alone leaves a zombie) before surfacing the
+            # error, or a hung CLI process outlives the task that spawned it.
+            process.kill()
+            await process.wait()
+            logger.error("claude_code_cli_timeout", timeout_seconds=timeout)
+            raise RuntimeError(f"claude CLI timed out after {timeout}s") from None
 
         if process.returncode != 0:
             error = stderr.decode(errors="replace").strip()

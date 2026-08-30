@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -17,6 +18,25 @@ class _FakeProcess:
 
     async def communicate(self) -> tuple[bytes, bytes]:
         return self._stdout, self._stderr
+
+
+class _HangingProcess:
+    """Simulates a CLI process whose communicate() never returns, so
+    execute()'s asyncio.wait_for() is what actually has to end the test."""
+
+    def __init__(self) -> None:
+        self.killed = False
+        self.waited = False
+
+    async def communicate(self) -> tuple[bytes, bytes]:
+        await asyncio.sleep(999)
+        raise AssertionError("should have been cancelled by wait_for's timeout")
+
+    def kill(self) -> None:
+        self.killed = True
+
+    async def wait(self) -> None:
+        self.waited = True
 
 
 async def test_execute_parses_cli_json_output(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -147,6 +167,27 @@ async def test_execute_strips_anthropic_api_key_from_subprocess_env(
     await engine.execute("say hi", context={})
 
     assert "ANTHROPIC_API_KEY" not in captured_env
+
+
+async def test_execute_kills_process_on_timeout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    fake_settings = SimpleNamespace(task_timeout_seconds=0.05)
+    monkeypatch.setattr(claude_code_module, "get_settings", lambda: fake_settings)
+
+    hanging = _HangingProcess()
+
+    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr, env=None):
+        return hanging
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    engine = ClaudeCodeEngine(working_dir=str(tmp_path))
+    with pytest.raises(RuntimeError, match="timed out"):
+        await engine.execute("say hi", context={})
+
+    assert hanging.killed is True
+    assert hanging.waited is True
 
 
 async def test_is_available_checks_path(monkeypatch: pytest.MonkeyPatch) -> None:

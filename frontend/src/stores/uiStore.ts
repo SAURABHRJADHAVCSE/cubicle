@@ -7,6 +7,8 @@ interface UIState {
   selectCallAgent: (agentId: string | null) => void;
   activeFilesAgentId: string | null;
   selectFilesAgent: (agentId: string | null) => void;
+  taskViewMode: "list" | "board";
+  setTaskViewMode: (mode: "list" | "board") => void;
 }
 
 /** Which agent's chat panel (or voice call, or workspace file browser) is
@@ -21,4 +23,6 @@ export const useUIStore = create<UIState>((set) => ({
   selectCallAgent: (agentId) => set({ activeCallAgentId: agentId }),
   activeFilesAgentId: null,
   selectFilesAgent: (agentId) => set({ activeFilesAgentId: agentId }),
+  taskViewMode: "list",
+  setTaskViewMode: (mode) => set({ taskViewMode: mode }),
 }));

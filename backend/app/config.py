@@ -24,6 +24,25 @@ class Settings(BaseSettings):
     embedding_model: str = "ollama/nomic-embed-text"
     embedding_dimensions: int = 768
 
+    # Wall-clock cap on a single engine call (CLI subprocess or LLM API call)
+    # — see engines/claude_code.py and engines/litellm_engine.py. Nothing
+    # bounded this before; a hung CLI process or stalled API call could block
+    # a Celery worker indefinitely. Celery's own task_time_limit (below) is a
+    # coarser backstop, not the primary mechanism.
+    task_timeout_seconds: int = 600
+    # Rolling-24h spend ceiling checked before a task's engine call actually
+    # starts (see workers/task_worker.py's cost-ceiling check). Unset = no
+    # ceiling, same "unconfigured = off" pattern as the other optional
+    # settings below.
+    daily_cost_ceiling_usd: float | None = None
+
+    # POST /webhooks/tasks — lets an external system (CI, a script, a future
+    # Slack integration) create+dispatch a task without a paired device.
+    # Unset = the route 404s outright, not just 401s, so its existence isn't
+    # even discoverable until an operator opts in. Generate one the same way
+    # device tokens are generated: app.utils.tokens.generate_token().
+    webhook_secret: str | None = None
+
     workspaces_dir: str = "/workspaces"
     # The host-machine path that workspaces_dir is bind-mounted from (see
     # docker-compose.yml's ./agent-workspaces:/workspaces). Purely cosmetic —

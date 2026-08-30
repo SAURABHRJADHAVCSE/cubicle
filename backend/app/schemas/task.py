@@ -15,6 +15,18 @@ class TaskCreate(BaseModel):
     priority: int = 0
     assigned_agents: list[uuid.UUID]
     orchestrator_agent_id: uuid.UUID | None = None
+    parent_task_id: uuid.UUID | None = None
+    depends_on: list[uuid.UUID] = []
+
+
+class TaskUpdate(BaseModel):
+    """Manual field override — e.g. dragging a Kanban card to a new column.
+    Deliberately narrow: only status/priority for this pass, not
+    title/brief/assigned_agents. Never triggers execution by itself —
+    only /execute (or the webhook) actually dispatches to Celery."""
+
+    status: str | None = None
+    priority: int | None = None
 
 
 class TaskRead(BaseModel):
@@ -30,6 +42,8 @@ class TaskRead(BaseModel):
 
     assigned_agents: list[uuid.UUID]
     orchestrator_agent_id: uuid.UUID | None
+    parent_task_id: uuid.UUID | None
+    depends_on: list[uuid.UUID]
 
     result_structured: dict | None
     result_raw: str | None

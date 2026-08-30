@@ -36,23 +36,28 @@ What makes Cubicle different from every other agent harness:
 
 ### Current Status — What's Actually Built Today
 
-This section is the accurate, current-reality companion to Section 9's versioned checklist — read this for "what does Cubicle do right now," read Section 9 for "what's left and when." Last verified: 2026-08-27.
+This section is the accurate, current-reality companion to Section 9's versioned checklist — read this for "what does Cubicle do right now," read Section 9 for "what's left and when." Last verified: 2026-08-30.
 
 **3D Office (React Three Fiber)**
-- Procedural voxel office rendered client-side, no asset pipeline — "Tycoon AI Office" theme, isometric camera
-- 8 zones with dedicated camera presets and click-to-inspect object cards: Overview, Reception, Workstations, Server Core, CEO Suite, Cafeteria, Rec Arcade, War Room
-- Floor-zone picker collapses to a single pill showing the active zone and expands into the full picker on hover/focus, keeping most of the viewport clear for the 3D scene
-- Agent avatars: idle sway (per-agent phase offset so it's not synchronized), working animation, celebration jump-and-spin, status ring + glow color-coded to agent status, optional glasses/headset variation per agent, speech bubbles driven by real backend events
-- WebGL stability: capped `dpr`, no real-time shadows, capped point-light count regardless of room size, and automatic canvas remount on context loss
-- Z-fighting-safe: every room's floor tile uses `polygonOffset` so it doesn't flicker against the shared office floor slab underneath it
+- Rebuilt from the ground up as a compact, four-zone office rather than a sprawling multi-room floor plan: cubicle rows (5 desks per row, a new row is generated automatically once the current one fills — no hardcoded agent cap), an agent waiting area (sofa + chairs + a small table cluster) where idle agents sit, and a CEO cabin with a glass-and-frame wall
+- Flat-shaded, smooth PBR materials (`modernMaterials.ts`) — no pixelated/voxel texture maps anywhere in the scene, part of the wider "Office Stationery" visual pass (see **Visual Design** below)
+- Camera: fixed-angle perspective, no orbit/rotate/pan controls — mouse wheel or touch-drag dollies the camera forward/back along the row of desks, clamped so it can never scroll past the last populated row or in front of the room. Replaces an earlier multi-preset (Overview/Workstations/Waiting Area/CEO Suite) click-to-inspect camera system, which was cut in favor of this simpler scroll-through-the-room interaction
+- Agent avatars: idle sway (per-agent phase offset so it's not synchronized) at an empty desk, a distinct lower-energy "resting" pose for agents parked in the waiting area, working animation, celebration jump-and-spin, status ring + glow color-coded to agent status, optional glasses/headset variation per agent, speech bubbles driven by real backend events
+- Fullscreen toggle; a slimmed-down HUD shows just the agent count and working-count, not the old zone-inspector cards
+- WebGL stability: capped `dpr`, shadows/antialiasing disabled on narrow + low-core-count devices, and automatic canvas remount on context loss
 
 **Agent Management**
 - 4-step "Add Agent" wizard (Identity → Engine → Workspace → Briefing, Workspace step only shown for CLI engines) — fixed dialog size across all steps, no resizing between them
-- Personality trait picker: 6 categories (social, work, humor, habits, quirks, social_style), multi-select chips
+- Personality trait picker and quirks/habits textarea were pulled from the Identity step (2026-08-30), deferred to a later phase — new agents are created with no traits by default; the underlying schema fields and dialogue-generation consumption (see **Social Behavior** below) are untouched and still work for any agent that has traits set directly
 - Accent color picker (8-color wheel + custom color input) drives the agent's avatar shirt color and UI accents
 - Live avatar preview updates as you type
 - 9 engines selectable: Claude Code, OpenCode, Codex, Grok, Gemini, Antigravity, Qwen (CLI subprocess) plus Ollama and Anthropic API (direct LiteLLM calls)
 - Per-agent engine override, custom CLI command override for unverified providers, working directory, allowed-tools list
+
+**Agent Workspace / File Browser**
+- Every agent card has a file-browser button (always visible, not hover-gated) that opens a panel listing and previewing files inside that agent's `working_directory` — directory navigation with breadcrumbs, text-file preview capped at 512KB, path-traversal-safe resolution (`resolve_workspace_path`)
+- The workspace root (`/workspaces` in-container) is a real bind mount to `./agent-workspaces` on the host machine, not an opaque Docker-managed volume — agent-written files are directly visible in Explorer/Finder/VS Code with zero export step
+- Optional `HOST_WORKSPACES_PATH` env var lets the panel additionally show/copy the real host-machine path and offer a `vscode://file/...` deep link to open the currently-browsed folder directly in VS Code
 
 **Task Execution**
 - Task creation with an optional "route via boss agent" picker — when set, the orchestrator's engine breaks the brief into subtasks (JSON-parsed with a graceful single-subtask fallback) and delegates them to the rest of the roster
@@ -77,6 +82,11 @@ This section is the accurate, current-reality companion to Section 9's versioned
 **Engines**
 - CLI engines run as real subprocesses; API engines go through LiteLLM. `GET /engines` auto-detects what's actually available on the host/PATH and drives every "detected/not detected" badge in the UI live — nothing here is hardcoded
 
+**Visual Design**
+- "Office Stationery" identity across the whole dashboard: an OKLCH-based warm-paper/ink-indigo palette (design tokens in `globals.css`), stamp-badge status/priority pills, a subtle paper-grain texture on cards, and stable badge/reference numbers derived from each agent's and task's own id (e.g. `#A3F9C1`) — no schema changes, just reusing existing id entropy
+- PWA icons redesigned around Android's maskable safe-zone requirement (content kept within ~60-66% of the canvas) after the previous icon set was cropped by launcher masking
+- Shared UI primitives hardened: dialog backdrops are now actually opaque (`bg-black/55` + blur, was a near-invisible `bg-black/10`) and the `Select` component correctly truncates long option text instead of stretching its container
+
 **Auth & Remote Access**
 - Single instance-wide setup password (first run only) gates both the web dashboard and device pairing — there's no multi-user account system, every browser tab and every paired phone is just a bearer token in the `devices` table, checked identically on every REST route and the Socket.io connection
 - Settings → Devices: QR-code (or manual-token) pairing flow with short-lived single-use codes, a live device list, and per-device revoke
@@ -85,10 +95,12 @@ This section is the accurate, current-reality companion to Section 9's versioned
 - The mobile app itself that pairs against this is not built — this is the backend/web foundation for it, see V0.3 in Section 9
 
 **Infrastructure**
-- Docker Compose services: `cubicle-web` (Next.js, Turbopack dev), `cubicle-api` (FastAPI), `cubicle-worker` + `cubicle-beat` (Celery), Postgres 16 + pgvector, Redis 7, `caddy` (reverse proxy)
-- Alembic migrations for schema changes (4 so far)
+- Docker Compose services: `cubicle-web` (Next.js, Turbopack dev), `cubicle-api` (FastAPI), `cubicle-worker` + `cubicle-beat` (Celery), Postgres 16 + pgvector, Redis 7, `caddy` (reverse proxy), `coturn` (TURN relay for voice calls off Tailscale)
+- `cubicle-api`/`cubicle-worker` containers run as a non-root `appuser` (a `gosu`-based entrypoint chowns runtime volumes then drops privileges) — Claude Code CLI's `--dangerously-skip-permissions` refuses to run as root, which is what containers do by default
+- Agent workspaces are a host bind mount (`./agent-workspaces:/workspaces`), not a named Docker volume — see **Agent Workspace / File Browser** above
+- Alembic migrations for schema changes (7 so far)
 
-**Explicitly not built yet** (full detail and everything beyond this in Section 9): the actual mobile app (React Native/Expo), voice calls (WebRTC/Sarvam) and everything under it in V1.0, gossip/flirt social triggers, task history search, editable API keys and social-behavior toggles in Settings, a permissions system, keep-alive for closed-browser execution, result export (PDF/CSV/clipboard), and all of V2.0/V3.0 (multi-user auth, scheduled missions, webhooks, MCP server, plugin system).
+**Explicitly not built yet** (full detail and everything beyond this in Section 9): a personality-trait/quirks picker in the Add Agent wizard (deferred, see **Agent Management** above — the backend system it feeds still works), real Sarvam STT/TTS credentials for voice calls (transport is built and verified, see V0.3), gossip/flirt social triggers, task history search, editable API keys and social-behavior toggles in Settings, a permissions system, keep-alive for closed-browser execution, result export (PDF/CSV/clipboard), and all of V2.0/V3.0 (multi-user auth, scheduled missions, webhooks, MCP server, plugin system). There is no separate mobile app and none is planned — see V0.3's note on why the installable PWA replaced that idea.
 
 ---
 
@@ -843,7 +855,7 @@ MVP. Office works. Agents do tasks. Chat works. Looks good.
 - [x] Onboarding wizard (3-step: detect engines → config → demo task)
 - [x] Add Agent dialog (identity, engine, briefing — 4 steps like MD)
 - [x] Engine registry: Claude Code CLI + LiteLLM (Ollama/Anthropic)
-- [x] Procedural voxel 3D office scene (React Three Fiber) — scales with agent count, not a fixed 4 desks
+- [x] Procedural 3D office scene (React Three Fiber, flat-shaded PBR — not voxel/textured) — scales with agent count via auto-generated desk rows, not a fixed capacity
 - [x] Agent status system: idle → working → done
 - [x] Task creation and execution (single agent per task)
 - [x] Structured result cards (not raw terminal)
@@ -858,7 +870,7 @@ The differentiator. Office comes alive.
 
 - [x] Social behavior scheduler (Celery Beat)
 - [x] Speech bubble system (LLM-generated dialogue)
-- [x] Agent personality system (traits, quirks, mood) — stored and now genuinely consumed by dialogue generation
+- [x] Agent personality system (traits, quirks, mood) — schema + dialogue-generation consumption still fully in place; the creation-wizard picker UI itself was pulled 2026-08-30 and deferred to a later phase, so new agents get no traits by default until it's rebuilt
 - [ ] Social interactions: coffee break ✅, desk visit ✅ — gossip and flirt triggers not built
 - [x] Celebration animation on task complete
 - [x] End-of-day wind-down sequence
@@ -887,6 +899,11 @@ Added mid-stream, ahead of the original roadmap. Initially planned as a separate
 **Web Push notifications**:
 - [x] Task-completed/failed notifications to every paired device with push permission granted
 - [x] VAPID keys, `devices.push_subscription`, service worker `push`/`notificationclick` handlers
+
+**Agent workspace file browser** (not originally planned, added mid-stream):
+- [x] Per-agent file browser panel: directory navigation, breadcrumbs, text-file preview (512KB cap), path-traversal-safe
+- [x] Workspace directory switched from an opaque Docker-managed volume to a real host bind mount (`./agent-workspaces`)
+- [x] Optional `HOST_WORKSPACES_PATH` config: "copy folder path" + `vscode://` deep link to open the current folder on the host machine directly
 
 **Voice calls (WebRTC) — scaffolding, verified live end-to-end**:
 - [x] Full transport: mic capture → signaling over Socket.io → aiortc peer connection → ICE/DTLS → connected, confirmed via a real headless-browser call with a fake media device (not just code review)

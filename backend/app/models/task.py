@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import ARRAY, DateTime, Integer, Numeric, String, Text, func, text
+from sqlalchemy import ARRAY, DateTime, ForeignKey, Integer, Numeric, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -33,6 +33,19 @@ class Task(Base):
     # No formal FK: matches the spec's DDL exactly, and an array column can't
     # carry a Postgres foreign-key constraint on its elements anyway.
     orchestrator_agent_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True))
+    # Set on child tasks created by route_task(); lets a child's completion
+    # look its parent up directly instead of reverse-searching the parent's
+    # result_structured.child_task_ids. CASCADE: deleting a parent shouldn't
+    # orphan its children (there's no DELETE /tasks route yet, so this is
+    # defensive hygiene rather than something exercised today).
+    parent_task_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="CASCADE")
+    )
+    # Tasks that must reach "completed" before this one dispatches. No FK on
+    # elements, same reasoning as assigned_agents above.
+    depends_on: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=False, server_default="{}"
+    )
 
     result_structured: Mapped[dict | None] = mapped_column(JSONB)
     result_raw: Mapped[str | None] = mapped_column(Text)

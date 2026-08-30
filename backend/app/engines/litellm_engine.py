@@ -1,5 +1,6 @@
 """API-based agent engine: direct LLM calls via LiteLLM (Ollama, Anthropic, ...)."""
 
+import asyncio
 from collections.abc import AsyncIterator
 
 import litellm
@@ -29,14 +30,24 @@ class LiteLLMEngine(AgentEngine):
         self.api_base = api_base
 
     async def execute(self, prompt: str, context: dict) -> EngineResult:
-        response = await litellm.acompletion(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": context.get("system_prompt", "")},
-                {"role": "user", "content": prompt},
-            ],
-            api_base=self.api_base,
-        )
+        # Not applied to chat_stream(): that's interactive chat, where a
+        # human is already watching the connection and can just close it.
+        timeout = get_settings().task_timeout_seconds
+        try:
+            response = await asyncio.wait_for(
+                litellm.acompletion(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": context.get("system_prompt", "")},
+                        {"role": "user", "content": prompt},
+                    ],
+                    api_base=self.api_base,
+                ),
+                timeout=timeout,
+            )
+        except TimeoutError:
+            logger.error("litellm_call_timeout", model=self.model, timeout_seconds=timeout)
+            raise RuntimeError(f"LLM call timed out after {timeout}s") from None
         return self._to_result(response)
 
     async def chat_stream(self, message: str, history: list[dict]) -> AsyncIterator[str]:

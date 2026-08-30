@@ -1,5 +1,6 @@
 """Tests for LiteLLMEngine, with litellm.acompletion mocked out."""
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -45,6 +46,21 @@ async def test_execute_handles_cost_lookup_failure(monkeypatch: pytest.MonkeyPat
     result = await engine.execute("say hi", context={})
 
     assert result.cost_usd == 0.0
+
+
+async def test_execute_raises_on_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_settings = SimpleNamespace(task_timeout_seconds=0.05)
+    monkeypatch.setattr(litellm_engine_module, "get_settings", lambda: fake_settings)
+
+    async def fake_acompletion(**kwargs):
+        await asyncio.sleep(999)
+        raise AssertionError("should have been cancelled by wait_for's timeout")
+
+    monkeypatch.setattr(litellm_engine_module.litellm, "acompletion", fake_acompletion)
+
+    engine = LiteLLMEngine(model="claude-sonnet-4-5")
+    with pytest.raises(RuntimeError, match="timed out"):
+        await engine.execute("say hi", context={})
 
 
 async def test_chat_stream_yields_deltas(monkeypatch: pytest.MonkeyPatch) -> None:

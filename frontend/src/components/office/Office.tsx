@@ -95,7 +95,19 @@ function CameraRig({ maxScroll }: { maxScroll: number }) {
 
   useEffect(() => {
     const canvas = gl.domElement;
-    let lastTouchY: number | null = null;
+    let activePointerId: number | null = null;
+    let lastPointerY: number | null = null;
+
+    canvas.tabIndex = 0;
+    canvas.style.cursor = maxScroll > 0 ? "grab" : "default";
+    canvas.style.touchAction = maxScroll > 0 ? "none" : "auto";
+    canvas.setAttribute("role", "application");
+    canvas.setAttribute(
+      "aria-label",
+      maxScroll > 0
+        ? "Interactive 3D office. Scroll, drag, or use arrow keys to explore the workstations."
+        : "Interactive 3D office.",
+    );
 
     const moveScrollTarget = (delta: number) => {
       const next = THREE.MathUtils.clamp(
@@ -111,32 +123,70 @@ function CameraRig({ maxScroll }: { maxScroll: number }) {
     const handleWheel = (event: WheelEvent) => {
       if (moveScrollTarget(event.deltaY * 0.008)) event.preventDefault();
     };
-    const handleTouchStart = (event: TouchEvent) => {
-      lastTouchY = event.touches[0]?.clientY ?? null;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (maxScroll <= 0 || event.button !== 0) return;
+      activePointerId = event.pointerId;
+      lastPointerY = event.clientY;
+      canvas.setPointerCapture(event.pointerId);
+      canvas.style.cursor = "grabbing";
     };
-    const handleTouchMove = (event: TouchEvent) => {
-      const touchY = event.touches[0]?.clientY;
-      if (lastTouchY === null || touchY === undefined) return;
-      const moved = moveScrollTarget((lastTouchY - touchY) * 0.025);
-      lastTouchY = touchY;
+    const handlePointerMove = (event: PointerEvent) => {
+      if (
+        activePointerId !== event.pointerId ||
+        lastPointerY === null
+      ) {
+        return;
+      }
+      const moved = moveScrollTarget((lastPointerY - event.clientY) * 0.025);
+      lastPointerY = event.clientY;
       if (moved) event.preventDefault();
     };
-    const handleTouchEnd = () => {
-      lastTouchY = null;
+    const handlePointerEnd = (event: PointerEvent) => {
+      if (activePointerId !== event.pointerId) return;
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+      activePointerId = null;
+      lastPointerY = null;
+      canvas.style.cursor = maxScroll > 0 ? "grab" : "default";
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const distance =
+        event.key === "PageDown"
+          ? 3.2
+          : event.key === "PageUp"
+            ? -3.2
+            : event.key === "ArrowDown"
+              ? 1.1
+              : event.key === "ArrowUp"
+                ? -1.1
+                : 0;
+
+      if (distance !== 0 && moveScrollTarget(distance)) {
+        event.preventDefault();
+      } else if (event.key === "Home" && scrollTarget.current > 0) {
+        scrollTarget.current = 0;
+        event.preventDefault();
+      } else if (event.key === "End" && scrollTarget.current < maxScroll) {
+        scrollTarget.current = maxScroll;
+        event.preventDefault();
+      }
     };
 
     canvas.addEventListener("wheel", handleWheel, { passive: false });
-    canvas.addEventListener("touchstart", handleTouchStart, { passive: true });
-    canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
-    canvas.addEventListener("touchend", handleTouchEnd);
-    canvas.addEventListener("touchcancel", handleTouchEnd);
+    canvas.addEventListener("pointerdown", handlePointerDown);
+    canvas.addEventListener("pointermove", handlePointerMove);
+    canvas.addEventListener("pointerup", handlePointerEnd);
+    canvas.addEventListener("pointercancel", handlePointerEnd);
+    canvas.addEventListener("keydown", handleKeyDown);
 
     return () => {
       canvas.removeEventListener("wheel", handleWheel);
-      canvas.removeEventListener("touchstart", handleTouchStart);
-      canvas.removeEventListener("touchmove", handleTouchMove);
-      canvas.removeEventListener("touchend", handleTouchEnd);
-      canvas.removeEventListener("touchcancel", handleTouchEnd);
+      canvas.removeEventListener("pointerdown", handlePointerDown);
+      canvas.removeEventListener("pointermove", handlePointerMove);
+      canvas.removeEventListener("pointerup", handlePointerEnd);
+      canvas.removeEventListener("pointercancel", handlePointerEnd);
+      canvas.removeEventListener("keydown", handleKeyDown);
     };
   }, [gl, maxScroll]);
 

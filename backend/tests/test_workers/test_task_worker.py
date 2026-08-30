@@ -7,6 +7,8 @@ require a running worker or real model credentials.
 
 import json
 import uuid
+from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,6 +94,13 @@ async def test_execute_task_success_updates_task_and_agent(
     monkeypatch.setattr(task_worker_module, "emit_celebration", celebrated.append)
     dialogue_calls = _RecordingDelay()
     monkeypatch.setattr(task_worker_module, "generate_and_emit_dialogue", dialogue_calls)
+    # A real store_memory.delay() here would enqueue a genuine Celery
+    # message referencing this test's rolled-back-at-teardown task id — the
+    # real worker later chokes on it with a FK violation, since Postgres's
+    # rollback and Redis's already-published message aren't transactional
+    # with each other. Same reasoning applies everywhere else in this file
+    # that reaches this success path.
+    monkeypatch.setattr(task_worker_module, "store_memory", _RecordingDelay())
 
     await task_worker_module._execute_task_async(task.id)
 
@@ -130,6 +139,55 @@ async def test_execute_task_engine_failure_marks_task_failed(
     assert agent.status == "idle"
     assert celebrated == []
     assert len(dialogue_calls.calls) == 1  # work-start only, no work-done on failure
+
+
+async def test_execute_task_short_circuits_when_cost_ceiling_exceeded(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    agent, task = await _make_agent_and_task(db_session)
+
+    # A prior completed task in the last 24h already spent past the ceiling.
+    prior = Task(
+        title="prior", brief="x", assigned_agents=[agent.id],
+        status="completed", cost_usd=10, completed_at=datetime.now(timezone.utc),
+    )
+    db_session.add(prior)
+    await db_session.flush()
+
+    fake_settings = SimpleNamespace(daily_cost_ceiling_usd=5.0)
+    monkeypatch.setattr(task_worker_module, "get_settings", lambda: fake_settings)
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    engine_calls: list[Agent] = []
+    monkeypatch.setattr(
+        task_worker_module, "get_engine", lambda a: engine_calls.append(a) or _StubEngine()
+    )
+
+    await task_worker_module._execute_task_async(task.id)
+
+    await db_session.refresh(task)
+    assert task.status == "failed"
+    assert "cost ceiling" in task.result_raw.lower()
+    assert engine_calls == []  # never reached the engine
+
+
+async def test_execute_task_ignores_ceiling_when_unset(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    agent, task = await _make_agent_and_task(db_session)
+
+    fake_settings = SimpleNamespace(daily_cost_ceiling_usd=None)
+    monkeypatch.setattr(task_worker_module, "get_settings", lambda: fake_settings)
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    stub = _StubEngine(result=EngineResult(output="ok", tokens_used=1, cost_usd=0.01))
+    monkeypatch.setattr(task_worker_module, "get_engine", lambda a: stub)
+    monkeypatch.setattr(task_worker_module, "emit_celebration", lambda *_: None)
+    monkeypatch.setattr(task_worker_module, "generate_and_emit_dialogue", _RecordingDelay())
+    monkeypatch.setattr(task_worker_module, "store_memory", _RecordingDelay())
+
+    await task_worker_module._execute_task_async(task.id)
+
+    await db_session.refresh(task)
+    assert task.status == "completed"
 
 
 async def test_execute_task_missing_task_is_noop(
@@ -259,6 +317,251 @@ async def test_route_task_falls_back_when_engine_raises(
     await db_session.refresh(task)
     assert task.status == "routed"
     assert len(task.result_structured["child_task_ids"]) == 1
+
+
+async def _make_routed_parent_with_children(
+    db_session: AsyncSession, n: int = 2
+) -> tuple[Task, list[tuple[Agent, Task]]]:
+    parent = Task(title="Plan the launch", brief="Ship it", assigned_agents=[], status="routed")
+    db_session.add(parent)
+    await db_session.flush()
+
+    pairs: list[tuple[Agent, Task]] = []
+    for i in range(n):
+        agent = Agent(
+            name=f"Specialist{i}", role="Dev", engine_type="cli", engine_provider="claude_code",
+            personality_traits=[],
+        )
+        db_session.add(agent)
+        await db_session.flush()
+        child = Task(
+            title=f"Subtask {i}", brief=f"Do part {i}", assigned_agents=[agent.id],
+            parent_task_id=parent.id, status="pending",
+        )
+        db_session.add(child)
+        await db_session.flush()
+        pairs.append((agent, child))
+
+    parent.result_structured = {"child_task_ids": [str(c.id) for _, c in pairs]}
+    await db_session.commit()
+    return parent, pairs
+
+
+async def test_parent_completes_once_all_children_finish(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    parent, pairs = await _make_routed_parent_with_children(db_session, n=2)
+    (agent1, child1), (agent2, child2) = pairs
+
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "emit_celebration", lambda *_: None)
+    monkeypatch.setattr(task_worker_module, "generate_and_emit_dialogue", _RecordingDelay())
+    monkeypatch.setattr(task_worker_module, "store_memory", _RecordingDelay())
+    status_calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        task_worker_module, "emit_task_status", lambda tid, status: status_calls.append((tid, status))
+    )
+
+    stub = _StubEngine(result=EngineResult(output="done 1", tokens_used=1, cost_usd=0.0))
+    monkeypatch.setattr(task_worker_module, "get_engine", lambda a: stub)
+    await task_worker_module._execute_task_async(child1.id)
+
+    await db_session.refresh(parent)
+    assert parent.status == "routed"  # still waiting on child2
+    assert (str(parent.id), "completed") not in status_calls
+
+    await task_worker_module._execute_task_async(child2.id)
+
+    await db_session.refresh(parent)
+    assert parent.status == "completed"
+    assert parent.completed_at is not None
+    children = parent.result_structured["children"]
+    assert len(children) == 2
+    assert {c["status"] for c in children} == {"completed"}
+    assert parent.result_structured["child_task_ids"] == [str(child1.id), str(child2.id)]  # preserved
+    assert (str(parent.id), "completed") in status_calls
+
+
+async def test_parent_fails_when_any_child_fails(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    parent, pairs = await _make_routed_parent_with_children(db_session, n=2)
+    (agent1, child1), (agent2, child2) = pairs
+
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "emit_celebration", lambda *_: None)
+    monkeypatch.setattr(task_worker_module, "generate_and_emit_dialogue", _RecordingDelay())
+    monkeypatch.setattr(task_worker_module, "store_memory", _RecordingDelay())
+
+    ok = _StubEngine(result=EngineResult(output="done", tokens_used=1, cost_usd=0.0))
+    monkeypatch.setattr(task_worker_module, "get_engine", lambda a: ok)
+    await task_worker_module._execute_task_async(child1.id)
+
+    boom = _StubEngine(error=RuntimeError("boom"))
+    monkeypatch.setattr(task_worker_module, "get_engine", lambda a: boom)
+    await task_worker_module._execute_task_async(child2.id)
+
+    await db_session.refresh(parent)
+    assert parent.status == "failed"
+
+
+async def test_parent_completion_is_idempotent_against_double_trigger(
+    db_session: AsyncSession,
+) -> None:
+    # Simulates two siblings finishing "concurrently": both already terminal
+    # before _maybe_complete_parent runs a second time for the same parent.
+    parent, pairs = await _make_routed_parent_with_children(db_session, n=1)
+    _agent, child = pairs[0]
+    child.status = "completed"
+    await db_session.commit()
+
+    await task_worker_module._maybe_complete_parent(db_session, child)
+    await db_session.refresh(parent)
+    assert parent.status == "completed"
+    first_completed_at = parent.completed_at
+
+    await task_worker_module._maybe_complete_parent(db_session, child)
+    await db_session.refresh(parent)
+    assert parent.completed_at == first_completed_at  # not re-aggregated
+
+
+async def test_route_task_writes_delegation_notice_to_child_agent_inbox(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession, tmp_path
+) -> None:
+    boss, teammate, task = await _make_boss_and_team(db_session)
+    teammate.working_directory = str(tmp_path)
+    await db_session.commit()
+
+    decomposition = json.dumps(
+        [{"agent_id": str(teammate.id), "title": "Draft the pitch", "brief": "Write the pitch deck"}]
+    )
+    stub = _StubEngine(result=EngineResult(output=decomposition, raw_output=decomposition))
+    monkeypatch.setattr(task_worker_module, "get_engine", lambda a: stub)
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "execute_task", _RecordingDelay())
+
+    await task_worker_module._route_task_async(task.id)
+
+    inbox_files = list((tmp_path / "inbox").glob("*.json"))
+    assert len(inbox_files) == 1
+    notice = json.loads(inbox_files[0].read_text())
+    assert notice["parent_brief"] == task.brief
+    assert notice["brief"] == "Write the pitch deck"
+
+
+async def test_dependencies_satisfied_empty_is_true(db_session: AsyncSession) -> None:
+    task = Task(title="t", brief="x", assigned_agents=[])
+    db_session.add(task)
+    await db_session.flush()
+    assert await task_worker_module.dependencies_satisfied(db_session, task) is True
+
+
+async def test_dependencies_satisfied_true_when_all_completed(db_session: AsyncSession) -> None:
+    dep = Task(title="dep", brief="x", assigned_agents=[], status="completed")
+    db_session.add(dep)
+    await db_session.flush()
+    task = Task(title="t", brief="x", assigned_agents=[], depends_on=[dep.id])
+    db_session.add(task)
+    await db_session.flush()
+
+    assert await task_worker_module.dependencies_satisfied(db_session, task) is True
+
+
+async def test_dependencies_satisfied_false_when_one_still_pending(db_session: AsyncSession) -> None:
+    dep = Task(title="dep", brief="x", assigned_agents=[], status="in_progress")
+    db_session.add(dep)
+    await db_session.flush()
+    task = Task(title="t", brief="x", assigned_agents=[], depends_on=[dep.id])
+    db_session.add(task)
+    await db_session.flush()
+
+    assert await task_worker_module.dependencies_satisfied(db_session, task) is False
+
+
+async def test_dependencies_satisfied_false_for_dangling_id(db_session: AsyncSession) -> None:
+    task = Task(title="t", brief="x", assigned_agents=[], depends_on=[uuid.uuid4()])
+    db_session.add(task)
+    await db_session.flush()
+
+    assert await task_worker_module.dependencies_satisfied(db_session, task) is False
+
+
+async def test_promote_blocked_dependents_dispatches_once_satisfied(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    dep = Task(title="dep", brief="x", assigned_agents=[], status="completed")
+    db_session.add(dep)
+    await db_session.flush()
+    blocked = Task(
+        title="blocked", brief="x", assigned_agents=[], status="blocked", depends_on=[dep.id]
+    )
+    db_session.add(blocked)
+    await db_session.flush()
+
+    dispatched: list[str] = []
+    monkeypatch.setattr(task_worker_module.execute_task, "delay", lambda tid: dispatched.append(tid))
+
+    await task_worker_module._promote_blocked_dependents(db_session, dep)
+
+    await db_session.refresh(blocked)
+    assert blocked.status == "assigned"
+    assert dispatched == [str(blocked.id)]
+
+
+async def test_promote_blocked_dependents_skips_still_unsatisfied(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    dep1 = Task(title="dep1", brief="x", assigned_agents=[], status="completed")
+    dep2 = Task(title="dep2", brief="x", assigned_agents=[], status="in_progress")
+    db_session.add_all([dep1, dep2])
+    await db_session.flush()
+    blocked = Task(
+        title="blocked", brief="x", assigned_agents=[], status="blocked",
+        depends_on=[dep1.id, dep2.id],
+    )
+    db_session.add(blocked)
+    await db_session.flush()
+
+    dispatched: list[str] = []
+    monkeypatch.setattr(task_worker_module.execute_task, "delay", lambda tid: dispatched.append(tid))
+
+    await task_worker_module._promote_blocked_dependents(db_session, dep1)
+
+    await db_session.refresh(blocked)
+    assert blocked.status == "blocked"  # dep2 still not done
+    assert dispatched == []
+
+
+async def test_route_task_short_circuits_when_cost_ceiling_exceeded(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    boss, _teammate, task = await _make_boss_and_team(db_session)
+
+    prior = Task(
+        title="prior", brief="x", assigned_agents=[boss.id],
+        status="completed", cost_usd=10, completed_at=datetime.now(timezone.utc),
+    )
+    db_session.add(prior)
+    await db_session.flush()
+
+    fake_settings = SimpleNamespace(daily_cost_ceiling_usd=5.0)
+    monkeypatch.setattr(task_worker_module, "get_settings", lambda: fake_settings)
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    engine_calls: list[Agent] = []
+    monkeypatch.setattr(
+        task_worker_module, "get_engine", lambda a: engine_calls.append(a) or _StubEngine()
+    )
+
+    await task_worker_module._route_task_async(task.id)
+
+    await db_session.refresh(task)
+    assert task.status == "failed"
+    assert engine_calls == []
+    # No agent= was passed to _mark_failed here (see task_worker.py's own
+    # comment) since _route_task_async never puts the orchestrator into a
+    # "working" state in the first place — nothing to reset back to idle.
+    await db_session.refresh(boss)
+    assert boss.status == "idle"
 
 
 async def test_route_task_without_orchestrator_marks_failed(

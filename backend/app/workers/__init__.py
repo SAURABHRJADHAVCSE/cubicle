@@ -14,6 +14,15 @@ app.conf.update(
     task_serializer="json",
     accept_content=["json"],
     timezone="UTC",
+    # Backstop only — the primary timeout is the asyncio.wait_for() inside
+    # each engine's execute() (see claude_code.py/litellm_engine.py), which
+    # produces a clean `failed` task record. This is a coarser last resort
+    # for a hang that mechanism somehow doesn't catch: under the default
+    # prefork pool, exceeding task_time_limit SIGKILLs the worker child
+    # process (Celery auto-respawns it) without writing a task result at
+    # all, so it's strictly worse than the in-process path succeeding.
+    task_soft_time_limit=settings.task_timeout_seconds + 30,
+    task_time_limit=settings.task_timeout_seconds + 60,
     beat_schedule={
         "detect-social-triggers": {
             "task": "detect_social_triggers",

@@ -1,10 +1,18 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Clock3, GitBranch, LoaderCircle } from "lucide-react";
+import { AlertCircle, Ban, CheckCircle2, Clock3, GitBranch, LoaderCircle } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TaskResult } from "@/components/tasks/TaskResult";
 import { useAgents } from "@/hooks/useAgents";
+import { useUpdateTask } from "@/hooks/useTasks";
 import { formatRelativeTime } from "@/lib/utils";
 import type { Task, TaskStatus } from "@/types/task";
 
@@ -16,12 +24,18 @@ const STATUS_STYLES: Record<TaskStatus, { label: string; className: string }> = 
   completed: { label: "Completed", className: "bg-success/12 text-success border-success/40" },
   failed: { label: "Failed", className: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/40" },
   routed: { label: "Routed", className: "bg-primary/12 text-primary border-primary/40" },
+  blocked: { label: "Blocked", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40" },
 };
+
+const STATUS_OPTIONS = Object.fromEntries(
+  Object.entries(STATUS_STYLES).map(([value, { label }]) => [value, label]),
+) as Record<TaskStatus, string>;
 
 function StatusIcon({ status }: { status: TaskStatus }) {
   if (status === "completed") return <CheckCircle2 className="size-3" />;
   if (status === "failed") return <AlertCircle className="size-3" />;
   if (status === "routed") return <GitBranch className="size-3" />;
+  if (status === "blocked") return <Ban className="size-3" />;
   if (["assigned", "in_progress"].includes(status)) {
     return <LoaderCircle className="size-3 animate-spin" />;
   }
@@ -38,8 +52,17 @@ function refNumber(id: string): string {
   return id.replace(/-/g, "").slice(0, 6).toUpperCase();
 }
 
-export function TaskCard({ task }: { task: Task }) {
+interface TaskCardProps {
+  task: Task;
+  /** Renders the status stamp as an editable control instead of a plain
+   * pill — only TaskBoard passes this, so TaskHistory's flat list looks
+   * exactly as it always has. */
+  showStatusControl?: boolean;
+}
+
+export function TaskCard({ task, showStatusControl = false }: TaskCardProps) {
   const { data: agents } = useAgents();
+  const updateTask = useUpdateTask();
   const status = STATUS_STYLES[task.status];
   const assignedAgents = task.assigned_agents
     .map((id) => agents?.find((agent) => agent.id === id))
@@ -67,10 +90,34 @@ export function TaskCard({ task }: { task: Task }) {
             {task.brief}
           </p>
         </div>
-        <span className={`stamp-badge inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-4xs font-bold uppercase ${status.className}`}>
-          <StatusIcon status={task.status} />
-          {status.label}
-        </span>
+        {showStatusControl ? (
+          <Select
+            value={task.status}
+            onValueChange={(value) =>
+              value && updateTask.mutate({ id: task.id, payload: { status: value as TaskStatus } })
+            }
+            items={STATUS_OPTIONS}
+          >
+            <SelectTrigger
+              className={`stamp-badge h-auto shrink-0 gap-1 rounded border px-2 py-0.5 text-4xs font-bold uppercase ${status.className}`}
+            >
+              <StatusIcon status={task.status} />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(STATUS_OPTIONS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className={`stamp-badge inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-4xs font-bold uppercase ${status.className}`}>
+            <StatusIcon status={task.status} />
+            {status.label}
+          </span>
+        )}
       </div>
 
       <div className="mt-2.5 flex items-center justify-between border-t border-border/60 pt-2">

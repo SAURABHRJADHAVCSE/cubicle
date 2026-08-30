@@ -5,7 +5,8 @@ export type TaskStatus =
   | "review"
   | "completed"
   | "failed"
-  | "routed";
+  | "routed"
+  | "blocked";
 
 export interface Task {
   id: string;
@@ -16,6 +17,8 @@ export interface Task {
 
   assigned_agents: string[];
   orchestrator_agent_id: string | null;
+  parent_task_id: string | null;
+  depends_on: string[];
 
   result_structured: Record<string, unknown> | null;
   result_raw: string | null;
@@ -36,4 +39,11 @@ export interface TaskCreate {
   priority?: number;
   assigned_agents: string[];
   orchestrator_agent_id?: string | null;
+  parent_task_id?: string | null;
+  depends_on?: string[];
+}
+
+export interface TaskUpdate {
+  status?: TaskStatus;
+  priority?: number;
 }

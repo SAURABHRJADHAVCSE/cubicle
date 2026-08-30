@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
-import type { TaskCreate } from "@/types/task";
+import type { TaskCreate, TaskUpdate } from "@/types/task";
 
 const TASKS_KEY = ["tasks"];
 
@@ -30,6 +30,15 @@ export function useExecuteTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.tasks.execute(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+  });
+}
+
+export function useUpdateTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: TaskUpdate }) =>
+      api.tasks.update(id, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
   });
 }

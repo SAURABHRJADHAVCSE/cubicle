@@ -38,6 +38,13 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/app:/app/app
+      # Also bind-mounted (not just app/): this container is the one that
+      # runs `alembic upgrade head` on every start and is where `docker
+      # compose exec cubicle-api pytest` runs from — without these, a new
+      # migration or test file only exists on the host until the next image
+      # rebuild, silently running against a stale copy otherwise.
+      - ./backend/alembic:/app/alembic
+      - ./backend/tests:/app/tests
       # Bind mount, not a named volume: agents' written files need to show up
       # as a real folder on the host (Explorer/VS Code), not sealed inside
       # Docker Desktop's VM where only `docker cp`/`docker run` can reach them.

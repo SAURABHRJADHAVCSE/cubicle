@@ -17,7 +17,7 @@ import type {
 import type { CallConfig } from "@/types/call";
 import type { ChatRequest, ConversationMessage } from "@/types/chat";
 import type { ClaudeAuthStart, ClaudeAuthStatus } from "@/types/settings";
-import type { Task, TaskCreate } from "@/types/task";
+import type { Task, TaskCreate, TaskUpdate } from "@/types/task";
 
 export class ApiError extends Error {
   constructor(
@@ -118,6 +118,8 @@ export const api = {
     create: (payload: TaskCreate) =>
       request<Task>("/tasks", { method: "POST", body: JSON.stringify(payload) }),
     execute: (id: string) => request<Task>(`/tasks/${id}/execute`, { method: "POST" }),
+    update: (id: string, payload: TaskUpdate) =>
+      request<Task>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   },
   chat: {
     history: (agentId: string) =>

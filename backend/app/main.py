@@ -11,7 +11,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi import Depends
 
-from app.api import agents, auth, calls, chat, devices, engines, health, settings as settings_api, tasks
+from app.api import (
+    agents,
+    auth,
+    calls,
+    chat,
+    devices,
+    engines,
+    health,
+    settings as settings_api,
+    tasks,
+    webhooks,
+)
 from app.api.deps import get_current_device
 from app.config import get_settings
 from app.database import engine
@@ -67,6 +78,11 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(devices.router)
+# Also public: it isn't gated by device pairing at all — an external caller
+# (CI, a script, a future Slack integration) authenticates via its own
+# shared secret instead (see app.api.deps.verify_webhook_secret, applied
+# per-route inside the router itself).
+app.include_router(webhooks.router)
 
 # Protected: every route here requires a valid device/browser bearer token.
 _protected = Depends(get_current_device)
