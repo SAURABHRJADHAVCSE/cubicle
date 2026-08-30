@@ -30,7 +30,10 @@ async def test_create_agent_respects_explicit_working_directory(
     assert created["working_directory"] == explicit
 
 
-async def test_list_files_empty_workspace(client: AsyncClient, tmp_path) -> None:
+async def test_list_files_only_has_default_soul(client: AsyncClient, tmp_path) -> None:
+    # Formerly "empty workspace" — create_agent now always bootstraps a
+    # starter SOUL.md, so a freshly created agent's workspace is never
+    # truly empty anymore.
     root = tmp_path / "ws"
     root.mkdir()
     created = (
@@ -41,7 +44,7 @@ async def test_list_files_empty_workspace(client: AsyncClient, tmp_path) -> None
     assert resp.status_code == 200
     body = resp.json()
     assert body["path"] == ""
-    assert body["entries"] == []
+    assert [e["name"] for e in body["entries"]] == ["SOUL.md"]
 
 
 async def test_list_and_read_files(client: AsyncClient, tmp_path) -> None:
@@ -59,7 +62,7 @@ async def test_list_and_read_files(client: AsyncClient, tmp_path) -> None:
 
     listing = (await client.get(f"/agents/{agent_id}/files")).json()
     names = {e["name"] for e in listing["entries"]}
-    assert names == {"report.md", "output"}
+    assert names == {"report.md", "output", "SOUL.md"}  # SOUL.md: create_agent's own bootstrap
     dir_entry = next(e for e in listing["entries"] if e["name"] == "output")
     assert dir_entry["type"] == "dir"
     assert dir_entry["size"] is None

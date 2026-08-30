@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, Ban, CheckCircle2, Clock3, GitBranch, LoaderCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { TaskResult } from "@/components/tasks/TaskResult";
 import { useAgents } from "@/hooks/useAgents";
-import { useUpdateTask } from "@/hooks/useTasks";
+import { useTaskConfig, useUpdateTask } from "@/hooks/useTasks";
 import { formatRelativeTime } from "@/lib/utils";
 import type { Task, TaskStatus } from "@/types/task";
 
@@ -52,6 +53,51 @@ function refNumber(id: string): string {
   return id.replace(/-/g, "").slice(0, 6).toUpperCase();
 }
 
+function formatMinutes(ms: number): string {
+  const minutes = Math.round(Math.abs(ms) / 60_000);
+  if (minutes < 1) return "under a minute";
+  return `${minutes}m`;
+}
+
+// Wrapping Date.now() in a named helper, same as lib/utils.ts's own
+// formatRelativeTime does — the React Compiler's purity check flags a bare
+// Date.now() call written directly in a component body (impure, since two
+// renders could disagree), but doesn't trace into a helper function call.
+function msSince(iso: string): number {
+  return Date.now() - new Date(iso).getTime();
+}
+
+/** "started 4m ago · times out in 6m" for a task that's actually mid-flight —
+ * a bare "In progress" label with no sense of how long is too long left the
+ * user with no way to tell a genuinely running task from a dead one (see the
+ * orphaned-task incident this was built in response to). Re-renders on its
+ * own timer since nothing else about the card changes while this ticks. */
+function ProgressTimer({ task }: { task: Task }) {
+  const { data: config } = useTaskConfig();
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 15_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const since = task.status === "in_progress" ? task.started_at : task.updated_at;
+  if (!since || (task.status !== "in_progress" && task.status !== "assigned")) return null;
+
+  const elapsedMs = msSince(since);
+  const remainingMs = config ? config.task_timeout_seconds * 1000 - elapsedMs : null;
+
+  return (
+    <p className="mt-1 text-3xs text-slate-500 dark:text-slate-400">
+      {task.status === "in_progress" ? "Started" : "Assigned"} {formatRelativeTime(since)}
+      {remainingMs !== null &&
+        (remainingMs > 0
+          ? ` · times out in ${formatMinutes(remainingMs)}`
+          : " · overdue — should resolve shortly")}
+    </p>
+  );
+}
+
 interface TaskCardProps {
   task: Task;
   /** Renders the status stamp as an editable control instead of a plain
@@ -89,6 +135,7 @@ export function TaskCard({ task, showStatusControl = false }: TaskCardProps) {
           <p className="mt-1 line-clamp-2 text-2xs leading-relaxed text-slate-500 dark:text-slate-400">
             {task.brief}
           </p>
+          <ProgressTimer task={task} />
         </div>
         {showStatusControl ? (
           <Select

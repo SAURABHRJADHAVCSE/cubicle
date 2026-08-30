@@ -7,9 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.models.task import Task
-from app.schemas.task import TaskCreate, TaskRead, TaskUpdate
+from app.schemas.task import TaskConfigResponse, TaskCreate, TaskRead, TaskUpdate
 from app.workers.task_worker import dependencies_satisfied, dispatch_task
 from app.ws.events import emit_task_status
 
@@ -41,6 +42,13 @@ async def list_tasks(db: AsyncSession = Depends(get_db)) -> list[Task]:
     """List all tasks."""
     result = await db.execute(select(Task).order_by(Task.created_at))
     return list(result.scalars().all())
+
+
+@router.get("/config", response_model=TaskConfigResponse)
+async def task_config() -> TaskConfigResponse:
+    """Registered before /{task_id} — otherwise "config" would be parsed as
+    a task_id and 422 on UUID validation."""
+    return TaskConfigResponse(task_timeout_seconds=get_settings().task_timeout_seconds)
 
 
 @router.get("/{task_id}", response_model=TaskRead)

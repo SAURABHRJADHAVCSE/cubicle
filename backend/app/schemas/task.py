@@ -19,6 +19,14 @@ class TaskCreate(BaseModel):
     depends_on: list[uuid.UUID] = []
 
 
+class TaskConfigResponse(BaseModel):
+    """Exposes the server's task-execution timeout so the UI can show a real
+    ETA on an in-progress task ("times out at 10m") instead of a bare status
+    label with no sense of whether it's still plausibly running."""
+
+    task_timeout_seconds: int
+
+
 class TaskUpdate(BaseModel):
     """Manual field override — e.g. dragging a Kanban card to a new column.
     Deliberately narrow: only status/priority for this pass, not

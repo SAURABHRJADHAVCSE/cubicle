@@ -47,3 +47,7 @@ export interface TaskUpdate {
   status?: TaskStatus;
   priority?: number;
 }
+
+export interface TaskConfig {
+  task_timeout_seconds: number;
+}

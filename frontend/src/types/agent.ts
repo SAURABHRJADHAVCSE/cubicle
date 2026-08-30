@@ -80,3 +80,11 @@ export interface WorkspaceFileContent {
   content?: string | null;
   reason?: string | null;
 }
+
+export interface SoulUpdate {
+  content: string;
+}
+
+export interface SoulRead {
+  content: string;
+}

@@ -25,6 +25,12 @@ async def _create_agent(client: AsyncClient) -> str:
     return resp.json()["id"]
 
 
+async def test_task_config_exposes_timeout(client: AsyncClient) -> None:
+    resp = await client.get("/tasks/config")
+    assert resp.status_code == 200
+    assert resp.json()["task_timeout_seconds"] == 600
+
+
 async def test_create_task_starts_pending(client: AsyncClient) -> None:
     agent_id = await _create_agent(client)
 

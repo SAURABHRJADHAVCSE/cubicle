@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  BookHeart,
   Check,
   CheckCircle2,
   Cpu,
@@ -12,7 +13,7 @@ import {
   User,
   Wand2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ClaudeAuthCard } from "@/components/settings/ClaudeAuthCard";
@@ -36,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateAgent } from "@/hooks/useAgents";
+import { api } from "@/lib/api";
 import type { EngineType } from "@/types/agent";
 
 interface AddAgentDialogProps {
@@ -53,6 +55,7 @@ interface FormState {
   allowedTools: string;
   workingDirectory: string;
   role: string;
+  soul: string;
 }
 
 const DEFAULT_STATE: FormState = {
@@ -65,7 +68,43 @@ const DEFAULT_STATE: FormState = {
   allowedTools: "",
   workingDirectory: "",
   role: "",
+  soul: "",
 };
+
+// A client-side starting point — doesn't need to byte-match the backend's
+// own default_soul_content() (backend/app/utils/soul.py), which writes the
+// exact same file if the user never touches this step. This is just what
+// the wizard shows before the user has a chance to edit or accept it.
+function clientDefaultSoul(name: string, role: string): string {
+  const who = name.trim() || "this agent";
+  const what = role.trim() || "AI Assistant";
+  return `# ${who}
+
+## Core Identity
+
+This is ${who}'s SOUL.md — loaded into context on every task, on top of the role
+(${what}), which is already set separately and doesn't need repeating here. Use this
+for what the role doesn't cover: personality, working style, standards to hold to.
+
+## Responsibilities
+
+- When a brief is ambiguous, make a reasonable call and say what you assumed.
+
+## Behavioral Guidelines
+
+**Do:**
+- Explain your reasoning briefly when a decision isn't obvious.
+- Follow existing patterns already present in a workspace.
+
+**Don't:**
+- Don't invent facts or claim to have done something you didn't.
+- Don't touch files or systems outside what the task requires.
+
+## Notes
+
+Edits here take effect on your next task — no restart needed. You can also edit this
+later from the Command Center's file browser.`;
+}
 
 const COLOR_PRESETS = [
   "#6366f1", // Indigo
@@ -118,27 +157,26 @@ const ROLE_PRESETS = [
   },
 ];
 
+const STEPS = [
+  { id: "identity", label: "Identity", icon: User },
+  { id: "engine", label: "Engine", icon: Cpu },
+  { id: "workspace", label: "Workspace", icon: FolderGit2 },
+  { id: "briefing", label: "Role", icon: Sparkles },
+  { id: "soul", label: "Soul", icon: BookHeart },
+];
+
 export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormState>(DEFAULT_STATE);
   const createAgent = useCreateAgent();
 
-  const steps = useMemo(
-    () =>
-      form.engineType === "cli"
-        ? [
-            { id: "identity", label: "Identity", icon: User },
-            { id: "engine", label: "Engine", icon: Cpu },
-            { id: "workspace", label: "Workspace", icon: FolderGit2 },
-            { id: "briefing", label: "Briefing", icon: Sparkles },
-          ]
-        : [
-            { id: "identity", label: "Identity", icon: User },
-            { id: "engine", label: "Engine", icon: Cpu },
-            { id: "briefing", label: "Briefing", icon: Sparkles },
-          ],
-    [form.engineType],
-  );
+  // Same 5 steps regardless of engine type: every agent gets a real
+  // workspace now (create_agent bootstraps one — SOUL.md, memory, the file
+  // browser all live there — even for API-engine agents, which don't
+  // execute *in* it the way a CLI subprocess does, but still use it).
+  // Soul stays last since its auto-seed reads `role`, only known once
+  // Briefing has been filled in.
+  const steps = STEPS;
 
   function reset() {
     setStep(0);
@@ -155,19 +193,37 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
   const canGoNext =
     (currentStepId === "identity" && form.name.trim().length > 0) ||
     (currentStepId === "engine" && form.engineProvider.length > 0) ||
+    currentStepId === "soul" ||
     currentStepId === "workspace" ||
     currentStepId === "briefing";
 
+  // Lazily seed the soul textarea the first time the wizard reaches that
+  // step, rather than pre-filling it in DEFAULT_STATE — this way it picks
+  // up whatever name the user already typed on the Identity step. Known,
+  // accepted limitation: role is collected later (Briefing step), so the
+  // seed uses the "AI Assistant" fallback and won't retroactively update if
+  // the user fills in a role afterward — fine, since this is just a
+  // starting point the user can edit, not a live-synced preview.
+  useEffect(() => {
+    if (currentStepId === "soul" && form.soul === "") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- seeding a default on first visit to this step, not deriving state from props every render
+      setForm((f) => ({ ...f, soul: clientDefaultSoul(f.name, f.role) }));
+    }
+  }, [currentStepId, form.soul, form.name, form.role]);
+
   async function handleSubmit() {
     try {
-      await createAgent.mutateAsync({
+      const created = await createAgent.mutateAsync({
         name: form.name.trim(),
         role: form.role.trim() || "AI Assistant",
         engine_type: form.engineType,
         engine_provider: form.engineProvider,
         engine_model: form.engineModel.trim() || null,
         engine_command: form.engineType === "cli" ? form.engineCommand.trim() || null : null,
-        working_directory: form.engineType === "cli" ? form.workingDirectory.trim() || null : null,
+        // Every agent gets a real workspace now (SOUL.md, memory, the file
+        // browser all live there), not just CLI-subprocess agents that
+        // actually execute inside it — so this is no longer CLI-gated.
+        working_directory: form.workingDirectory.trim() || null,
         allowed_tools:
           form.engineType === "cli" && form.allowedTools.trim()
             ? form.allowedTools.split(",").map((t) => t.trim()).filter(Boolean)
@@ -179,6 +235,16 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
         personality_traits: [],
         accent_color: form.accentColor,
       });
+      // Own try/catch: agent creation already succeeded at this point (it
+      // even wrote its own default SOUL.md server-side), so a soul-save
+      // failure here shouldn't read as the whole thing having failed.
+      try {
+        await api.agents.writeSoul(created.id, form.soul);
+      } catch {
+        toast.error(
+          `${form.name} was created, but its SOUL.md couldn't be saved — edit it later from the Command Center.`,
+        );
+      }
       toast.success(`${form.name} joined the office HQ`);
       close();
     } catch {
@@ -209,7 +275,7 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
               </span>
             </div>
             <DialogDescription className="text-xs text-slate-400 mt-1">
-              Configure agent personality, AI engine model, workspace, and role briefing.
+              Configure the engine, workspace, role, and behavior for a new agent.
             </DialogDescription>
           </DialogHeader>
 
@@ -511,7 +577,9 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   />
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  The local directory where this agent execution process will run.
+                  {form.engineType === "cli"
+                    ? "Where this agent's tools run — and, either way, where its SOUL.md, memory notes, and any files it produces live."
+                    : "This agent's SOUL.md, memory notes, and any files it produces live here — leave blank to use a generated default."}
                 </p>
               </div>
 
@@ -568,19 +636,28 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                 </div>
               </div>
 
-              {/* Role Briefing Textarea */}
+              {/* Role — deliberately short: this is the label shown on the
+                  agent card, and it's what a boss agent sees (name + role
+                  only, not the full SOUL.md) when deciding who to assign a
+                  subtask to. The deeper behavioral stuff — tone, guardrails,
+                  working style — belongs in Soul (next step), not here. */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="agent-role" className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Role Description & Scope <span className="text-rose-500">*</span>
+                  Role / Job Title <span className="text-rose-500">*</span>
                 </Label>
                 <Textarea
                   id="agent-role"
-                  rows={3}
-                  placeholder="Screens incoming code tasks, resolves backend bugs, and writes documentation..."
+                  rows={2}
+                  placeholder="e.g. Full-Stack Developer — keep this short, it's shown everywhere as this agent's label"
                   value={form.role}
                   onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
                   className="text-xs"
                 />
+                <p className="text-3xs text-slate-500 dark:text-slate-400">
+                  Kept short on purpose — this is the label used on the agent card and given to
+                  a boss agent when it&apos;s deciding who to assign work to. For behavior, tone,
+                  and working style, use the Soul step next.
+                </p>
               </div>
 
               {/* Agent Configuration Summary Review Card */}
@@ -605,6 +682,30 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* STEP: SOUL — last, since its auto-seed reads form.role, only
+              known once the Briefing step above has been filled in. */}
+          {currentStepId === "soul" && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/10 p-3">
+                <BookHeart className="size-4 shrink-0 text-primary mt-0.5" />
+                <p className="text-2xs leading-relaxed text-slate-600 dark:text-slate-300">
+                  This is your agent&apos;s <strong>SOUL.md</strong> — a real file in its
+                  workspace that describes who it is and how it should work. It&apos;s loaded
+                  into context on every task. Edit the starting point below, or accept it as-is
+                  — either way, you can always change it later from the Command Center&apos;s
+                  file browser.
+                </p>
+              </div>
+              <Textarea
+                id="agent-soul"
+                rows={11}
+                value={form.soul}
+                onChange={(e) => setForm((f) => ({ ...f, soul: e.target.value }))}
+                className="font-mono text-2xs leading-relaxed"
+              />
             </div>
           )}
         </div>

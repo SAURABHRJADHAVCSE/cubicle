@@ -13,6 +13,8 @@ from app.database import get_db
 from app.models.agent import Agent
 from app.schemas.agent import AgentCreate, AgentRead, AgentUpdate
 from app.schemas.files import WorkspaceEntry, WorkspaceFileContent, WorkspaceListing
+from app.schemas.soul import SoulRead, SoulUpdate
+from app.utils.soul import default_soul_content, write_soul
 from app.utils.workspace import WorkspacePathError, resolve_workspace_path
 
 logger = structlog.get_logger()
@@ -63,6 +65,17 @@ async def create_agent(payload: AgentCreate, db: AsyncSession = Depends(get_db))
     await db.flush()
     if not agent.working_directory:
         agent.working_directory = os.path.join(get_settings().workspaces_dir, str(agent.id))
+    # Every agent gets a real workspace directory + a starter SOUL.md,
+    # regardless of engine_type — previously nothing created the workspace
+    # root for API-engine agents at all (only the CLI engine lazily
+    # os.makedirs'd one, and only at task-execution time), so an API agent's
+    # working_directory pointed at a path that simply didn't exist yet.
+    # Best-effort: a workspace hiccup here should never block agent creation.
+    try:
+        os.makedirs(agent.working_directory, exist_ok=True)
+        write_soul(agent, default_soul_content(agent))
+    except (OSError, WorkspacePathError) as exc:
+        logger.warning("agent_workspace_bootstrap_failed", agent_id=str(agent.id), error=str(exc))
     await db.commit()
     await db.refresh(agent)
     logger.info("agent_created", agent_id=str(agent.id), name=agent.name)
@@ -176,3 +189,19 @@ async def read_workspace_file(
         )
 
     return WorkspaceFileContent(path=resolved.relative, size=size, readable=True, content=text)
+
+
+@router.put("/{agent_id}/soul", response_model=SoulRead)
+async def update_soul(
+    agent_id: uuid.UUID, payload: SoulUpdate, db: AsyncSession = Depends(get_db)
+) -> SoulRead:
+    """Overwrite an agent's SOUL.md. Reading it back goes through the
+    generic GET .../files/content?path=SOUL.md above — it's just a normal
+    file at the workspace root."""
+    agent = await _get_agent_or_404(agent_id, db)
+    try:
+        write_soul(agent, payload.content)
+    except WorkspacePathError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    logger.info("agent_soul_updated", agent_id=str(agent.id))
+    return SoulRead(content=payload.content)

@@ -7,16 +7,32 @@ require a running worker or real model credentials.
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.engines.base import EngineResult
 from app.models.agent import Agent
 from app.models.task import Task
 from app.workers import task_worker as task_worker_module
+
+
+async def _no_memories(*args: object, **kwargs: object) -> list[str]:
+    return []
+
+
+@pytest.fixture(autouse=True)
+def _mock_memory_search(monkeypatch: pytest.MonkeyPatch) -> None:
+    # get_relevant_memories() now runs on every _execute_task_async call —
+    # without this, ~20 existing tests below would attempt a real embedding
+    # call against host.docker.internal:11434, unreachable in the test
+    # environment. Mirrors test_chat.py's exact existing pattern for the
+    # same function. Tests that want to verify memory injection specifically
+    # override this per-test with their own monkeypatch.setattr call.
+    monkeypatch.setattr(task_worker_module, "get_relevant_memories", _no_memories)
 
 
 class _NoCloseSessionCM:
@@ -42,8 +58,12 @@ class _StubEngine:
     def __init__(self, result: EngineResult | None = None, error: Exception | None = None) -> None:
         self._result = result
         self._error = error
+        self.captured_prompt: str | None = None
+        self.captured_context: dict | None = None
 
     async def execute(self, prompt: str, context: dict) -> EngineResult:
+        self.captured_prompt = prompt
+        self.captured_context = context
         if self._error:
             raise self._error
         return self._result
@@ -117,6 +137,46 @@ async def test_execute_task_success_updates_task_and_agent(
     assert dialogue_calls.calls[1][0] == str(agent.id)
 
 
+async def test_execute_task_folds_soul_and_memory_into_system_prompt(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession, tmp_path
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "SOUL.md").write_text("Always double-check your math.")
+
+    task = Task(title="t", brief="do it", assigned_agents=[])
+    db_session.add(task)
+    await db_session.flush()
+    agent = Agent(
+        name="Ravi", role="Dev", engine_type="cli", engine_provider="claude_code",
+        working_directory=str(workspace), personality_traits=[],
+    )
+    db_session.add(agent)
+    await db_session.flush()
+    task.assigned_agents = [agent.id]
+    await db_session.flush()
+
+    stub = _StubEngine(result=EngineResult(output="ok", tokens_used=1, cost_usd=0.0))
+    monkeypatch.setattr(task_worker_module, "get_engine", lambda a: stub)
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "emit_celebration", lambda *_: None)
+    monkeypatch.setattr(task_worker_module, "generate_and_emit_dialogue", _RecordingDelay())
+    monkeypatch.setattr(task_worker_module, "store_memory", _RecordingDelay())
+
+    async def fake_memories(session, agent, query, limit=5):
+        return ["Once forgot to handle the empty-list case."]
+
+    monkeypatch.setattr(task_worker_module, "get_relevant_memories", fake_memories)
+
+    await task_worker_module._execute_task_async(task.id)
+
+    assert stub.captured_context is not None
+    system_prompt = stub.captured_context["system_prompt"]
+    assert "Always double-check your math." in system_prompt
+    assert "Relevant past experience" in system_prompt
+    assert "Once forgot to handle the empty-list case." in system_prompt
+
+
 async def test_execute_task_engine_failure_marks_task_failed(
     monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:
@@ -188,6 +248,95 @@ async def test_execute_task_ignores_ceiling_when_unset(
 
     await db_session.refresh(task)
     assert task.status == "completed"
+
+
+async def _backdate_updated_at(db_session: AsyncSession, task_id: uuid.UUID, when: datetime) -> None:
+    # Raw SQL, not `task.updated_at = when`: the column's `onupdate=func.now()`
+    # would just overwrite an ORM-assigned value at flush time — this is the
+    # only way to actually get a stale timestamp into the row for the test.
+    await db_session.execute(
+        text("UPDATE tasks SET updated_at = :when WHERE id = :id"), {"when": when, "id": task_id}
+    )
+    await db_session.commit()
+
+
+async def test_reconcile_marks_stale_in_progress_task_failed(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    agent, task = await _make_agent_and_task(db_session)
+    task.status = "in_progress"
+    agent.status = "working"
+    agent.current_task_id = task.id
+    await db_session.commit()
+    from app.config import get_settings as real_get_settings
+
+    stale_threshold = task_worker_module.ORPHAN_GRACE_SECONDS + real_get_settings().task_timeout_seconds
+    await _backdate_updated_at(
+        db_session, task.id, datetime.now(timezone.utc) - timedelta(seconds=stale_threshold + 60)
+    )
+
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+
+    await task_worker_module._reconcile_orphaned_tasks_async()
+
+    await db_session.refresh(task)
+    await db_session.refresh(agent)
+    assert task.status == "failed"
+    assert "orphaned" in task.result_raw.lower()
+    assert agent.status == "idle"
+    assert agent.current_task_id is None
+
+
+async def test_reconcile_leaves_recently_updated_task_alone(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    agent, task = await _make_agent_and_task(db_session)
+    task.status = "in_progress"
+    await db_session.commit()
+    # Not backdated — updated_at is "now", well inside the grace window.
+
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+
+    await task_worker_module._reconcile_orphaned_tasks_async()
+
+    await db_session.refresh(task)
+    assert task.status == "in_progress"  # untouched — still plausibly running
+
+
+async def test_reconcile_catches_stale_assigned_task_too(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    agent, task = await _make_agent_and_task(db_session)
+    task.status = "assigned"  # dispatched but never actually started
+    await db_session.commit()
+    await _backdate_updated_at(
+        db_session, task.id, datetime.now(timezone.utc) - timedelta(seconds=10_000)
+    )
+
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+
+    await task_worker_module._reconcile_orphaned_tasks_async()
+
+    await db_session.refresh(task)
+    assert task.status == "failed"
+
+
+async def test_reconcile_ignores_terminal_and_pending_statuses(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    agent, task = await _make_agent_and_task(db_session)
+    task.status = "pending"  # never dispatched at all — not this sweep's concern
+    await db_session.commit()
+    await _backdate_updated_at(
+        db_session, task.id, datetime.now(timezone.utc) - timedelta(seconds=10_000)
+    )
+
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+
+    await task_worker_module._reconcile_orphaned_tasks_async()
+
+    await db_session.refresh(task)
+    assert task.status == "pending"
 
 
 async def test_execute_task_missing_task_is_noop(
@@ -275,6 +424,44 @@ async def test_route_task_creates_child_tasks_for_valid_decomposition(
     assert child.orchestrator_agent_id == boss.id
     assert child.status == "pending"
     assert execute_calls.calls == [(child_ids[0],)]
+
+
+async def test_route_task_folds_orchestrator_soul_into_system_prompt(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession, tmp_path
+) -> None:
+    workspace = tmp_path / "boss-ws"
+    workspace.mkdir()
+    (workspace / "SOUL.md").write_text("Delegate ruthlessly; never do the work yourself.")
+
+    boss = Agent(
+        name="Michael", role="Manager", engine_type="cli", engine_provider="claude_code",
+        working_directory=str(workspace), personality_traits=[],
+    )
+    teammate = Agent(
+        name="Jim", role="Sales", engine_type="cli", engine_provider="claude_code",
+        personality_traits=[],
+    )
+    db_session.add_all([boss, teammate])
+    await db_session.flush()
+    task = Task(
+        title="Plan the Q3 push", brief="Figure out the Q3 sales push",
+        assigned_agents=[boss.id], orchestrator_agent_id=boss.id,
+    )
+    db_session.add(task)
+    await db_session.flush()
+
+    decomposition = json.dumps(
+        [{"agent_id": str(teammate.id), "title": "Draft the pitch", "brief": "Write the pitch deck"}]
+    )
+    stub = _StubEngine(result=EngineResult(output=decomposition, raw_output=decomposition))
+    monkeypatch.setattr(task_worker_module, "get_engine", lambda a: stub)
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "execute_task", _RecordingDelay())
+
+    await task_worker_module._route_task_async(task.id)
+
+    assert stub.captured_context is not None
+    assert "Delegate ruthlessly; never do the work yourself." in stub.captured_context["system_prompt"]
 
 
 async def test_route_task_falls_back_to_single_subtask_on_bad_json(

@@ -1,15 +1,29 @@
 "use client";
 
-import { ChevronRight, Copy, ExternalLink, File, Folder, FolderOpen, Loader2, X } from "lucide-react";
+import {
+  BookHeart,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  File,
+  Folder,
+  FolderOpen,
+  Loader2,
+  Pencil,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useAgents } from "@/hooks/useAgents";
 import { ApiError, api } from "@/lib/api";
 import { useUIStore } from "@/stores/uiStore";
 import type { WorkspaceEntry, WorkspaceFileContent } from "@/types/agent";
+
+const SOUL_FILENAME = "SOUL.md";
 
 // vscode:// needs forward slashes and URI-escaping, not a raw Windows path.
 function vscodeUri(hostPath: string): string {
@@ -36,6 +50,9 @@ export function FilesPanel() {
   const [openFile, setOpenFile] = useState<WorkspaceFileContent | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [editingSoul, setEditingSoul] = useState(false);
+  const [draftContent, setDraftContent] = useState("");
+  const [savingSoul, setSavingSoul] = useState(false);
 
   // No reset-on-agent-change effect needed: page.tsx mounts this with
   // `key={activeFilesAgentId}`, so switching agents fully remounts the
@@ -93,10 +110,43 @@ export function FilesPanel() {
     if (!activeFilesAgentId) return;
     setFileError(null);
     setOpenFile(null);
+    setEditingSoul(false);
     api.agents
       .readFile(activeFilesAgentId, entry.path)
       .then(setOpenFile)
       .catch((err) => setFileError(err instanceof ApiError ? err.message : "Couldn't open this file."));
+  }
+
+  function backToFolder() {
+    setOpenFile(null);
+    setEditingSoul(false);
+  }
+
+  function startEditingSoul() {
+    if (!openFile) return;
+    setDraftContent(openFile.content ?? "");
+    setEditingSoul(true);
+  }
+
+  function cancelEditingSoul() {
+    setEditingSoul(false);
+  }
+
+  async function saveSoul() {
+    if (!activeFilesAgentId) return;
+    setSavingSoul(true);
+    try {
+      const result = await api.agents.writeSoul(activeFilesAgentId, draftContent);
+      setOpenFile((f) =>
+        f ? { ...f, content: result.content, size: new TextEncoder().encode(result.content).length } : f,
+      );
+      setEditingSoul(false);
+      toast.success("SOUL.md saved");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save SOUL.md");
+    } finally {
+      setSavingSoul(false);
+    }
   }
 
   const crumbs = currentPath ? currentPath.split("/") : [];
@@ -157,15 +207,57 @@ export function FilesPanel() {
           <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2">
             <button
               type="button"
-              onClick={() => setOpenFile(null)}
+              onClick={backToFolder}
               className="flex items-center gap-1 text-2xs font-bold text-primary hover:underline"
             >
               <ChevronRight className="size-3 rotate-180" /> Back to folder
             </button>
             <span className="ml-auto font-mono text-3xs text-muted-foreground">{formatSize(openFile.size)}</span>
+            {openFile.path === SOUL_FILENAME && openFile.readable && (
+              editingSoul ? (
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={cancelEditingSoul}
+                    aria-label="Cancel editing"
+                    disabled={savingSoul}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-6 rounded-full px-2.5 text-3xs font-bold"
+                    onClick={saveSoul}
+                    disabled={savingSoul}
+                  >
+                    {savingSoul ? "Saving…" : "Save"}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={startEditingSoul}
+                  aria-label="Edit SOUL.md"
+                  title="Edit"
+                >
+                  <Pencil className="size-3.5" />
+                </Button>
+              )
+            )}
           </div>
           <div className="min-h-0 flex-1 overflow-auto soft-scrollbar p-4">
-            {openFile.readable ? (
+            {editingSoul ? (
+              <Textarea
+                autoFocus
+                value={draftContent}
+                onChange={(e) => setDraftContent(e.target.value)}
+                className="h-full min-h-full resize-none font-mono text-2xs leading-relaxed"
+              />
+            ) : openFile.readable ? (
               <pre className="paper-grain whitespace-pre-wrap break-words rounded-lg border border-border bg-card p-3 font-mono text-2xs leading-relaxed text-foreground">
                 {openFile.content}
               </pre>
@@ -241,6 +333,11 @@ export function FilesPanel() {
                   >
                     {entry.type === "dir" ? (
                       <Folder className="size-4 shrink-0 text-primary" />
+                    ) : entry.path === SOUL_FILENAME ? (
+                      // Distinguished from an ordinary workspace file — this
+                      // one defines the agent's behavior, worth noticing at
+                      // a glance rather than needing to already know it's here.
+                      <BookHeart className="size-4 shrink-0 text-primary" />
                     ) : (
                       <File className="size-4 shrink-0 text-muted-foreground" />
                     )}

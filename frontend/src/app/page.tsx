@@ -1,7 +1,7 @@
 "use client";
 
-import { Activity, Boxes, Building2, Settings, Sparkles, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Activity, Boxes, Building2, Maximize2, Minimize2, Settings, Sparkles, Users } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AgentList } from "@/components/agents/AgentList";
 import { CallPanel } from "@/components/calls/CallPanel";
@@ -43,6 +43,8 @@ export default function Home() {
   const activeFilesAgentId = useUIStore((s) => s.activeFilesAgentId);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const commandCenterRef = useRef<HTMLDivElement>(null);
+  const [isCommandCenterFullscreen, setIsCommandCenterFullscreen] = useState(false);
   const isMobile = useIsMobileViewport();
   const [mobileTab, setMobileTab] = useState<"agents" | "office">("agents");
   const showOffice = !isMobile || mobileTab === "office";
@@ -52,6 +54,22 @@ export default function Home() {
     agents?.filter((agent) => ["working", "thinking"].includes(agent.status)).length ?? 0;
   const activeTasks =
     tasks?.filter((task) => ["assigned", "in_progress"].includes(task.status)).length ?? 0;
+
+  // Mirrors OfficeScene.tsx's toggleFullscreen exactly — same real Fullscreen
+  // API, same isFullscreen/ref shape — so both panels behave identically
+  // instead of Command Center getting some lighter-weight "maximize" that
+  // reads as a different feature.
+  const toggleCommandCenterFullscreen = useCallback(() => {
+    if (!commandCenterRef.current) return;
+    if (!document.fullscreenElement) {
+      commandCenterRef.current
+        .requestFullscreen()
+        .then(() => setIsCommandCenterFullscreen(true))
+        .catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsCommandCenterFullscreen(false)).catch(() => {});
+    }
+  }, []);
 
   return (
     <div className="app-bg flex h-screen w-screen flex-col overflow-hidden">
@@ -151,7 +169,10 @@ export default function Home() {
           )}
 
           {showCommandCenter && (
-            <div className="glass-panel relative flex min-h-[420px] flex-col overflow-hidden rounded-xl md:h-full md:min-h-0">
+            <div
+              ref={commandCenterRef}
+              className="glass-panel relative flex min-h-[420px] flex-col overflow-hidden rounded-xl md:h-full md:min-h-0"
+            >
               <div className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
                 <div>
                   <div className="flex items-center gap-2">
@@ -164,9 +185,24 @@ export default function Home() {
                     Agents roster & real-time task feed
                   </p>
                 </div>
-                <span className="rounded-full border border-success/25 bg-success/12 px-2.5 py-0.5 text-4xs font-bold tracking-widest text-success">
-                  LIVE
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="rounded-full border border-success/25 bg-success/12 px-2.5 py-0.5 text-4xs font-bold tracking-widest text-success">
+                    LIVE
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="rounded-full border border-border bg-card text-muted-foreground hover:bg-muted"
+                    onClick={toggleCommandCenterFullscreen}
+                    aria-label="Toggle fullscreen"
+                  >
+                    {isCommandCenterFullscreen ? (
+                      <Minimize2 className="size-3.5" />
+                    ) : (
+                      <Maximize2 className="size-3.5" />
+                    )}
+                  </Button>
+                </div>
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">

@@ -16,7 +16,9 @@ from app.engines.registry import get_engine
 from app.models.agent import Agent
 from app.models.task import Task
 from app.utils.inbox import format_inbox_context, read_and_archive_inbox, write_delegation_notice
+from app.utils.memory_search import get_relevant_memories
 from app.utils.push import notify_all_devices
+from app.utils.soul import read_soul
 from app.workers import app as celery_app
 from app.workers.memory_worker import store_memory
 from app.workers.social_worker import generate_and_emit_dialogue
@@ -198,10 +200,25 @@ async def _execute_task_async(task_id: uuid.UUID) -> None:
             # engines only read context["system_prompt"]/["working_dir"],
             # there's nowhere else for this to reach the model.
             inbox_context = format_inbox_context(read_and_archive_inbox(agent))
+            # SOUL.md (identity/behavior, see app/utils/soul.py) and relevant
+            # past memories both belong in system_prompt, not the task-brief
+            # text — they're about who the agent is and what it already
+            # knows, not the specific job at hand. get_relevant_memories
+            # already fails soft internally (returns [] if embedding fails),
+            # so no extra error handling is needed here.
+            system_prompt = f"You are {agent.name}, a {agent.role}."
+            soul = read_soul(agent)
+            if soul:
+                system_prompt += f"\n\n{soul}"
+            memories = await get_relevant_memories(session, agent, task.brief)
+            if memories:
+                system_prompt += "\n\nRelevant past experience:\n" + "\n".join(
+                    f"- {m}" for m in memories
+                )
             result = await engine.execute(
                 inbox_context + task.brief,
                 context={
-                    "system_prompt": f"You are {agent.name}, a {agent.role}.",
+                    "system_prompt": system_prompt,
                     "working_dir": agent.working_directory,
                 },
             )
@@ -343,13 +360,15 @@ async def _route_task_async(task_id: uuid.UUID) -> None:
                 '[{"agent_id": "<uuid from roster>", "title": "<short title>", '
                 '"brief": "<what they should do>"}]'
             )
+            orchestrator_system_prompt = (
+                f"You are {orchestrator.name}, a {orchestrator.role} who manages a team."
+            )
+            orchestrator_soul = read_soul(orchestrator)
+            if orchestrator_soul:
+                orchestrator_system_prompt += f"\n\n{orchestrator_soul}"
             result = await engine.execute(
                 prompt,
-                context={
-                    "system_prompt": (
-                        f"You are {orchestrator.name}, a {orchestrator.role} who manages a team."
-                    ),
-                },
+                context={"system_prompt": orchestrator_system_prompt},
             )
             subtasks = _parse_subtasks(result.raw_output or result.output, roster_by_id)
         except Exception as exc:  # noqa: BLE001 - any routing failure falls back to one subtask
@@ -381,3 +400,60 @@ async def _route_task_async(task_id: uuid.UUID) -> None:
 
         for child_id in child_ids:
             execute_task.delay(child_id)
+
+
+# A task's own in-process timeout (asyncio.wait_for in the engines) and
+# Celery's task_time_limit backstop both only protect against a hang *inside
+# a still-running process*. Neither helps if the worker process itself dies
+# mid-task — a restart, a crash, an OOM kill — since nothing then tells the
+# DB row the process is gone. Confirmed live: a task sat "in_progress" for
+# nearly 2 hours with zero tokens/cost and zero matching Celery active tasks,
+# because a worker restart during a deploy killed it mid-flight and nothing
+# ever reconciled the row. This sweep is that reconciliation.
+ORPHAN_GRACE_SECONDS = 300  # comfortably past task_timeout_seconds + Celery's own +60s hard limit
+
+
+@celery_app.task(name="reconcile_orphaned_tasks")
+def reconcile_orphaned_tasks() -> None:
+    """Synchronous Celery entrypoint; runs the async implementation to completion."""
+    asyncio.run(_reconcile_orphaned_tasks_async())
+
+
+async def _reconcile_orphaned_tasks_async() -> None:
+    """Find tasks stuck in "in_progress"/"assigned" long enough that they
+    can't still be legitimately executing (the in-process timeout would
+    have caught a real hang well before this point), and fail them via the
+    normal _mark_failed path — which also frees their agent and, via the
+    existing terminal-state hook, unblocks/re-aggregates anything waiting
+    on them. Purely time-based (no live Celery inspect() round-trip): once
+    a task is older than task_timeout_seconds + ORPHAN_GRACE_SECONDS, it is
+    orphaned regardless of *why* the owning process is gone.
+    """
+    threshold = datetime.now(timezone.utc) - timedelta(
+        seconds=get_settings().task_timeout_seconds + ORPHAN_GRACE_SECONDS
+    )
+    async with worker_session_factory() as session:
+        stale = list(
+            (
+                await session.execute(
+                    select(Task).where(
+                        Task.status.in_(["in_progress", "assigned"]), Task.updated_at < threshold
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for task in stale:
+            agent = await session.get(Agent, task.assigned_agents[0]) if task.assigned_agents else None
+            logger.warning(
+                "task_reconciled_as_orphaned", task_id=str(task.id), status=task.status,
+                stale_since=task.updated_at.isoformat(),
+            )
+            await _mark_failed(
+                session, task,
+                "Task appears orphaned — no progress for over "
+                f"{get_settings().task_timeout_seconds + ORPHAN_GRACE_SECONDS}s, likely lost when "
+                "a worker process restarted or crashed mid-execution. Please retry.",
+                agent=agent,
+            )

@@ -42,3 +42,13 @@ export function useUpdateTask() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
   });
 }
+
+export function useTaskConfig() {
+  return useQuery({
+    queryKey: ["tasks", "config"],
+    queryFn: api.tasks.config,
+    // Server-side setting, effectively static for the app's lifetime — no
+    // reason to refetch on every focus like the tasks list itself does.
+    staleTime: Infinity,
+  });
+}

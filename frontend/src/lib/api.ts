@@ -4,6 +4,7 @@ import type {
   Agent,
   AgentCreate,
   AgentUpdate,
+  SoulRead,
   WorkspaceFileContent,
   WorkspaceListing,
 } from "@/types/agent";
@@ -17,7 +18,7 @@ import type {
 import type { CallConfig } from "@/types/call";
 import type { ChatRequest, ConversationMessage } from "@/types/chat";
 import type { ClaudeAuthStart, ClaudeAuthStatus } from "@/types/settings";
-import type { Task, TaskCreate, TaskUpdate } from "@/types/task";
+import type { Task, TaskConfig, TaskCreate, TaskUpdate } from "@/types/task";
 
 export class ApiError extends Error {
   constructor(
@@ -111,8 +112,11 @@ export const api = {
       request<WorkspaceListing>(`/agents/${id}/files?path=${encodeURIComponent(path)}`),
     readFile: (id: string, path: string) =>
       request<WorkspaceFileContent>(`/agents/${id}/files/content?path=${encodeURIComponent(path)}`),
+    writeSoul: (id: string, content: string) =>
+      request<SoulRead>(`/agents/${id}/soul`, { method: "PUT", body: JSON.stringify({ content }) }),
   },
   tasks: {
+    config: () => request<TaskConfig>("/tasks/config"),
     list: () => request<Task[]>("/tasks"),
     get: (id: string) => request<Task>(`/tasks/${id}`),
     create: (payload: TaskCreate) =>

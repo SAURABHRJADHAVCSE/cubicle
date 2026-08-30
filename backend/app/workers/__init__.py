@@ -28,6 +28,14 @@ app.conf.update(
             "task": "detect_social_triggers",
             "schedule": 60.0,
         },
+        # Catches tasks orphaned by a worker restart/crash mid-execution —
+        # see task_worker.py's ORPHAN_GRACE_SECONDS comment. A slow-moving
+        # safety net, not something needing the social scheduler's 60s
+        # granularity.
+        "reconcile-orphaned-tasks": {
+            "task": "reconcile_orphaned_tasks",
+            "schedule": 300.0,
+        },
     },
 )
 
