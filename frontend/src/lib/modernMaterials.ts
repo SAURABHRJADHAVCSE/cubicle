@@ -36,7 +36,7 @@ function getOfficeTileTexture(): THREE.CanvasTexture {
   officeTileTexture.colorSpace = THREE.SRGBColorSpace;
   officeTileTexture.wrapS = THREE.RepeatWrapping;
   officeTileTexture.wrapT = THREE.RepeatWrapping;
-  officeTileTexture.repeat.set(4, 3.5);
+  officeTileTexture.repeat.set(8, 7);
   officeTileTexture.magFilter = THREE.NearestFilter;
   officeTileTexture.minFilter = THREE.LinearMipmapLinearFilter;
   return officeTileTexture;

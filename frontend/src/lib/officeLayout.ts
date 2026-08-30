@@ -54,11 +54,10 @@ export function computeRowDepth(layout: DeskLayout[]): number {
   return Math.max(5.8, Math.max(...layout.map((desk) => desk.position[2])) + 1.5);
 }
 
-const WAITING_SEAT_SPACING_X = 0.9;
-const WAITING_ROW_Z = -4.15;
-const WAITING_CENTER_X = -5.6;
-const WAITING_MAX_PER_ROW = 4;
-const WAITING_ROW_SPACING_Z = 0.9;
+const CAFE_SEAT_SPACING_X = 0.9;
+const CAFE_TABLE_Z = -5.05;
+const CAFE_TABLE_CENTER_X = -6.4;
+const CAFE_SEATS_PER_SIDE = 4;
 
 /**
  * Where an agent stands/sits while it has no task assigned — clustered in
@@ -72,16 +71,32 @@ export function computeQueueLayout(agents: Agent[]): DeskLayout[] {
   const ordered = [...agents].sort(
     (a, b) => (a.desk_position ?? Infinity) - (b.desk_position ?? Infinity),
   );
-  const perRow = Math.min(WAITING_MAX_PER_ROW, Math.max(1, ordered.length));
-  const offsetX = ((Math.min(perRow, ordered.length) - 1) * WAITING_SEAT_SPACING_X) / 2;
-
   return ordered.map((agent, i) => {
-    const col = i % perRow;
-    const row = Math.floor(i / perRow);
+    if (i >= CAFE_SEATS_PER_SIDE * 2) {
+      const sofaSeat = i - CAFE_SEATS_PER_SIDE * 2;
+      return {
+        agentId: agent.id,
+        position: [-3.67 + sofaSeat * 0.78, 0, -6.19],
+        rotationY: 0,
+      };
+    }
+
+    const side = Math.floor(i / CAFE_SEATS_PER_SIDE);
+    const column = i % CAFE_SEATS_PER_SIDE;
+    const seatsOnThisSide = Math.min(
+      CAFE_SEATS_PER_SIDE,
+      ordered.length - side * CAFE_SEATS_PER_SIDE,
+    );
+    const offsetX = ((seatsOnThisSide - 1) * CAFE_SEAT_SPACING_X) / 2;
+    const isRearSide = side % 2 === 1;
     return {
       agentId: agent.id,
-      position: [WAITING_CENTER_X + col * WAITING_SEAT_SPACING_X - offsetX, 0, WAITING_ROW_Z + row * WAITING_ROW_SPACING_Z],
-      rotationY: 0,
+      position: [
+        CAFE_TABLE_CENTER_X + column * CAFE_SEAT_SPACING_X - offsetX,
+        0,
+        CAFE_TABLE_Z,
+      ],
+      rotationY: isRearSide ? Math.PI : 0,
     };
   });
 }

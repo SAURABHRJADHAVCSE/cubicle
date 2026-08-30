@@ -1,19 +1,19 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
+import { Html, RoundedBox } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import * as THREE from "three";
 
 import { useOfficeStore } from "@/stores/officeStore";
 import type { AgentMood, AgentStatus } from "@/types/agent";
 
-/** Deterministic per-agent phase offset so idle sway isn't synchronized
- * across every avatar in the room. */
 function hashSeed(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return (h % 1000) / 100;
+  let hash = 0;
+  for (let index = 0; index < id.length; index += 1) {
+    hash = (hash * 31 + id.charCodeAt(index)) >>> 0;
+  }
+  return (hash % 1000) / 100;
 }
 
 const STATUS_COLORS: Record<AgentStatus, string> = {
@@ -24,9 +24,38 @@ const STATUS_COLORS: Record<AgentStatus, string> = {
   offline: "#6b7280",
 };
 
-/** Only what AgentAvatar actually renders from — narrower than the full
- * `Agent` record so BossCabin can reuse this component for a synthetic "you,
- * the CEO" figure that isn't a real agent row at all. */
+const SKIN_TONES = ["#f0c3a5", "#d9a07d", "#b97855", "#8d553b", "#603a2d"];
+const HAIR_COLORS = ["#211c1b", "#3a2923", "#5a3827", "#272b34", "#6b5543"];
+const WALK_SPEED = 1.85;
+const TURN_SPEED = 8;
+const ARRIVED_EPSILON = 0.025;
+const FIGURE_Z = 0.72;
+const BREAK_ROOM_FRONT_Z = -3.1;
+const BREAK_ROOM_RIGHT_X = -2.1;
+const BREAK_ROOM_EXIT = new THREE.Vector3(-2.25, 0, -2.65);
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
+
+function buildTravelRoute(start: THREE.Vector3, destination: THREE.Vector3): THREE.Vector3[] {
+  const startsInBreakRoom = start.z < BREAK_ROOM_FRONT_Z && start.x < BREAK_ROOM_RIGHT_X;
+  const endsInBreakRoom = destination.z < BREAK_ROOM_FRONT_Z && destination.x < BREAK_ROOM_RIGHT_X;
+
+  if (startsInBreakRoom && !endsInBreakRoom) {
+    return [
+      BREAK_ROOM_EXIT.clone(),
+      new THREE.Vector3(destination.x, 0, -1.05),
+      destination.clone(),
+    ];
+  }
+  if (!startsInBreakRoom && endsInBreakRoom) {
+    return [
+      new THREE.Vector3(start.x, 0, -1.05),
+      BREAK_ROOM_EXIT.clone(),
+      destination.clone(),
+    ];
+  }
+  return [destination.clone()];
+}
+
 export interface AgentAvatarSubject {
   id: string;
   name?: string;
@@ -38,251 +67,356 @@ export interface AgentAvatarSubject {
 
 interface AgentAvatarProps {
   agent: AgentAvatarSubject;
-  /** World position this avatar should be at right now — the desk if it has
-   * a task, a queue slot near reception if it doesn't (see Office.tsx). Not
-   * applied directly: the root group lerps toward it every frame so a
-   * status change reads as the agent actually walking there, not
-   * teleporting. */
   targetPosition: [number, number, number];
   targetRotationY: number;
+  animationStateOverride?: "idle" | "working" | "walking" | "celebrating";
+  restWhenIdle?: boolean;
 }
 
-const WALK_SPEED = 2.4; // world units/sec the lerp converges at, tuned by eye
-const ARRIVED_EPSILON = 0.04;
-
-export function AgentAvatar({ agent, targetPosition, targetRotationY }: AgentAvatarProps) {
+export function AgentAvatar({
+  agent,
+  targetPosition,
+  targetRotationY,
+  animationStateOverride,
+  restWhenIdle = false,
+}: AgentAvatarProps) {
   const rootRef = useRef<THREE.Group>(null);
-  const currentPos = useRef(new THREE.Vector3(...targetPosition));
-  const isWalkingRef = useRef(false);
-  const groupRef = useRef<THREE.Group>(null);
-  const leftArmRef = useRef<THREE.Mesh>(null);
-  const rightArmRef = useRef<THREE.Mesh>(null);
+  const figureRef = useRef<THREE.Group>(null);
+  const leftArmRef = useRef<THREE.Group>(null);
+  const rightArmRef = useRef<THREE.Group>(null);
+  const leftForearmRef = useRef<THREE.Group>(null);
+  const rightForearmRef = useRef<THREE.Group>(null);
   const leftLegRef = useRef<THREE.Group>(null);
   const rightLegRef = useRef<THREE.Group>(null);
+  const leftKneeRef = useRef<THREE.Group>(null);
+  const rightKneeRef = useRef<THREE.Group>(null);
+  const [initialPosition] = useState(() => new THREE.Vector3(...targetPosition));
+  const currentPosition = useRef(initialPosition.clone());
+  const lastDestination = useRef(new THREE.Vector3(...targetPosition));
+  const destinationVector = useRef(new THREE.Vector3(...targetPosition));
+  const travelRoute = useRef<THREE.Vector3[]>([]);
+  const travelDirection = useRef(new THREE.Vector3());
+  const desiredRotation = useRef(new THREE.Quaternion());
+  const walkPhase = useRef(0);
 
-  // Only ever read inside useFrame below, never in the JSX — R3F re-registers
-  // the useFrame callback every render, so it always sees the latest value
-  // here without a stale-closure risk, and this avoids a render subscription
-  // for a value nothing in the render output actually uses.
   const storedAnimationState = useOfficeStore(
-    (s) => s.agents[agent.id]?.animationState ?? "idle",
+    (state) => state.agents[agent.id]?.animationState ?? "idle",
   );
-  const ringColor = STATUS_COLORS[agent.status];
-  const skinMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#d99b78", roughness: 0.72 }),
-    [],
-  );
-
-  const shoeMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.5 }),
-    [],
-  );
-  const shirtMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: agent.accent_color || "#6366f1", roughness: 0.4 }),
-    [agent.accent_color],
-  );
-  const hairMat = useMemo(
-    () => new THREE.MeshStandardMaterial({
-      color: ["#1e1b4b", "#451a03", "#78350f", "#334155", "#0f172a"][Math.floor(hashSeed(agent.id)) % 5],
-      roughness: 0.7
-    }),
-    [agent.id],
-  );
-  const eyeMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#0f172a" }),
-    [],
-  );
-  const glassesMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#f8fafc", metalness: 0.8, roughness: 0.2 }),
-    [],
-  );
-  const headsetMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#818cf8", metalness: 0.6, roughness: 0.3 }),
-    [],
-  );
-
-  const SEAT_TOP_Y = 0.49;
-  const SEAT_Z = 0.8;
+  const animationState = animationStateOverride ?? storedAnimationState;
   const seed = useMemo(() => hashSeed(agent.id), [agent.id]);
-  const hasGlasses = Math.floor(seed) % 2 === 0;
-  const hasHeadset = Math.floor(seed) % 3 === 0;
+  const statusColor = STATUS_COLORS[agent.status];
+  const hasGlasses = Math.floor(seed) % 3 === 0;
+
+  const materials = useMemo(() => {
+    const accent = new THREE.Color(agent.accent_color || "#4f46e5");
+    const jacket = accent.clone().offsetHSL(0, -0.08, -0.12);
+    const trousers = accent.clone().offsetHSL(0, -0.32, -0.32);
+    const skin = SKIN_TONES[Math.floor(seed * 7) % SKIN_TONES.length];
+    const hair = HAIR_COLORS[Math.floor(seed * 11) % HAIR_COLORS.length];
+    const make = (color: THREE.ColorRepresentation, roughness: number, metalness = 0) =>
+      new THREE.MeshStandardMaterial({ color, roughness, metalness });
+
+    return {
+      skin: make(skin, 0.78),
+      hair: make(hair, 0.86),
+      jacket: make(jacket, 0.72),
+      shirt: make("#f4f1eb", 0.82),
+      trousers: make(trousers, 0.76),
+      shoe: make("#252525", 0.38, 0.08),
+      eye: make("#24201e", 0.65),
+      detail: make("#4b5563", 0.34, 0.42),
+    };
+  }, [agent.accent_color, seed]);
 
   useFrame(({ clock }, delta) => {
-    if (!rootRef.current || !groupRef.current) return;
-    const t = clock.elapsedTime;
+    if (!rootRef.current || !figureRef.current) return;
 
-    // Root group: world position/facing — walks toward wherever this agent
-    // should currently be (desk if working, queue slot if not) instead of
-    // snapping there the instant `targetPosition` changes.
-    const target = new THREE.Vector3(...targetPosition);
-    const distance = rootRef.current.position.distanceTo(target);
-    const isWalking = distance > ARRIVED_EPSILON;
-    isWalkingRef.current = isWalking;
-    if (isWalking) {
-      currentPos.current.lerp(target, Math.min(1, delta * WALK_SPEED));
-      rootRef.current.position.copy(currentPos.current);
-      // Face the direction of travel while actually moving.
-      const dx = target.x - rootRef.current.position.x;
-      const dz = target.z - rootRef.current.position.z;
-      if (Math.hypot(dx, dz) > 0.01) rootRef.current.rotation.y = Math.atan2(dx, dz);
-    } else {
-      rootRef.current.position.copy(target);
-      currentPos.current.copy(target);
-      rootRef.current.rotation.y = targetRotationY;
+    const time = clock.elapsedTime;
+    const destination = destinationVector.current.set(...targetPosition);
+    if (!lastDestination.current.equals(destination)) {
+      travelRoute.current = buildTravelRoute(rootRef.current.position, destination);
+      lastDestination.current.copy(destination);
     }
 
-    // Inner group: local pose — walking overrides whatever the task-status
-    // pose would be, since an agent en route to its desk shouldn't play the
-    // "working" typing animation for the second before it actually sits.
+    let target = travelRoute.current[0] ?? destination;
+    if (
+      travelRoute.current.length > 0 &&
+      rootRef.current.position.distanceTo(target) <= ARRIVED_EPSILON
+    ) {
+      rootRef.current.position.copy(target);
+      currentPosition.current.copy(target);
+      travelRoute.current.shift();
+      target = travelRoute.current[0] ?? destination;
+    }
+
+    const distance = rootRef.current.position.distanceTo(target);
+    const isWalking = distance > ARRIVED_EPSILON || travelRoute.current.length > 0;
+
     if (isWalking) {
-      const stride = Math.sin(t * 9);
-      groupRef.current.position.set(0, SEAT_TOP_Y + Math.abs(Math.sin(t * 9)) * 0.05, SEAT_Z);
-      groupRef.current.rotation.y = 0;
-      if (leftArmRef.current && rightArmRef.current) {
-        leftArmRef.current.rotation.x = stride * 0.5;
-        rightArmRef.current.rotation.x = -stride * 0.5;
+      const direction = travelDirection.current.copy(target).sub(rootRef.current.position);
+      const remainingDistance = direction.length();
+      if (remainingDistance > 0) {
+        const step = Math.min(remainingDistance, WALK_SPEED * delta);
+        direction.multiplyScalar(step / remainingDistance);
+        currentPosition.current.copy(rootRef.current.position).add(direction);
       }
-      if (leftLegRef.current && rightLegRef.current) {
-        leftLegRef.current.rotation.x = -stride * 0.5;
-        rightLegRef.current.rotation.x = stride * 0.5;
+      rootRef.current.position.copy(currentPosition.current);
+      const deltaX = target.x - rootRef.current.position.x;
+      const deltaZ = target.z - rootRef.current.position.z;
+      if (Math.hypot(deltaX, deltaZ) > 0.01) {
+        desiredRotation.current.setFromAxisAngle(
+          UP_AXIS,
+          Math.atan2(deltaX, deltaZ),
+        );
+        rootRef.current.quaternion.slerp(
+          desiredRotation.current,
+          1 - Math.exp(-TURN_SPEED * delta),
+        );
+      }
+    } else {
+      rootRef.current.position.copy(destination);
+      currentPosition.current.copy(destination);
+      desiredRotation.current.setFromAxisAngle(
+        UP_AXIS,
+        targetRotationY,
+      );
+      rootRef.current.quaternion.slerp(
+        desiredRotation.current,
+        1 - Math.exp(-TURN_SPEED * delta),
+      );
+    }
+
+    const leftArm = leftArmRef.current;
+    const rightArm = rightArmRef.current;
+    const leftForearm = leftForearmRef.current;
+    const rightForearm = rightForearmRef.current;
+    const leftLeg = leftLegRef.current;
+    const rightLeg = rightLegRef.current;
+    const leftKnee = leftKneeRef.current;
+    const rightKnee = rightKneeRef.current;
+
+    if (isWalking) {
+      walkPhase.current += delta * 7.6;
+      const stride = Math.sin(walkPhase.current);
+      const stepLift = Math.abs(Math.sin(walkPhase.current * 2));
+      figureRef.current.position.set(0, 0.02 + stepLift * 0.028, FIGURE_Z);
+      figureRef.current.rotation.set(0.045, 0, -stride * 0.015);
+      if (leftArm && rightArm) {
+        leftArm.rotation.x = stride * 0.56;
+        rightArm.rotation.x = -stride * 0.56;
+      }
+      if (leftForearm && rightForearm) {
+        leftForearm.rotation.x = 0.08;
+        rightForearm.rotation.x = 0.08;
+      }
+      if (leftLeg && rightLeg) {
+        leftLeg.rotation.x = -stride * 0.54;
+        rightLeg.rotation.x = stride * 0.54;
+      }
+      if (leftKnee && rightKnee) {
+        leftKnee.rotation.x = Math.max(0, stride) * -0.35;
+        rightKnee.rotation.x = Math.max(0, -stride) * -0.35;
       }
       return;
     }
-    // Arrived — legs return to the seated/standing rest pose regardless of
-    // which state renders next below.
-    if (leftLegRef.current && rightLegRef.current) {
-      leftLegRef.current.rotation.x = 0;
-      rightLegRef.current.rotation.x = 0;
+
+    if (animationState === "working") {
+      const typing = Math.sin(time * 13) * 0.05;
+      figureRef.current.position.set(0, -0.08 + Math.sin(time * 3) * 0.006, FIGURE_Z - 0.03);
+      figureRef.current.rotation.set(0.035, 0, 0);
+      if (leftArm && rightArm) {
+        leftArm.rotation.x = 0.72 + typing;
+        rightArm.rotation.x = 0.72 - typing;
+      }
+      if (leftForearm && rightForearm) {
+        leftForearm.rotation.x = 0.62 + typing;
+        rightForearm.rotation.x = 0.62 - typing;
+      }
+      if (leftLeg && rightLeg && leftKnee && rightKnee) {
+        leftLeg.rotation.x = 1.18;
+        rightLeg.rotation.x = 1.18;
+        leftKnee.rotation.x = -1.18;
+        rightKnee.rotation.x = -1.18;
+      }
+      return;
     }
 
-    if (storedAnimationState === "working") {
-      groupRef.current.position.set(0, SEAT_TOP_Y + Math.sin(t * 6) * 0.015, SEAT_Z - 0.05);
-      groupRef.current.rotation.y = 0;
-      if (leftArmRef.current && rightArmRef.current) {
-        leftArmRef.current.rotation.x = -Math.PI / 3 + Math.sin(t * 14) * 0.12;
-        rightArmRef.current.rotation.x = -Math.PI / 3 + Math.cos(t * 14) * 0.12;
+    if (animationState === "idle" && restWhenIdle) {
+      figureRef.current.position.set(0, -0.08 + Math.sin(time * 1.4 + seed) * 0.006, FIGURE_Z);
+      figureRef.current.rotation.set(0, Math.sin(time * 0.3 + seed) * 0.025, 0);
+      if (leftArm && rightArm && leftForearm && rightForearm) {
+        leftArm.rotation.x = 0.28;
+        rightArm.rotation.x = 0.28;
+        leftForearm.rotation.x = 0.34;
+        rightForearm.rotation.x = 0.34;
       }
-    } else if (storedAnimationState === "celebrating") {
-      const jump = Math.abs(Math.sin(t * 8)) * 0.35;
-      groupRef.current.position.set(0, SEAT_TOP_Y + jump, SEAT_Z);
-      groupRef.current.rotation.y += delta * 6;
+      if (leftLeg && rightLeg && leftKnee && rightKnee) {
+        leftLeg.rotation.x = 1.18;
+        rightLeg.rotation.x = 1.18;
+        leftKnee.rotation.x = -1.18;
+        rightKnee.rotation.x = -1.18;
+      }
+      return;
+    }
+
+    if (animationState === "celebrating") {
+      figureRef.current.position.set(0, 0.02 + Math.abs(Math.sin(time * 7)) * 0.2, FIGURE_Z);
+      figureRef.current.rotation.y += delta * 5;
+      if (leftArm && rightArm) {
+        leftArm.rotation.x = 2.65;
+        rightArm.rotation.x = 2.65;
+      }
     } else {
-      groupRef.current.position.set(
-        Math.sin(t * 0.4 + seed) * 0.08,
-        SEAT_TOP_Y + Math.sin(t * 1.5 + seed) * 0.02,
-        SEAT_Z + Math.sin(t * 0.3 + seed * 1.3) * 0.08,
-      );
-      groupRef.current.rotation.y = Math.sin(t * 0.3 + seed) * 0.2;
-      if (leftArmRef.current && rightArmRef.current) {
-        leftArmRef.current.rotation.x = Math.sin(t * 2 + seed) * 0.08;
-        rightArmRef.current.rotation.x = Math.cos(t * 2 + seed) * 0.08;
+      figureRef.current.position.set(0, 0.02 + Math.sin(time * 1.35 + seed) * 0.008, FIGURE_Z);
+      figureRef.current.rotation.set(0, Math.sin(time * 0.35 + seed) * 0.08, 0);
+      if (leftArm && rightArm) {
+        leftArm.rotation.x = Math.sin(time * 0.9 + seed) * 0.025;
+        rightArm.rotation.x = Math.cos(time * 0.9 + seed) * 0.025;
       }
+    }
+    if (leftForearm && rightForearm) {
+      leftForearm.rotation.x = 0.06;
+      rightForearm.rotation.x = 0.06;
+    }
+    if (leftLeg && rightLeg && leftKnee && rightKnee) {
+      leftLeg.rotation.x = 0;
+      rightLeg.rotation.x = 0;
+      leftKnee.rotation.x = 0;
+      rightKnee.rotation.x = 0;
     }
   });
 
   return (
-    <group ref={rootRef} position={targetPosition} scale={0.94}>
+    <group ref={rootRef} position={initialPosition}>
       {agent.name && (
-        <Html position={[0, 1.5, SEAT_Z]} center zIndexRange={[20, 0]}>
-          <div className="pointer-events-none flex min-w-max items-center gap-1.5 rounded-[4px] border border-[#777166] bg-[#fffaf0]/95 px-2 py-1 text-[#292724] shadow-[0_2px_0_rgba(38,35,31,0.18)] backdrop-blur-sm">
-            <span className="size-1.5 rounded-[2px]" style={{ backgroundColor: ringColor }} />
-            <span className="text-[9px] font-extrabold uppercase leading-none tracking-[0.04em]">{agent.name}</span>
-            <span className="border-l border-[#b8b0a3] pl-1.5 text-[8px] font-bold capitalize text-[#6b655c]">{agent.status}</span>
+        <Html position={[0, 1.7, FIGURE_Z]} center zIndexRange={[20, 0]}>
+          <div className="pointer-events-none flex min-w-max items-center gap-1.5 rounded-md border border-[#777166]/70 bg-[#fffdf8]/95 px-2 py-1 text-[#292724] shadow-[0_3px_10px_rgba(38,35,31,0.16)] backdrop-blur-sm">
+            <span className="size-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
+            <span className="text-[9px] font-extrabold uppercase leading-none tracking-[0.045em]">
+              {agent.name}
+            </span>
+            <span className="border-l border-[#b8b0a3] pl-1.5 text-[8px] font-bold capitalize text-[#6b655c]">
+              {agent.status}
+            </span>
           </div>
         </Html>
       )}
 
-      {/* Grounded status ring */}
-      <mesh position={[0, 0.02, SEAT_Z]} rotation={[-Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.27, 0.022, 10, 24]} />
-        <meshStandardMaterial color={ringColor} emissive={ringColor} emissiveIntensity={0.3} />
+      <mesh position={[0, 0.025, FIGURE_Z]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.24, 0.016, 10, 32]} />
+        <meshStandardMaterial
+          color={statusColor}
+          emissive={statusColor}
+          emissiveIntensity={0.18}
+          roughness={0.55}
+        />
       </mesh>
 
-      <group ref={groupRef} position={[0, SEAT_TOP_Y, SEAT_Z]}>
-        {/* Soft low-poly torso */}
-        <mesh position={[0, 0.22, 0]} material={shirtMat} castShadow receiveShadow>
-          <capsuleGeometry args={[0.17, 0.28, 6, 12]} />
+      <group ref={figureRef} position={[0, 0.02, FIGURE_Z]} scale={0.94}>
+        <mesh position={[0, 0.94, 0]} material={materials.jacket} castShadow receiveShadow>
+          <cylinderGeometry args={[0.205, 0.155, 0.5, 12]} />
         </mesh>
-        {/* Collar / Tie accent */}
-        <mesh position={[0, 0.36, -0.105]} material={glassesMat}>
-          <boxGeometry args={[0.065, 0.13, 0.018]} />
+        <RoundedBox
+          args={[0.095, 0.29, 0.022]}
+          radius={0.015}
+          smoothness={3}
+          position={[0, 0.99, -0.185]}
+          material={materials.shirt}
+        />
+        <mesh position={[0, 1.01, -0.202]} material={materials.detail}>
+          <boxGeometry args={[0.024, 0.18, 0.012]} />
         </mesh>
-
-        {/* Head and hair cap */}
-        <mesh position={[0, 0.61, 0.015]} material={hairMat} castShadow>
-          <sphereGeometry args={[0.205, 16, 12]} />
-        </mesh>
-        <mesh position={[0, 0.57, 0]} material={skinMat} castShadow receiveShadow>
-          <sphereGeometry args={[0.19, 16, 12]} />
-        </mesh>
-
-        {/* Eyes */}
-        <mesh position={[-0.065, 0.585, -0.18]} material={eyeMat}>
-          <sphereGeometry args={[0.018, 8, 6]} />
-        </mesh>
-        <mesh position={[0.065, 0.585, -0.18]} material={eyeMat}>
-          <sphereGeometry args={[0.018, 8, 6]} />
+        <mesh position={[0, 1.205, 0]} material={materials.skin} castShadow>
+          <cylinderGeometry args={[0.07, 0.075, 0.1, 12]} />
         </mesh>
 
-        {/* Glasses */}
+        <mesh position={[0, 1.375, 0.025]} scale={[1.02, 0.78, 1.03]} material={materials.hair} castShadow>
+          <sphereGeometry args={[0.16, 18, 14]} />
+        </mesh>
+        <mesh position={[0, 1.345, -0.018]} material={materials.skin} castShadow receiveShadow>
+          <sphereGeometry args={[0.145, 18, 14]} />
+        </mesh>
+        {[-0.145, 0.145].map((x) => (
+          <mesh key={x} position={[x, 1.35, -0.005]} material={materials.skin}>
+            <sphereGeometry args={[0.032, 10, 8]} />
+          </mesh>
+        ))}
+        <mesh position={[0, 1.33, -0.156]} scale={[0.7, 1, 0.65]} material={materials.skin}>
+          <sphereGeometry args={[0.027, 10, 8]} />
+        </mesh>
+        {[-0.052, 0.052].map((x) => (
+          <mesh key={x} position={[x, 1.375, -0.151]} material={materials.eye}>
+            <sphereGeometry args={[0.012, 8, 6]} />
+          </mesh>
+        ))}
+
         {hasGlasses && (
-          <group position={[0, 0.58, -0.16]}>
-            <mesh position={[-0.07, 0, 0]} material={glassesMat}>
-              <boxGeometry args={[0.08, 0.06, 0.02]} />
-            </mesh>
-            <mesh position={[0.07, 0, 0]} material={glassesMat}>
-              <boxGeometry args={[0.08, 0.06, 0.02]} />
-            </mesh>
-            <mesh position={[0, 0, 0]} material={glassesMat}>
-              <boxGeometry args={[0.06, 0.02, 0.02]} />
-            </mesh>
-          </group>
-        )}
-
-        {/* Headset */}
-        {hasHeadset && (
-          <group position={[0, 0.62, 0]}>
-            <mesh position={[0, 0.14, 0]} material={headsetMat}>
-              <boxGeometry args={[0.34, 0.04, 0.1]} />
-            </mesh>
-            <mesh position={[-0.17, 0, 0]} material={headsetMat}>
-              <boxGeometry args={[0.04, 0.12, 0.1]} />
-            </mesh>
-            <mesh position={[0.17, 0, 0]} material={headsetMat}>
-              <boxGeometry args={[0.04, 0.12, 0.1]} />
+          <group position={[0, 1.372, -0.158]}>
+            {[-0.058, 0.058].map((x) => (
+              <mesh key={x} position={[x, 0, 0]} material={materials.detail}>
+                <torusGeometry args={[0.043, 0.006, 6, 14]} />
+              </mesh>
+            ))}
+            <mesh material={materials.detail}>
+              <boxGeometry args={[0.04, 0.008, 0.008]} />
             </mesh>
           </group>
         )}
 
-        {/* Left Arm */}
-        <mesh ref={leftArmRef} position={[-0.22, 0.19, 0]} material={shirtMat} castShadow>
-          <capsuleGeometry args={[0.055, 0.24, 5, 8]} />
-        </mesh>
-        {/* Right Arm */}
-        <mesh ref={rightArmRef} position={[0.22, 0.19, 0]} material={shirtMat} castShadow>
-          <capsuleGeometry args={[0.055, 0.24, 5, 8]} />
-        </mesh>
+        {([-1, 1] as const).map((side) => {
+          const armRef = side === -1 ? leftArmRef : rightArmRef;
+          const forearmRef = side === -1 ? leftForearmRef : rightForearmRef;
+          return (
+            <group key={side} ref={armRef} position={[side * 0.235, 1.08, 0]}>
+              <mesh position={[0, -0.145, 0]} material={materials.jacket} castShadow>
+                <capsuleGeometry args={[0.055, 0.2, 6, 10]} />
+              </mesh>
+              <group ref={forearmRef} position={[0, -0.29, 0]}>
+                <mesh position={[0, -0.115, 0]} material={materials.jacket} castShadow>
+                  <capsuleGeometry args={[0.05, 0.15, 6, 10]} />
+                </mesh>
+                <mesh position={[0, -0.245, -0.005]} material={materials.skin} castShadow>
+                  <sphereGeometry args={[0.058, 10, 8]} />
+                </mesh>
+              </group>
+            </group>
+          );
+        })}
 
-        {/* Seated/walking legs — each is a group pivoted at the hip (not the
-            box's own center), so the walk-cycle swing below rotates it from
-            the top like a real leg instead of spinning around its middle. */}
-        <group ref={leftLegRef} position={[-0.09, 0.02, 0.05]}>
-          <mesh position={[0, -0.07, 0]} material={shoeMat} castShadow>
-            <capsuleGeometry args={[0.06, 0.15, 4, 8]} />
-          </mesh>
-        </group>
-        <group ref={rightLegRef} position={[0.09, 0.02, 0.05]}>
-          <mesh position={[0, -0.07, 0]} material={shoeMat} castShadow>
-            <capsuleGeometry args={[0.06, 0.15, 4, 8]} />
-          </mesh>
-        </group>
+        {([-1, 1] as const).map((side) => {
+          const legRef = side === -1 ? leftLegRef : rightLegRef;
+          const kneeRef = side === -1 ? leftKneeRef : rightKneeRef;
+          return (
+            <group key={side} ref={legRef} position={[side * 0.095, 0.72, 0]}>
+              <mesh position={[0, -0.17, 0]} material={materials.trousers} castShadow>
+                <capsuleGeometry args={[0.068, 0.24, 6, 10]} />
+              </mesh>
+              <group ref={kneeRef} position={[0, -0.35, 0]}>
+                <mesh position={[0, -0.16, 0]} material={materials.trousers} castShadow>
+                  <capsuleGeometry args={[0.06, 0.22, 6, 10]} />
+                </mesh>
+                <RoundedBox
+                  args={[0.14, 0.09, 0.25]}
+                  radius={0.035}
+                  smoothness={3}
+                  position={[0, -0.33, -0.045]}
+                  material={materials.shoe}
+                  castShadow
+                />
+              </group>
+            </group>
+          );
+        })}
 
-        {/* Mood crown / celebrate indicator */}
         {agent.mood === "excited" && (
-          <mesh position={[0, 0.85, 0]}>
-            <coneGeometry args={[0.09, 0.18, 8]} />
-            <meshStandardMaterial color="#facc15" emissive="#facc15" emissiveIntensity={0.8} />
-          </mesh>
+          <group position={[0, 1.65, 0]}>
+            {[-1, 0, 1].map((offset) => (
+              <mesh key={offset} position={[offset * 0.12, Math.abs(offset) * 0.03, 0]} rotation={[0, 0, offset * -0.22]}>
+                <capsuleGeometry args={[0.012, 0.08, 4, 6]} />
+                <meshStandardMaterial color="#d39a28" emissive="#d39a28" emissiveIntensity={0.35} />
+              </mesh>
+            ))}
+          </group>
         )}
       </group>
     </group>

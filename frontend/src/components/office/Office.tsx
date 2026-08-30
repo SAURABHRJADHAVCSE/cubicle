@@ -18,14 +18,15 @@ import {
 import { modernMaterials } from "@/lib/modernMaterials";
 import { useOfficeStore } from "@/stores/officeStore";
 
-const OFFICE_WIDTH = 19;
 const OFFICE_DEPTH = 14.5;
+const SCENE_FLOOR_WIDTH = 36;
+const SCENE_FLOOR_DEPTH = 34;
 const OFFICE_HEIGHT = 2.6;
 const CAMERA_ELEVATION = THREE.MathUtils.degToRad(38);
 const CAMERA_YAW = THREE.MathUtils.degToRad(6);
 const CAMERA_FOV = 30;
-const CAMERA_FILL = 0.92;
-const BACKGROUND_COLOR = "#e8e7e3";
+const CAMERA_FILL = 1.03;
+const BACKGROUND_COLOR = "#eee8df";
 
 function CameraRig() {
   const { camera, size } = useThree();
@@ -36,12 +37,12 @@ function CameraRig() {
     const aspect = size.width / Math.max(1, size.height);
     const fovRadians = THREE.MathUtils.degToRad(CAMERA_FOV);
     const projectedHeight =
-      OFFICE_DEPTH * Math.sin(CAMERA_ELEVATION) +
+      13.6 * Math.sin(CAMERA_ELEVATION) +
       OFFICE_HEIGHT * Math.cos(CAMERA_ELEVATION);
     const distanceForHeight =
       projectedHeight / 2 / Math.tan(fovRadians / 2) / CAMERA_FILL;
     const distanceForWidth =
-      OFFICE_WIDTH / 2 / (Math.tan(fovRadians / 2) * aspect) / CAMERA_FILL;
+      18.1 / 2 / (Math.tan(fovRadians / 2) * aspect) / CAMERA_FILL;
     const distance = Math.max(distanceForHeight, distanceForWidth);
     const horizontalDistance = distance * Math.cos(CAMERA_ELEVATION);
     const target = new THREE.Vector3(0, 0.65, 0.45);
@@ -64,19 +65,16 @@ function CameraRig() {
 
 function OfficeShell() {
   const floor = modernMaterials.floorWood();
-  const edge = modernMaterials.floorEdge();
   const carpet = modernMaterials.workCarpet();
   const trim = modernMaterials.zoneTrim();
   const rearWall = modernMaterials.wallWarmGrey();
-  const sideWall = modernMaterials.wallSlate();
 
   return (
     <group>
-      <mesh position={[0, -0.1, 0]} material={edge} receiveShadow>
-        <boxGeometry args={[OFFICE_WIDTH, 0.2, OFFICE_DEPTH]} />
-      </mesh>
-      <mesh position={[0, 0.015, 0]} material={floor} receiveShadow>
-        <boxGeometry args={[OFFICE_WIDTH - 0.2, 0.045, OFFICE_DEPTH - 0.2]} />
+      {/* Overscanned interior floor: every camera ray lands inside the office,
+          so the room never reads as a small stage floating on a backdrop. */}
+      <mesh position={[0, -0.035, 0]} material={floor} receiveShadow>
+        <boxGeometry args={[SCENE_FLOOR_WIDTH, 0.09, SCENE_FLOOR_DEPTH]} />
       </mesh>
 
       <mesh position={[0, 0.055, 2.5]} material={carpet} receiveShadow>
@@ -86,14 +84,13 @@ function OfficeShell() {
         <boxGeometry args={[17.6, 0.012, 0.07]} />
       </mesh>
 
-      <mesh position={[0, 0.95, -OFFICE_DEPTH / 2]} material={rearWall} castShadow receiveShadow>
-        <boxGeometry args={[OFFICE_WIDTH, 1.9, 0.18]} />
+      {/* This wall extends above the highest camera ray. Its former 2.6-unit
+          height left a thin glimpse of the overscan floor in the top-right. */}
+      <mesh position={[0, 2.5, -OFFICE_DEPTH / 2]} material={rearWall} castShadow receiveShadow>
+        <boxGeometry args={[SCENE_FLOOR_WIDTH, 5, 0.22]} />
       </mesh>
-      <mesh position={[-OFFICE_WIDTH / 2, 0.5, -0.2]} material={sideWall} castShadow receiveShadow>
-        <boxGeometry args={[0.14, 1, OFFICE_DEPTH - 0.1]} />
-      </mesh>
-      <mesh position={[OFFICE_WIDTH / 2, 0.5, -0.2]} material={sideWall} castShadow receiveShadow>
-        <boxGeometry args={[0.14, 1, OFFICE_DEPTH - 0.1]} />
+      <mesh position={[0, 0.12, -OFFICE_DEPTH / 2 + 0.1]} material={trim} receiveShadow>
+        <boxGeometry args={[SCENE_FLOOR_WIDTH, 0.24, 0.08]} />
       </mesh>
     </group>
   );
@@ -166,6 +163,7 @@ export function Office() {
             agent={agent}
             targetPosition={destination.position}
             targetRotationY={destination.rotationY}
+            restWhenIdle={!isWorking}
           />
         );
       })}

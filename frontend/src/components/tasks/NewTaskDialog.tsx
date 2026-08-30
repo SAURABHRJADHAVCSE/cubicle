@@ -89,7 +89,7 @@ export function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(o) : close())}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>New task</DialogTitle>
           <DialogDescription>
@@ -97,8 +97,8 @@ export function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-1.5">
             <Label htmlFor="task-title">Title</Label>
             <Input
               id="task-title"
@@ -108,7 +108,7 @@ export function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps) {
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex min-w-0 flex-col gap-1.5">
             <Label htmlFor="task-brief">Brief</Label>
             <Textarea
               id="task-brief"
@@ -116,10 +116,11 @@ export function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps) {
               placeholder="Find the top 5 Python developers from the attached resumes"
               value={brief}
               onChange={(e) => setBrief(e.target.value)}
+              className="min-w-0 resize-y"
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex min-w-0 flex-col gap-1.5">
             <Label>Route via boss agent (optional)</Label>
             <Select
               value={orchestratorId}
@@ -129,8 +130,8 @@ export function NewTaskDialog({ open, onOpenChange }: NewTaskDialogProps) {
                 ...Object.fromEntries((agents ?? []).map((a) => [a.id, `${a.name} · ${a.role}`])),
               }}
             >
-              <SelectTrigger className="w-full">
-                <SelectValue />
+              <SelectTrigger className="w-full max-w-full">
+                <SelectValue className="truncate" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NO_ORCHESTRATOR}>No boss — assign directly</SelectItem>
