@@ -8,8 +8,10 @@ import litellm
 import structlog
 
 from app.config import get_settings
+from app.database import worker_session_factory
 from app.engines.base import AgentEngine, EngineResult, ToolExecutor
 from app.utils.engine_detect import check_ollama
+from app.utils.secrets_store import ANTHROPIC_API_KEY_SETTING, get_configured_secret
 
 logger = structlog.get_logger()
 
@@ -43,13 +45,34 @@ class LiteLLMEngine(AgentEngine):
 
     def _extra_call_kwargs(self) -> dict:
         # Conditional, not `api_key=self.api_key` unconditionally: keeps
-        # the exact existing request shape for ollama/anthropic (which
-        # never set this), only adding the kwarg for a custom provider.
+        # the exact existing request shape for ollama (which never sets
+        # this) while covering both a per-agent BYO key and a resolved
+        # global Anthropic key (see _resolve_api_key) with the same branch.
         return {"api_key": self.api_key} if self.api_key else {}
+
+    async def _resolve_api_key(self) -> str | None:
+        """Fills in self.api_key from Settings → Engine Providers (DB,
+        encrypted) when nothing's set yet, falling back to the
+        ANTHROPIC_API_KEY env var — same lazy-resolve-inside-the-async-
+        method pattern engines/claude_code.py already uses for its own
+        stored OAuth token (own worker_session_factory() session, safe
+        from both the API process and Celery workers). A no-op once
+        self.api_key is already set (a per-agent BYO key resolved
+        synchronously in engines/registry.py) or for ollama, which never
+        needs a key at all.
+        """
+        if self.api_key or self.model.startswith("ollama/"):
+            return self.api_key
+        async with worker_session_factory() as session:
+            self.api_key = await get_configured_secret(
+                session, ANTHROPIC_API_KEY_SETTING, get_settings().anthropic_api_key
+            )
+        return self.api_key
 
     async def execute(self, prompt: str, context: dict) -> EngineResult:
         # Not applied to chat_stream(): that's interactive chat, where a
         # human is already watching the connection and can just close it.
+        await self._resolve_api_key()
         timeout = get_settings().task_timeout_seconds
         tools = context.get("tools")
         tool_executor: ToolExecutor | None = context.get("tool_executor")
@@ -143,6 +166,7 @@ class LiteLLMEngine(AgentEngine):
         tools: list[dict] | None = None,
         tool_executor: ToolExecutor | None = None,
     ) -> AsyncIterator[str]:
+        await self._resolve_api_key()
         messages = [*history, {"role": "user", "content": message}]
         for _ in range(_MAX_TOOL_ROUNDS):
             response = await litellm.acompletion(

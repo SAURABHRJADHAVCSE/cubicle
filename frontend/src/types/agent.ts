@@ -16,6 +16,9 @@ export interface Agent {
   allowed_tools: string[] | null;
   // Never the raw key — just whether a bring-your-own API key is configured.
   has_engine_api_key: boolean;
+  // Whether this agent is anyone's teammate (agent_collaborators) — drives
+  // the "only chat with main agents" rule (see AgentCard.tsx).
+  is_sub_agent: boolean;
 
   personality_traits: string[];
   personality_quirks: string[] | null;

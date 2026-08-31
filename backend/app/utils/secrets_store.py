@@ -6,6 +6,8 @@ from app.models.settings import SettingRecord
 from app.utils.encryption import decrypt_value, encrypt_value
 
 CLAUDE_OAUTH_TOKEN_KEY = "claude_code_oauth_token"
+ANTHROPIC_API_KEY_SETTING = "anthropic_api_key"
+SARVAM_API_KEY_SETTING = "sarvam_api_key"
 
 
 async def set_encrypted_setting(session: AsyncSession, key: str, value: str) -> None:
@@ -30,6 +32,20 @@ async def delete_setting(session: AsyncSession, key: str) -> None:
     if record is not None:
         await session.delete(record)
         await session.commit()
+
+
+async def get_configured_secret(
+    session: AsyncSession, key: str, env_fallback: str | None
+) -> str | None:
+    """A DB-stored setting (set from the UI) wins over an env-var value if
+    both exist — lets a deployment start from .env and later move a secret
+    into the UI without needing to also unset the env var. Shared by
+    anything that wants "configurable from the UI, falls back to the
+    existing env var" (engines/litellm_engine.py's Anthropic key,
+    voice/registry.py's Sarvam key) instead of each writing this branch.
+    """
+    stored = await get_encrypted_setting(session, key)
+    return stored if stored is not None else env_fallback
 
 
 async def set_plain_setting(session: AsyncSession, key: str, value: str) -> None:

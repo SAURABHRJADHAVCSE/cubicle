@@ -4,6 +4,7 @@ import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
 import { cn } from "@/lib/utils"
+import { useFullscreenElement } from "@/hooks/useFullscreenElement"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
 const Select = SelectPrimitive.Root
@@ -70,8 +71,12 @@ function SelectContent({
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
   >) {
+  // Same fullscreen-portal fix as ui/dialog.tsx's DialogPortal — Base UI
+  // portals to document.body by default, which is invisible (though still
+  // "open") while a different element is in native Fullscreen mode.
+  const fullscreenElement = useFullscreenElement()
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={fullscreenElement ?? undefined}>
       <SelectPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}

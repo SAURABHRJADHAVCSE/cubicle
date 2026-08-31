@@ -92,6 +92,7 @@ app.include_router(agents.router, dependencies=[_protected])
 app.include_router(tasks.router, dependencies=[_protected])
 app.include_router(chat.router, dependencies=[_protected])
 app.include_router(settings_api.router, dependencies=[_protected])
+app.include_router(settings_api.api_keys_router, dependencies=[_protected])
 
 # Wraps `app` so both plain HTTP routes and Socket.io's /socket.io/ path are
 # served from one process; this is what uvicorn actually runs (see

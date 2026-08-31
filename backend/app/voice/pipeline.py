@@ -3,6 +3,8 @@ turn -> TTS -> outgoing audio, or a test-tone-and-echo fallback proving
 the transport works when no STT/TTS provider is configured yet.
 """
 
+import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable
 
 import structlog
@@ -38,11 +40,14 @@ class CallAudioPipeline:
         self.emit_status = emit_status
         self.emit_transcript = emit_transcript
         self.history: list[dict] = []  # in-memory only, never persisted
-        self.stt = get_stt_provider()
-        self.tts = get_tts_provider()
 
     async def start(self, incoming_track) -> None:
         logger.info("voice_call_pipeline_started", agent_id=str(self.agent.id))
+        # Resolved here, not __init__ — both now look up a possible
+        # Settings-configured key (DB, async), which a sync constructor
+        # can't await. See voice/registry.py's _resolve_sarvam_key.
+        self.stt = await get_stt_provider()
+        self.tts = await get_tts_provider()
         if not (self.stt.is_configured() and self.tts.is_configured()):
             await self.outgoing.enqueue_frames(generate_tone_frames())
             await self.emit_status(_NOT_CONFIGURED_MESSAGE)
@@ -52,20 +57,86 @@ class CallAudioPipeline:
         await self._run_turns(incoming_track)
 
     async def _run_turns(self, incoming_track) -> None:
-        async for pcm in AudioFrameBuffer().utterances(incoming_track):
-            text = await self.stt.transcribe(pcm)
-            if not text.strip():
-                continue
-            await self.emit_transcript("user", text)
+        # Producer/consumer, not a plain `async for pcm in buffer.utterances
+        # (track): await handle(pcm)` — that sequential form only calls
+        # track.recv() again once handle() (STT+LLM+TTS) fully returns, so
+        # while a reply is being generated and played, nobody is draining
+        # the mic in real time at all; toggling buffer.muted during that
+        # window then has no effect, since the frames that piled up get
+        # processed as a backlog only *after* muted is already back to
+        # False. Running buffer.utterances() as its own continuously-
+        # draining task means muted is checked frame-by-frame, live, which
+        # is what actually makes it work — see AudioFrameBuffer.muted.
+        buffer = AudioFrameBuffer()
+        queue: asyncio.Queue[bytes] = asyncio.Queue()
 
-            reply = await self._llm_turn(text)
-            await self.emit_transcript("agent", reply)
+        async def _produce() -> None:
+            async for pcm in buffer.utterances(incoming_track):
+                await queue.put(pcm)
 
-            audio, rate = await self.tts.synthesize(
-                reply, self.agent.voice_language, self.agent.voice_gender, self.agent.voice_pace
+        producer = asyncio.create_task(_produce())
+        try:
+            while not producer.done() or not queue.empty():
+                get_utterance = asyncio.ensure_future(queue.get())
+                done, _pending = await asyncio.wait(
+                    {get_utterance, producer}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if get_utterance not in done:
+                    get_utterance.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await get_utterance
+                    continue  # producer finished (call ended) with nothing left queued
+                pcm = get_utterance.result()
+                try:
+                    await self._handle_utterance(pcm, buffer)
+                except Exception as exc:  # noqa: BLE001 - one bad turn must not silently end the whole call
+                    logger.error(
+                        "voice_call_turn_failed", agent_id=str(self.agent.id), error=str(exc)
+                    )
+                    buffer.muted = False  # don't leave the mic muted if a turn blew up mid-reply
+        finally:
+            producer.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await producer
+
+    async def _handle_utterance(self, pcm: bytes, buffer: AudioFrameBuffer) -> None:
+        # Without this, STT defaults to language auto-detection — confirmed
+        # live to sometimes guess wrong and transcribe nonsense as a
+        # result. The agent's own configured language is a much stronger
+        # signal than guessing from a few hundred ms of audio.
+        text = await self.stt.transcribe(pcm, self.agent.voice_language)
+        if not text.strip():
+            # A prior "no response" report traced back to exactly this
+            # branch being entirely silent — an utterance detected fine but
+            # STT coming back empty (bad/unclear audio, a transient Sarvam
+            # hiccup, ...) looked identical in the logs to nothing
+            # happening at all. Now it says so.
+            logger.info(
+                "voice_call_empty_transcript", agent_id=str(self.agent.id), pcm_bytes=len(pcm)
             )
-            if audio:
+            return
+        logger.info("voice_call_transcribed", agent_id=str(self.agent.id), text=text)
+        await self.emit_transcript("user", text)
+
+        reply = await self._llm_turn(text)
+        await self.emit_transcript("agent", reply)
+
+        audio, rate = await self.tts.synthesize(
+            reply, self.agent.voice_language, self.agent.voice_gender, self.agent.voice_pace
+        )
+        if audio:
+            # Muted for the duration of our own reply (plus a settle
+            # margin) so the mic can't hear it played back through the
+            # peer's speakers and mistake it for the next thing the user
+            # said — see AudioFrameBuffer.muted's docstring.
+            buffer.muted = True
+            try:
                 await self.outgoing.enqueue_frames(resample_to_track_format(audio, rate))
+                await self.outgoing.wait_until_drained()
+            finally:
+                buffer.muted = False
+        else:
+            logger.warning("voice_call_tts_returned_no_audio", agent_id=str(self.agent.id))
 
     async def _llm_turn(self, user_text: str) -> str:
         try:

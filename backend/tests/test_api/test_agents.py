@@ -164,6 +164,40 @@ async def test_update_agent_can_clear_key_with_empty_string(client: AsyncClient)
     assert patch_resp.json()["has_engine_api_key"] is False
 
 
+async def test_is_sub_agent_flips_on_collaborator_assignment(client: AsyncClient) -> None:
+    main = (await client.post("/agents", json=_payload(name="Manager"))).json()
+    teammate = (await client.post("/agents", json=_payload(name="Artist"))).json()
+    assert main["is_sub_agent"] is False
+    assert teammate["is_sub_agent"] is False
+
+    await client.put(
+        f"/agents/{main['id']}/collaborators", json={"collaborator_ids": [teammate["id"]]}
+    )
+
+    refetched_teammate = (await client.get(f"/agents/{teammate['id']}")).json()
+    assert refetched_teammate["is_sub_agent"] is True
+    refetched_main = (await client.get(f"/agents/{main['id']}")).json()
+    assert refetched_main["is_sub_agent"] is False  # being a delegator doesn't make you one
+
+    list_resp = await client.get("/agents")
+    by_id = {a["id"]: a for a in list_resp.json()}
+    assert by_id[teammate["id"]]["is_sub_agent"] is True
+    assert by_id[main["id"]]["is_sub_agent"] is False
+
+
+async def test_is_sub_agent_flips_back_when_unassigned(client: AsyncClient) -> None:
+    main = (await client.post("/agents", json=_payload(name="Manager"))).json()
+    teammate = (await client.post("/agents", json=_payload(name="Artist"))).json()
+    await client.put(
+        f"/agents/{main['id']}/collaborators", json={"collaborator_ids": [teammate["id"]]}
+    )
+
+    await client.put(f"/agents/{main['id']}/collaborators", json={"collaborator_ids": []})
+
+    refetched = (await client.get(f"/agents/{teammate['id']}")).json()
+    assert refetched["is_sub_agent"] is False
+
+
 async def test_update_agent_to_custom_provider_without_model_400(client: AsyncClient) -> None:
     created = (await client.post("/agents", json=_payload(name="Priya"))).json()
 

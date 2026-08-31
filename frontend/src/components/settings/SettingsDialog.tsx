@@ -3,6 +3,7 @@
 import { Key, Palette, Smartphone } from "lucide-react";
 import { useState } from "react";
 
+import { ApiKeysCard } from "@/components/settings/ApiKeysCard";
 import { AppearanceSettingsCard } from "@/components/settings/AppearanceSettingsCard";
 import { ChangePasswordCard } from "@/components/settings/ChangePasswordCard";
 import { ClaudeAuthCard } from "@/components/settings/ClaudeAuthCard";
@@ -104,6 +105,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           {tab === "providers" && (
             <div className="flex flex-col gap-4">
               <ClaudeAuthCard />
+              <ApiKeysCard />
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {otherEngineKeys.map((key) => (
                   <EngineCard key={key} engineKey={key} />

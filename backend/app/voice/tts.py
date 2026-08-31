@@ -7,14 +7,19 @@ from abc import ABC, abstractmethod
 import httpx
 import structlog
 
+from app.voice.language import to_bcp47
+
 logger = structlog.get_logger()
 
 SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
 
 # Sarvam Bulbul speaker names, chosen per agent.voice_gender — arbitrary
 # picks from Sarvam's published voice list; swap freely once real usage
-# surfaces a preference.
-_SPEAKER_BY_GENDER = {"male": "abhilash", "female": "anushka"}
+# surfaces a preference. The originals here (abhilash/anushka) belonged to
+# an older Bulbul model version and now 400 outright — confirmed live via
+# Sarvam's own error message, which named the current bulbul:v3 roster this
+# was picked from.
+_SPEAKER_BY_GENDER = {"male": "rahul", "female": "priya"}
 _PACE_MULTIPLIER = {"slow": 0.85, "medium": 1.0, "fast": 1.2}
 
 
@@ -43,12 +48,21 @@ class SarvamTTS(TextToSpeech):
                     SARVAM_TTS_URL,
                     headers={"api-subscription-key": self.api_key},
                     json={
-                        "text": text[:1500],  # Sarvam's per-request character cap
-                        "target_language_code": f"{language}-IN" if len(language) == 2 else language,
-                        "speaker": _SPEAKER_BY_GENDER.get(gender, "anushka"),
+                        "text": text[:2500],  # bulbul:v3's per-request character cap
+                        "model": "bulbul:v3",
+                        # Field names per https://docs.sarvam.ai's current
+                        # text-to-speech reference. This previously sent
+                        # "target_language_code"/"audio_format" — neither
+                        # is a field this endpoint's current spec
+                        # recognizes (the real names are "language_code"
+                        # and "output_audio_codec"), and the request still
+                        # returned 200 with real audio, so the wrong names
+                        # went unnoticed rather than erroring loudly.
+                        "language_code": to_bcp47(language),
+                        "speaker": _SPEAKER_BY_GENDER.get(gender, "priya"),
                         "pace": _PACE_MULTIPLIER.get(pace, 1.0),
                         "speech_sample_rate": 16000,
-                        "audio_format": "wav",
+                        "output_audio_codec": "wav",
                     },
                 )
                 response.raise_for_status()
@@ -57,6 +71,14 @@ class SarvamTTS(TextToSpeech):
                     return b"", 0
                 wav_bytes = base64.b64decode(audios[0])
                 return _wav_to_pcm(wav_bytes)
+            except httpx.HTTPStatusError as exc:
+                # See stt.py's identical fix — the body is where Sarvam
+                # actually says what's wrong, str(exc) alone isn't enough
+                # to diagnose without re-running the request by hand.
+                logger.warning(
+                    "sarvam_tts_failed", status=exc.response.status_code, body=exc.response.text
+                )
+                return b"", 0
             except httpx.HTTPError as exc:
                 logger.warning("sarvam_tts_failed", error=str(exc))
                 return b"", 0

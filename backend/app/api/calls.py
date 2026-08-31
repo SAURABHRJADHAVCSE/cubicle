@@ -13,7 +13,9 @@ router = APIRouter(prefix="/calls", tags=["calls"])
 
 @router.get("/config", response_model=CallConfigResponse)
 async def call_config() -> CallConfigResponse:
+    stt = await get_stt_provider()
+    tts = await get_tts_provider()
     return CallConfigResponse(
         ice_servers=build_ice_server_list(),
-        voice_configured=get_stt_provider().is_configured() and get_tts_provider().is_configured(),
+        voice_configured=stt.is_configured() and tts.is_configured(),
     )

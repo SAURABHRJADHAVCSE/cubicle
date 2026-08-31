@@ -85,6 +85,27 @@ async def _get_agent_or_404(agent_id: uuid.UUID, db: AsyncSession) -> Agent:
     return agent
 
 
+async def _mark_sub_agents(db: AsyncSession, agents: list[Agent]) -> list[Agent]:
+    """Sets `.is_sub_agent` (a transient, non-column attribute — see
+    AgentRead.is_sub_agent) on every agent in `agents`, true for any id
+    that appears as someone's teammate. One query regardless of how many
+    agents are being returned, rather than a per-agent lookup."""
+    collaborator_ids = set(
+        (await db.execute(select(AgentCollaborator.collaborator_agent_id).distinct()))
+        .scalars()
+        .all()
+    )
+    for agent in agents:
+        agent.is_sub_agent = agent.id in collaborator_ids
+    return agents
+
+
+async def _mark_sub_agent(db: AsyncSession, agent: Agent) -> Agent:
+    """Single-agent convenience wrapper over _mark_sub_agents."""
+    await _mark_sub_agents(db, [agent])
+    return agent
+
+
 @router.post("", response_model=AgentRead, status_code=status.HTTP_201_CREATED)
 async def create_agent(payload: AgentCreate, db: AsyncSession = Depends(get_db)) -> Agent:
     """Create a new agent."""
@@ -120,20 +141,21 @@ async def create_agent(payload: AgentCreate, db: AsyncSession = Depends(get_db))
     await db.commit()
     await db.refresh(agent)
     logger.info("agent_created", agent_id=str(agent.id), name=agent.name)
-    return agent
+    return await _mark_sub_agent(db, agent)
 
 
 @router.get("", response_model=list[AgentRead])
 async def list_agents(db: AsyncSession = Depends(get_db)) -> list[Agent]:
     """List all agents."""
     result = await db.execute(select(Agent).order_by(Agent.created_at))
-    return list(result.scalars().all())
+    return await _mark_sub_agents(db, list(result.scalars().all()))
 
 
 @router.get("/{agent_id}", response_model=AgentRead)
 async def get_agent(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> Agent:
     """Fetch a single agent by id."""
-    return await _get_agent_or_404(agent_id, db)
+    agent = await _get_agent_or_404(agent_id, db)
+    return await _mark_sub_agent(db, agent)
 
 
 @router.patch("/{agent_id}", response_model=AgentRead)
@@ -165,7 +187,7 @@ async def update_agent(
     await db.commit()
     await db.refresh(agent)
     logger.info("agent_updated", agent_id=str(agent.id))
-    return agent
+    return await _mark_sub_agent(db, agent)
 
 
 @router.delete("/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -273,7 +295,8 @@ async def read_collaborators(
     """The teammates this agent may delegate to as tools (see
     app/utils/agent_tools.py)."""
     agent = await _get_agent_or_404(agent_id, db)
-    return CollaboratorsRead(collaborators=await get_collaborators(db, agent))
+    collaborators = await _mark_sub_agents(db, await get_collaborators(db, agent))
+    return CollaboratorsRead(collaborators=collaborators)
 
 
 @router.put("/{agent_id}/collaborators", response_model=CollaboratorsRead)
@@ -322,4 +345,5 @@ async def update_collaborators(
     logger.info(
         "agent_collaborators_updated", agent_id=str(agent.id), count=len(collaborator_ids)
     )
-    return CollaboratorsRead(collaborators=await get_collaborators(db, agent))
+    collaborators = await _mark_sub_agents(db, await get_collaborators(db, agent))
+    return CollaboratorsRead(collaborators=collaborators)

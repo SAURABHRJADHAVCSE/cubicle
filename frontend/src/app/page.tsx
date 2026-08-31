@@ -3,9 +3,8 @@
 import { Activity, Boxes, Building2, Maximize2, Minimize2, Settings, Sparkles, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { AgentConfigPanel } from "@/components/agents/AgentConfigPanel";
 import { AgentList } from "@/components/agents/AgentList";
-import { TeamPanel } from "@/components/agents/TeamPanel";
+import { AgentManagePanel } from "@/components/agents/AgentManagePanel";
 import { CallPanel } from "@/components/calls/CallPanel";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
@@ -43,9 +42,12 @@ export default function Home() {
   const selectedAgentId = useUIStore((s) => s.selectedAgentId);
   const activeCallAgentId = useUIStore((s) => s.activeCallAgentId);
   const activeFilesAgentId = useUIStore((s) => s.activeFilesAgentId);
-  const activeTeamAgentId = useUIStore((s) => s.activeTeamAgentId);
-  const activeConfigAgentId = useUIStore((s) => s.activeConfigAgentId);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const activeManageAgentId = useUIStore((s) => s.activeManageAgentId);
+  // Global store, not local state — CallPanel's "voice provider not
+  // configured" shortcut needs to open Settings too, not just this page's
+  // own header gear button.
+  const settingsOpen = useUIStore((s) => s.settingsOpen);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const commandCenterRef = useRef<HTMLDivElement>(null);
   const [isCommandCenterFullscreen, setIsCommandCenterFullscreen] = useState(false);
@@ -210,7 +212,13 @@ export default function Home() {
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
-                <aside className="h-[210px] shrink-0 overflow-hidden">
+                {/* Was a flat h-[210px] tuned for 3 agents stacked one per
+                    row — now that AgentList reflows into a grid (several
+                    cards per row once there's width), that same roster
+                    only needs ~2 rows of height even with many more
+                    agents, so the shorter band leaves more room for the
+                    task feed below instead of sitting mostly empty. */}
+                <aside className="h-44 shrink-0 overflow-hidden">
                   <AgentList />
                 </aside>
                 <div className="h-px shrink-0 bg-gradient-to-r from-transparent via-border to-transparent" />
@@ -227,8 +235,7 @@ export default function Home() {
               {selectedAgentId && <ChatPanel key={selectedAgentId} />}
               <CallPanel key={`call-${activeCallAgentId}`} />
               <FilesPanel key={`files-${activeFilesAgentId}`} />
-              <TeamPanel key={`team-${activeTeamAgentId}`} />
-              <AgentConfigPanel key={`config-${activeConfigAgentId}`} />
+              <AgentManagePanel key={`manage-${activeManageAgentId}`} />
             </div>
           )}
         </div>

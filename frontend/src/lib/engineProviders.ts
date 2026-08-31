@@ -1,5 +1,6 @@
-// Shared between AddAgentDialog.tsx (creation) and AgentConfigPanel.tsx
-// (post-creation editing) so the two surfaces can't drift out of sync.
+// Shared between AddAgentDialog.tsx (creation), AgentManagePanel.tsx
+// (post-creation editing), and EngineConfigFields.tsx (the field set both
+// of those render) so the surfaces can't drift out of sync.
 
 export const CLI_PROVIDERS = [
   { value: "claude_code", label: "Claude Code", verified: true },

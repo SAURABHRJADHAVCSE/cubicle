@@ -84,7 +84,7 @@ export function TaskHistory() {
         <TaskBoard />
       ) : (
         <ScrollArea className="min-h-0 flex-1 soft-scrollbar">
-          <div className="flex flex-col gap-2.5 pr-2.5 pb-2">
+          <div className="pr-2.5 pb-2">
             {isLoading && (
               <div className="h-28 animate-pulse rounded-lg bg-muted border border-border" />
             )}
@@ -93,9 +93,18 @@ export function TaskHistory() {
                 No tasks yet. Create a new task to get started.
               </div>
             )}
-            {sorted.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
+            {/* Same auto-fill/minmax reflow as AgentList — 1 column when
+                narrow, a proper grid once there's width to spare.
+                items-start keeps each card at its own natural height
+                instead of stretching short cards to match a taller
+                neighbor in the same row. */}
+            {sorted.length > 0 && (
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(380px,1fr))] items-start gap-2.5">
+                {sorted.map((task) => (
+                  <TaskCard key={task.id} task={task} />
+                ))}
+              </div>
+            )}
           </div>
         </ScrollArea>
       )}

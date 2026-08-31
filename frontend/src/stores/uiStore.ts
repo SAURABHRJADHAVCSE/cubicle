@@ -7,18 +7,19 @@ interface UIState {
   selectCallAgent: (agentId: string | null) => void;
   activeFilesAgentId: string | null;
   selectFilesAgent: (agentId: string | null) => void;
-  activeTeamAgentId: string | null;
-  selectTeamAgent: (agentId: string | null) => void;
-  activeConfigAgentId: string | null;
-  selectConfigAgent: (agentId: string | null) => void;
+  activeManageAgentId: string | null;
+  selectManageAgent: (agentId: string | null) => void;
   taskViewMode: "list" | "board";
   setTaskViewMode: (mode: "list" | "board") => void;
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
 }
 
-/** Which agent's chat panel (or voice call, workspace file browser,
- * teammate roster, or engine config) is open — shared between AgentCard
- * clicks and the ChatPanel/CallPanel/FilesPanel/TeamPanel/AgentConfigPanel/
- * office view without threading props through every layer.
+/** Which agent's chat panel (or voice call, workspace file browser, or
+ * manage panel — engine config + team, see AgentManagePanel.tsx) is open —
+ * shared between AgentCard clicks and the
+ * ChatPanel/CallPanel/FilesPanel/AgentManagePanel/office view without
+ * threading props through every layer.
  */
 export const useUIStore = create<UIState>((set) => ({
   selectedAgentId: null,
@@ -27,10 +28,13 @@ export const useUIStore = create<UIState>((set) => ({
   selectCallAgent: (agentId) => set({ activeCallAgentId: agentId }),
   activeFilesAgentId: null,
   selectFilesAgent: (agentId) => set({ activeFilesAgentId: agentId }),
-  activeTeamAgentId: null,
-  selectTeamAgent: (agentId) => set({ activeTeamAgentId: agentId }),
-  activeConfigAgentId: null,
-  selectConfigAgent: (agentId) => set({ activeConfigAgentId: agentId }),
+  activeManageAgentId: null,
+  selectManageAgent: (agentId) => set({ activeManageAgentId: agentId }),
   taskViewMode: "list",
   setTaskViewMode: (mode) => set({ taskViewMode: mode }),
+  // Global (not per-agent) so any component — e.g. CallPanel's "voice
+  // provider not configured" shortcut — can open Settings directly,
+  // not just the header's own gear button.
+  settingsOpen: false,
+  setSettingsOpen: (open) => set({ settingsOpen: open }),
 }));

@@ -81,7 +81,15 @@ services:
 
   cubicle-beat:
     build: ./backend
-    command: celery -A app.workers beat -l info
+    # -s (schedule file path): defaults to writing "celerybeat-schedule"
+    # into the CWD (/app), which Docker Desktop's bind-mount setup for
+    # ./backend/app:/app/app leaves root-owned regardless of what the
+    # image itself chowns it to — confirmed live via a fresh container:
+    # `/app` shows as root:root even though everything inside it is
+    # appuser-owned, so Beat's own persisted-schedule write 403s under the
+    # non-root appuser this otherwise runs as. $HOME (a real appuser-owned
+    # directory, untouched by any bind mount) sidesteps that entirely.
+    command: celery -A app.workers beat -l info -s /home/appuser/celerybeat-schedule
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-cubicle}:${POSTGRES_PASSWORD:-cubicle}@postgres:5432/${POSTGRES_DB:-cubicle}
       - REDIS_URL=redis://redis:6379/0

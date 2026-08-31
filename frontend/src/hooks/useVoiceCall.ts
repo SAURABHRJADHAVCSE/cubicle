@@ -60,7 +60,15 @@ export function useVoiceCall(agentId: string | null) {
     try {
       const [config, mic] = await Promise.all([
         api.calls.config(),
-        navigator.mediaDevices.getUserMedia({ audio: true }),
+        // Explicit constraints, not a bare `audio: true` — echo
+        // cancellation/noise suppression/gain control are the browser's
+        // own noise-floor cleanup, which matters a lot for the backend's
+        // RMS-based speech detection (app/voice/audio.py): a noisier raw
+        // capture makes it harder for that detector to ever see real
+        // silence between utterances.
+        navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        }),
       ]);
       micStreamRef.current = mic;
 

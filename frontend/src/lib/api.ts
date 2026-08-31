@@ -18,7 +18,7 @@ import type {
 } from "@/types/auth";
 import type { CallConfig } from "@/types/call";
 import type { ChatRequest, ConversationMessage } from "@/types/chat";
-import type { ClaudeAuthStart, ClaudeAuthStatus } from "@/types/settings";
+import type { ApiKeysStatus, ApiKeysUpdate, ClaudeAuthStart, ClaudeAuthStatus } from "@/types/settings";
 import type { Task, TaskConfig, TaskCreate, TaskUpdate } from "@/types/task";
 
 export class ApiError extends Error {
@@ -152,5 +152,11 @@ export const api = {
       }),
     claudeAuthCancel: () =>
       request<void>("/settings/claude-auth/cancel", { method: "POST" }),
+    apiKeysStatus: () => request<ApiKeysStatus>("/settings/api-keys"),
+    updateApiKeys: (payload: ApiKeysUpdate) =>
+      request<ApiKeysStatus>("/settings/api-keys", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }),
   },
 };

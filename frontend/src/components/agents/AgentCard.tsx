@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, ChevronRight, FolderOpen, Phone, Settings, Trash2, Users } from "lucide-react";
+import { Bot, ChevronRight, FolderOpen, Phone, Settings, Trash2 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -45,18 +45,21 @@ export function AgentCard({ agent }: { agent: Agent }) {
   const selectAgent = useUIStore((s) => s.selectAgent);
   const selectCallAgent = useUIStore((s) => s.selectCallAgent);
   const selectFilesAgent = useUIStore((s) => s.selectFilesAgent);
-  const selectTeamAgent = useUIStore((s) => s.selectTeamAgent);
-  const selectConfigAgent = useUIStore((s) => s.selectConfigAgent);
+  const selectManageAgent = useUIStore((s) => s.selectManageAgent);
   const { data: tasks } = useTasks();
   const status = STATUS_STYLES[agent.status];
   const currentTask = agent.current_task_id
     ? tasks?.find((task) => task.id === agent.current_task_id)
     : undefined;
+  // A pure-delegation teammate (see agents-as-tools) is invoked by its
+  // parent, not talked to directly by the user — clicking its card opens
+  // Manage instead of chat, same place you'd go to edit it either way.
+  const isSubAgent = agent.is_sub_agent;
 
   return (
     <div
       className="group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-lg border border-border bg-card/70 p-2 shadow-sm transition-all hover:border-primary/40 hover:bg-card dark:hover:bg-card/90"
-      onClick={() => selectAgent(agent.id)}
+      onClick={() => (isSubAgent ? selectManageAgent(agent.id) : selectAgent(agent.id))}
     >
       {/* Badge clip: the accent stripe. A punched-hole "grommet" dot sat here
           through three placement attempts and never actually read as
@@ -83,6 +86,14 @@ export function AgentCard({ agent }: { agent: Agent }) {
           <p className="truncate text-xs font-semibold text-foreground">{agent.name}</p>
           {MOOD_EMOJI[agent.mood] && <span aria-label={agent.mood}>{MOOD_EMOJI[agent.mood]}</span>}
           <span className="text-4xs font-mono text-slate-400 dark:text-slate-500">#{badgeNumber(agent.id)}</span>
+          {isSubAgent && (
+            <span
+              className="rounded bg-muted px-1.5 py-0.5 text-4xs font-bold uppercase text-muted-foreground"
+              title="Delegated-only — invoked by its team lead, not chatted with directly"
+            >
+              Teammate
+            </span>
+          )}
           <span className={`stamp-badge ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-4xs font-bold uppercase ${status.surface}`}>
             <span className={`size-1.5 rounded-full ${status.dot}`} />
             {status.label}
@@ -126,27 +137,15 @@ export function AgentCard({ agent }: { agent: Agent }) {
           variant="ghost"
           size="icon-xs"
           className="text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800"
-          aria-label={`${agent.name}'s team`}
+          aria-label={`Manage ${agent.name}`}
           onClick={(event) => {
             event.stopPropagation();
-            selectTeamAgent(agent.id);
-          }}
-        >
-          <Users className="size-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800"
-          aria-label={`${agent.name}'s config`}
-          onClick={(event) => {
-            event.stopPropagation();
-            selectConfigAgent(agent.id);
+            selectManageAgent(agent.id);
           }}
         >
           <Settings className="size-3" />
         </Button>
-        {agent.engine_type === "api" && (
+        {agent.engine_type === "api" && !isSubAgent && (
           <Button
             variant="ghost"
             size="icon-xs"

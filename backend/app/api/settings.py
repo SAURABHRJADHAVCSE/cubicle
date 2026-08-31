@@ -12,16 +12,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas.settings import (
+    ApiKeysStatus,
+    ApiKeysUpdate,
     ClaudeAuthCompleteRequest,
     ClaudeAuthStartResponse,
     ClaudeAuthStatusResponse,
 )
 from app.utils.claude_auth import acancel_claude_auth, astart_claude_auth, asubmit_claude_auth_code
-from app.utils.secrets_store import CLAUDE_OAUTH_TOKEN_KEY, get_encrypted_setting, set_encrypted_setting
+from app.utils.secrets_store import (
+    ANTHROPIC_API_KEY_SETTING,
+    CLAUDE_OAUTH_TOKEN_KEY,
+    SARVAM_API_KEY_SETTING,
+    delete_setting,
+    get_encrypted_setting,
+    set_encrypted_setting,
+)
 
 logger = structlog.get_logger()
 
 router = APIRouter(prefix="/settings/claude-auth", tags=["settings"])
+api_keys_router = APIRouter(prefix="/settings/api-keys", tags=["settings"])
 
 
 @router.get("/status", response_model=ClaudeAuthStatusResponse)
@@ -64,3 +74,43 @@ async def claude_auth_complete(
 async def claude_auth_cancel() -> None:
     """Abort a pending connection attempt the user backed out of."""
     await acancel_claude_auth()
+
+
+async def _api_keys_status(db: AsyncSession) -> ApiKeysStatus:
+    return ApiKeysStatus(
+        has_anthropic_key=await get_encrypted_setting(db, ANTHROPIC_API_KEY_SETTING) is not None,
+        has_sarvam_key=await get_encrypted_setting(db, SARVAM_API_KEY_SETTING) is not None,
+    )
+
+
+@api_keys_router.get("", response_model=ApiKeysStatus)
+async def get_api_keys(db: AsyncSession = Depends(get_db)) -> ApiKeysStatus:
+    """Whether a global Anthropic/Sarvam API key is configured from
+    Settings — the actual keys are never returned. Consumed by
+    engines/litellm_engine.py's _resolve_api_key and
+    voice/registry.py's _resolve_sarvam_key, which prefer these over the
+    ANTHROPIC_API_KEY/SARVAM_API_KEY env vars when set."""
+    return await _api_keys_status(db)
+
+
+@api_keys_router.put("", response_model=ApiKeysStatus)
+async def update_api_keys(
+    payload: ApiKeysUpdate, db: AsyncSession = Depends(get_db)
+) -> ApiKeysStatus:
+    """Per field: omitted = leave whatever's stored untouched, "" =
+    explicitly clear it, a value = set/rotate it — same contract as
+    AgentUpdate.engine_api_key in api/agents.py."""
+    fields_sent = payload.model_fields_set
+    for field, key in (
+        ("anthropic_api_key", ANTHROPIC_API_KEY_SETTING),
+        ("sarvam_api_key", SARVAM_API_KEY_SETTING),
+    ):
+        if field not in fields_sent:
+            continue
+        value = getattr(payload, field)
+        if value:
+            await set_encrypted_setting(db, key, value)
+        else:
+            await delete_setting(db, key)
+    logger.info("api_keys_updated", fields=sorted(fields_sent))
+    return await _api_keys_status(db)

@@ -58,7 +58,11 @@ async def test_execute_raises_on_timeout(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr(litellm_engine_module.litellm, "acompletion", fake_acompletion)
 
-    engine = LiteLLMEngine(model="claude-sonnet-4-5")
+    # A pre-set api_key short-circuits _resolve_api_key() before it ever
+    # reaches get_settings().anthropic_api_key (not on this test's
+    # deliberately-narrow fake_settings) or a real DB call — this test is
+    # about timeout behavior, not key resolution.
+    engine = LiteLLMEngine(model="claude-sonnet-4-5", api_key="unused-in-this-test")
     with pytest.raises(RuntimeError, match="timed out"):
         await engine.execute("say hi", context={})
 
@@ -143,6 +147,93 @@ async def test_chat_stream_forwards_custom_api_key(monkeypatch: pytest.MonkeyPat
         pass
 
     assert captured["api_key"] == "sk-my-key"
+
+
+class _NoOpSessionCM:
+    """Stands in for `async with worker_session_factory() as session:` in
+    tests that mock get_configured_secret directly and never actually
+    touch the session it's handed."""
+
+    async def __aenter__(self):
+        return None
+
+    async def __aexit__(self, *exc_info: object) -> bool:
+        return False
+
+
+async def test_resolve_api_key_noop_when_already_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    called = []
+
+    async def fake_get_configured_secret(*args, **kwargs):
+        called.append(True)
+        return "should-not-be-used"
+
+    monkeypatch.setattr(litellm_engine_module, "get_configured_secret", fake_get_configured_secret)
+
+    engine = LiteLLMEngine(model="gemini/gemini-1.5-pro", api_key="already-set-key")
+    result = await engine._resolve_api_key()
+
+    assert result == "already-set-key"
+    assert called == []
+
+
+async def test_resolve_api_key_noop_for_ollama(monkeypatch: pytest.MonkeyPatch) -> None:
+    called = []
+
+    async def fake_get_configured_secret(*args, **kwargs):
+        called.append(True)
+        return "should-not-be-used"
+
+    monkeypatch.setattr(litellm_engine_module, "get_configured_secret", fake_get_configured_secret)
+
+    engine = LiteLLMEngine(model="ollama/llama3.1")
+    result = await engine._resolve_api_key()
+
+    assert result is None
+    assert called == []
+
+
+async def test_resolve_api_key_prefers_configured_secret_over_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_get_configured_secret(session, key, env_fallback):
+        assert key == "anthropic_api_key"
+        assert env_fallback == "env-fallback-key"
+        return "db-stored-key"
+
+    fake_settings = SimpleNamespace(anthropic_api_key="env-fallback-key")
+    monkeypatch.setattr(litellm_engine_module, "get_settings", lambda: fake_settings)
+    monkeypatch.setattr(litellm_engine_module, "get_configured_secret", fake_get_configured_secret)
+    monkeypatch.setattr(litellm_engine_module, "worker_session_factory", lambda: _NoOpSessionCM())
+
+    engine = LiteLLMEngine(model="claude-sonnet-4-5")
+    result = await engine._resolve_api_key()
+
+    assert result == "db-stored-key"
+    assert engine.api_key == "db-stored-key"
+
+
+async def test_execute_resolves_and_forwards_db_stored_anthropic_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        return _fake_response()
+
+    async def fake_get_configured_secret(session, key, env_fallback):
+        return "resolved-from-settings"
+
+    monkeypatch.setattr(litellm_engine_module.litellm, "acompletion", fake_acompletion)
+    monkeypatch.setattr(litellm_engine_module.litellm, "completion_cost", lambda r: 0.0)
+    monkeypatch.setattr(litellm_engine_module, "get_configured_secret", fake_get_configured_secret)
+    monkeypatch.setattr(litellm_engine_module, "worker_session_factory", lambda: _NoOpSessionCM())
+
+    engine = LiteLLMEngine(model="claude-sonnet-4-5")
+    await engine.execute("hi", context={})
+
+    assert captured["api_key"] == "resolved-from-settings"
 
 
 def test_get_models_routes_by_provider() -> None:

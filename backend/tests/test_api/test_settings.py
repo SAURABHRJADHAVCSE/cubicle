@@ -96,3 +96,69 @@ async def test_cancel_calls_util(client: AsyncClient, monkeypatch: pytest.Monkey
     resp = await client.post("/settings/claude-auth/cancel")
     assert resp.status_code == 204
     assert called == [True]
+
+
+# ---- /settings/api-keys — real encrypt/decrypt round trips, no mocking ----
+
+
+async def test_api_keys_status_reports_unconfigured_after_clearing(client: AsyncClient) -> None:
+    # Not asserting against a pristine empty table on GET alone — this
+    # suite runs against the same real dev database the live app uses
+    # (see conftest.py's own docstring), not a disposable one, so a real
+    # key set through the actual UI (exactly what this feature is for)
+    # would make a "nothing configured yet" assertion here flaky against
+    # real usage. Clearing both within this test's own rolled-back
+    # transaction first establishes a known baseline regardless of
+    # whatever's really configured — rolled back at teardown, so it
+    # doesn't touch the real stored keys at all.
+    await client.put(
+        "/settings/api-keys", json={"anthropic_api_key": "", "sarvam_api_key": ""}
+    )
+
+    resp = await client.get("/settings/api-keys")
+    assert resp.status_code == 200
+    assert resp.json() == {"has_anthropic_key": False, "has_sarvam_key": False}
+
+
+async def test_api_keys_round_trip_and_never_echo_raw_value(client: AsyncClient) -> None:
+    resp = await client.put(
+        "/settings/api-keys",
+        json={"anthropic_api_key": "sk-ant-real-key", "sarvam_api_key": "sk-sarvam-real-key"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"has_anthropic_key": True, "has_sarvam_key": True}
+    assert "sk-ant-real-key" not in resp.text
+    assert "sk-sarvam-real-key" not in resp.text
+
+    status_resp = await client.get("/settings/api-keys")
+    assert status_resp.json() == {"has_anthropic_key": True, "has_sarvam_key": True}
+
+
+async def test_api_keys_omitted_field_left_untouched(client: AsyncClient) -> None:
+    await client.put("/settings/api-keys", json={"anthropic_api_key": "sk-ant-real-key"})
+
+    resp = await client.put("/settings/api-keys", json={"sarvam_api_key": "sk-sarvam-real-key"})
+
+    assert resp.json() == {"has_anthropic_key": True, "has_sarvam_key": True}
+
+
+async def test_api_keys_empty_string_clears(client: AsyncClient) -> None:
+    await client.put("/settings/api-keys", json={"anthropic_api_key": "sk-ant-real-key"})
+
+    resp = await client.put("/settings/api-keys", json={"anthropic_api_key": ""})
+
+    assert resp.json()["has_anthropic_key"] is False
+
+
+async def test_api_keys_actually_decrypt_correctly(
+    client: AsyncClient, db_session
+) -> None:
+    """Not just "a value is stored" — the exact plaintext round-trips
+    through real Fernet encryption, same mechanism engines/litellm_engine.py's
+    _resolve_api_key will decrypt at call time."""
+    from app.utils.secrets_store import ANTHROPIC_API_KEY_SETTING, get_encrypted_setting
+
+    await client.put("/settings/api-keys", json={"anthropic_api_key": "sk-ant-exact-value"})
+
+    decrypted = await get_encrypted_setting(db_session, ANTHROPIC_API_KEY_SETTING)
+    assert decrypted == "sk-ant-exact-value"

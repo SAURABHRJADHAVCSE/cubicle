@@ -38,7 +38,7 @@ export function AgentList() {
       </div>
 
       <ScrollArea className="min-h-0 flex-1 soft-scrollbar">
-        <div className="flex flex-col gap-2 pr-2.5 pb-1">
+        <div className="pr-2.5 pb-1">
           {isLoading && (
             <div className="h-16 animate-pulse rounded-lg bg-muted border border-border" />
           )}
@@ -47,7 +47,16 @@ export function AgentList() {
               No agents yet. Click &quot;Add agent&quot; to bring your office live.
             </div>
           )}
-          {agents?.map((agent) => <AgentCard key={agent.id} agent={agent} />)}
+          {/* auto-fill + minmax: as many ~380px-wide cards per row as the
+              panel's actual width allows — 1 column in the narrow split
+              view (identical to the old stacked list), several side by
+              side once there's room (fullscreen), with no separate
+              breakpoint or fullscreen-specific logic needed. */}
+          {agents && agents.length > 0 && (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(380px,1fr))] items-start gap-2">
+              {agents.map((agent) => <AgentCard key={agent.id} agent={agent} />)}
+            </div>
+          )}
         </div>
       </ScrollArea>
 

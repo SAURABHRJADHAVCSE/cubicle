@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone, PhoneOff } from "lucide-react";
+import { Phone, PhoneOff, Settings } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -8,6 +8,12 @@ import { Button } from "@/components/ui/button";
 import { useAgents } from "@/hooks/useAgents";
 import { useVoiceCall } from "@/hooks/useVoiceCall";
 import { useUIStore } from "@/stores/uiStore";
+
+// Substring match, not an exact-string import from the backend — good
+// enough to distinguish "no voice provider configured yet" from any other
+// status message (e.g. a real Sarvam error), without needing to share a
+// literal string constant across the Python/TypeScript boundary.
+const NOT_CONFIGURED_HINT = "not configured";
 
 const STATE_LABEL: Record<string, string> = {
   connecting: "Connecting…",
@@ -28,6 +34,7 @@ const STATE_DOT: Record<string, string> = {
 export function CallPanel() {
   const activeCallAgentId = useUIStore((state) => state.activeCallAgentId);
   const selectCallAgent = useUIStore((state) => state.selectCallAgent);
+  const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const { data: agents } = useAgents();
   const agent = agents?.find((item) => item.id === activeCallAgentId);
 
@@ -88,8 +95,24 @@ export function CallPanel() {
 
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4 soft-scrollbar">
         {statusMessage && (
-          <div className="mx-auto max-w-[280px] rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-center text-2xs leading-relaxed text-primary">
-            {statusMessage}
+          <div className="mx-auto flex max-w-[280px] flex-col items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-2.5 text-center text-2xs leading-relaxed text-primary">
+            <p>{statusMessage}</p>
+            {statusMessage.toLowerCase().includes(NOT_CONFIGURED_HINT) && (
+              <>
+                <p className="text-3xs opacity-80">
+                  Add a <strong>Sarvam</strong> API key (the only voice provider Cubicle
+                  supports right now) to enable real transcription and replies.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={() => setSettingsOpen(true)}
+                  className="h-7 rounded-full bg-primary px-3 text-3xs font-bold text-primary-foreground shadow-sm hover:bg-primary/90"
+                >
+                  <Settings className="size-3 mr-1" />
+                  Add API key in Settings
+                </Button>
+              </>
+            )}
           </div>
         )}
 

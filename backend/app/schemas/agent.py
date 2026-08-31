@@ -84,6 +84,13 @@ class AgentRead(BaseModel):
     # Never the raw key — just whether one is configured (see
     # Agent.has_engine_api_key in models/agent.py).
     has_engine_api_key: bool
+    # Whether this agent is anyone's teammate (agent_collaborators) — not a
+    # real column, set as a transient attribute by api/agents.py's
+    # _mark_sub_agents() before serialization. Drives the frontend's "only
+    # chat with main agents" rule. Defaults False defensively (rather than
+    # a required field) so a route that forgets to call _mark_sub_agents
+    # degrades to "looks like a main agent" instead of a 500.
+    is_sub_agent: bool = False
 
     personality_traits: list[str]
     personality_quirks: list[str] | None

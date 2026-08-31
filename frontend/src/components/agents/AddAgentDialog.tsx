@@ -16,6 +16,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { EngineConfigFields } from "@/components/agents/EngineConfigFields";
 import { ClaudeAuthCard } from "@/components/settings/ClaudeAuthCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,22 +29,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateAgent } from "@/hooks/useAgents";
 import { api } from "@/lib/api";
-import {
-  API_PROVIDERS,
-  BUILTIN_API_PROVIDERS,
-  CLI_PROVIDERS,
-  VERIFIED_CLI_PROVIDERS,
-} from "@/lib/engineProviders";
+import { BUILTIN_API_PROVIDERS } from "@/lib/engineProviders";
+import { ROLE_PRESETS } from "@/lib/rolePresets";
 import type { EngineType } from "@/types/agent";
 
 interface AddAgentDialogProps {
@@ -123,71 +113,6 @@ const COLOR_PRESETS = [
   "#f43f5e", // Rose
   "#ec4899", // Pink
   "#8b5cf6", // Violet
-];
-
-// Deliberately not coding-only: agents in Cubicle are general-purpose
-// workers now (see the agents-as-tools delegation feature), not just dev
-// tools — a team should plausibly include an image generator or a
-// copywriter alongside a backend dev. These are quick-fill starting
-// points only; the textarea below has always been fully freeform, so
-// nothing here limits what a user can actually type.
-const ROLE_PRESETS = [
-  {
-    title: "Full-Stack Developer",
-    description: "Develops full-stack web applications, UI components, and backend APIs.",
-  },
-  {
-    title: "Code Reviewer & Auditor",
-    description: "Audits pull requests, reviews security, refactors code, and enforces standards.",
-  },
-  {
-    title: "QA & Testing Specialist",
-    description: "Writes unit tests, runs automated end-to-end testing, and reports bugs.",
-  },
-  {
-    title: "DevOps Specialist",
-    description: "Configures CI/CD pipelines, Docker containers, scripts, and deployments.",
-  },
-  {
-    title: "AI & Data Engineer",
-    description: "Processes data pipelines, analyzes telemetry, and tunes AI model prompts.",
-  },
-  {
-    title: "Image & Visual Generator",
-    description: "Generates illustrations, product shots, and social graphics from a brief.",
-  },
-  {
-    title: "Copywriter & Content Strategist",
-    description: "Drafts blog posts, landing pages, captions, and marketing copy.",
-  },
-  {
-    title: "Social Media Manager",
-    description: "Plans posts, writes captions, and packages content for social platforms.",
-  },
-  {
-    title: "Customer Support Agent",
-    description: "Answers customer questions, triages tickets, and drafts help responses.",
-  },
-  {
-    title: "Market & Competitive Researcher",
-    description: "Researches competitors, summarizes findings, and tracks industry trends.",
-  },
-  {
-    title: "Sales & Outreach Specialist",
-    description: "Drafts outreach emails, qualifies leads, and follows up on prospects.",
-  },
-  {
-    title: "Personal Assistant",
-    description: "Manages scheduling, reminders, research errands, and day-to-day admin.",
-  },
-  {
-    title: "Translator & Localizer",
-    description: "Translates and adapts content for a target language or region.",
-  },
-  {
-    title: "Financial Analyst",
-    description: "Reviews numbers, builds summaries, and flags anomalies in reports.",
-  },
 ];
 
 const STEPS = [
@@ -515,66 +440,6 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                 </button>
               </div>
 
-              {/* Provider Selector */}
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Engine Provider
-                </Label>
-                <Select
-                  value={isCustomApi ? "custom" : form.engineProvider}
-                  onValueChange={(v) => {
-                    if (!v) return;
-                    // "custom" is a UI-only pseudo-selection — engineProvider
-                    // is cleared so the text input below becomes the actual
-                    // value the user types the real provider prefix into.
-                    setForm((f) => ({ ...f, engineProvider: v === "custom" ? "" : v }));
-                  }}
-                  items={Object.fromEntries(
-                    (form.engineType === "cli" ? CLI_PROVIDERS : API_PROVIDERS).map((p) => [p.value, p.label]),
-                  )}
-                >
-                  <SelectTrigger className="w-full h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(form.engineType === "cli" ? CLI_PROVIDERS : API_PROVIDERS).map((p) => (
-                      <SelectItem key={p.value} value={p.value}>
-                        <div className="flex items-center justify-between w-full gap-2">
-                          <span>{p.label}</span>
-                          {"verified" in p && Boolean((p as { verified?: boolean }).verified) && (
-                            <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-4xs font-bold text-emerald-500 border border-emerald-500/20">
-                              VERIFIED
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Custom Provider Prefix — the field the user types into IS
-                  form.engineProvider (e.g. "gemini", "groq", "mistral"); no
-                  parallel state, see isCustomApi above. */}
-              {isCustomApi && (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="agent-custom-provider" className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Provider Prefix <span className="text-rose-500">*</span>
-                  </Label>
-                  <Input
-                    id="agent-custom-provider"
-                    placeholder="gemini, openai, groq, mistral…"
-                    value={form.engineProvider}
-                    onChange={(e) => setForm((f) => ({ ...f, engineProvider: e.target.value }))}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-3xs text-slate-500 dark:text-slate-400">
-                    Any LiteLLM provider prefix — the model gets called as{" "}
-                    <code>{`${form.engineProvider || "provider"}/${form.engineModel || "model"}`}</code>.
-                  </p>
-                </div>
-              )}
-
               {/* Inline Claude Code connect flow — a new user picking this
                   provider shouldn't have to abandon the wizard, go to
                   Settings, connect, and start over. Same self-contained
@@ -583,79 +448,20 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                 <ClaudeAuthCard />
               )}
 
-              {/* Model Name — required for a custom API provider (there's
-                  no sensible default the way ollama/anthropic have one). */}
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="agent-model" className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Specific Model String {isCustomApi ? <span className="text-rose-500">*</span> : "(optional)"}
-                </Label>
-                <Input
-                  id="agent-model"
-                  placeholder={
-                    isCustomApi
-                      ? "gemini-1.5-pro"
-                      : form.engineType === "cli"
-                        ? "claude-3-7-sonnet / gpt-4o"
-                        : "claude-3-7-sonnet-20250219 / llama3.1:8b"
-                  }
-                  value={form.engineModel}
-                  onChange={(e) => setForm((f) => ({ ...f, engineModel: e.target.value }))}
-                />
-              </div>
-
-              {/* API Key — bring-your-own credential for a custom provider,
-                  encrypted at rest server-side, never echoed back. */}
-              {isCustomApi && (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="agent-api-key" className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    API Key <span className="text-rose-500">*</span>
-                  </Label>
-                  <Input
-                    id="agent-api-key"
-                    type="password"
-                    placeholder="sk-…"
-                    value={form.engineApiKey}
-                    onChange={(e) => setForm((f) => ({ ...f, engineApiKey: e.target.value }))}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-3xs text-slate-500 dark:text-slate-400">
-                    Stored encrypted — you can rotate or clear it later from the Command Center.
-                  </p>
-                </div>
-              )}
-
-              {/* CLI Specific Tool Controls */}
-              {form.engineType === "cli" && (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="agent-tools" className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Allowed Tools (comma-separated, optional)
-                  </Label>
-                  <Input
-                    id="agent-tools"
-                    placeholder="Read, Write, Edit, Bash, Glob"
-                    value={form.allowedTools}
-                    onChange={(e) => setForm((f) => ({ ...f, allowedTools: e.target.value }))}
-                  />
-                </div>
-              )}
-
-              {form.engineType === "cli" && !VERIFIED_CLI_PROVIDERS.has(form.engineProvider) && (
-                <div className="flex flex-col gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-amber-500">
-                  <Label htmlFor="agent-command" className="text-xs font-bold">
-                    Custom CLI Command Override
-                  </Label>
-                  <Input
-                    id="agent-command"
-                    placeholder={`${form.engineProvider} exec {prompt}`}
-                    value={form.engineCommand}
-                    onChange={(e) => setForm((f) => ({ ...f, engineCommand: e.target.value }))}
-                    className="bg-card border-amber-500/40 text-xs"
-                  />
-                  <p className="text-2xs opacity-90">
-                    Use <code>{"{prompt}"}</code> as the substitution point for prompts.
-                  </p>
-                </div>
-              )}
+              <EngineConfigFields
+                idPrefix="agent"
+                engineType={form.engineType}
+                provider={form.engineProvider}
+                onProviderChange={(v) => setForm((f) => ({ ...f, engineProvider: v }))}
+                model={form.engineModel}
+                onModelChange={(v) => setForm((f) => ({ ...f, engineModel: v }))}
+                command={form.engineCommand}
+                onCommandChange={(v) => setForm((f) => ({ ...f, engineCommand: v }))}
+                allowedTools={form.allowedTools}
+                onAllowedToolsChange={(v) => setForm((f) => ({ ...f, allowedTools: v }))}
+                apiKey={form.engineApiKey}
+                onApiKeyChange={(v) => setForm((f) => ({ ...f, engineApiKey: v }))}
+              />
             </div>
           )}
 
@@ -718,21 +524,34 @@ export function AddAgentDialog({ open, onOpenChange }: AddAgentDialogProps) {
                   <Wand2 className="size-3.5 text-primary" /> Quick Role Templates
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {ROLE_PRESETS.map((preset) => (
-                    <button
-                      key={preset.title}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, role: `${preset.title}: ${preset.description}` }))}
-                      className="flex flex-col items-start p-2.5 rounded-xl border border-border bg-muted hover:border-primary text-left transition-all group"
-                    >
-                      <span className="text-xs font-bold text-foreground group-hover:text-primary">
-                        {preset.title}
-                      </span>
-                      <span className="text-[10.5px] text-slate-500 line-clamp-1">
-                        {preset.description}
-                      </span>
-                    </button>
-                  ))}
+                  {ROLE_PRESETS.map((preset) => {
+                    const presetRole = `${preset.title}: ${preset.description}`;
+                    const isSelected = form.role === presetRole;
+                    return (
+                      <button
+                        key={preset.title}
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, role: presetRole }))}
+                        className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all group ${
+                          isSelected
+                            ? "border-primary bg-primary/10 ring-1 ring-primary/30"
+                            : "border-border bg-muted hover:border-primary"
+                        }`}
+                      >
+                        <span
+                          className={`flex w-full items-center gap-1 text-xs font-bold ${
+                            isSelected ? "text-primary" : "text-foreground group-hover:text-primary"
+                          }`}
+                        >
+                          <span className="min-w-0 flex-1 truncate">{preset.title}</span>
+                          {isSelected && <Check className="size-3.5 shrink-0" />}
+                        </span>
+                        <span className="text-[10.5px] text-slate-500 line-clamp-1">
+                          {preset.description}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
