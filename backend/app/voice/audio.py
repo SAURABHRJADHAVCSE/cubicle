@@ -26,6 +26,18 @@ TIME_BASE = fractions.Fraction(1, SAMPLE_RATE)
 STT_SAMPLE_RATE = 16000  # Sarvam Saarika's expected input rate
 
 
+def _valid_pcm(frame: av.AudioFrame) -> bytes:
+    """`bytes(frame.planes[0])` returns the plane's whole underlying buffer,
+    which libav over-allocates for alignment — confirmed live, a resampled
+    frame reporting 320 valid samples had a 384-sample plane buffer, with
+    the trailing 64 samples being leftover/uninitialized memory, not
+    silence. Feeding that straight into an RMS or byte-length calculation
+    corrupts it with garbage that looks like noise or speech. Slicing to
+    exactly frame.samples is the only safe way to read real audio out of a
+    plane (mono s16 = 2 bytes/sample)."""
+    return bytes(frame.planes[0])[: frame.samples * 2]
+
+
 def _silence_frame() -> av.AudioFrame:
     frame = av.AudioFrame(format="s16", layout="mono", samples=SAMPLES_PER_FRAME)
     for plane in frame.planes:
@@ -51,7 +63,7 @@ def resample_to_track_format(pcm: bytes, sample_rate: int) -> list[av.AudioFrame
         resampler = av.AudioResampler(format="s16", layout="mono", rate=SAMPLE_RATE)
         resampled_frames = resampler.resample(source)
         combined = (
-            np.concatenate([np.frombuffer(bytes(f.planes[0]), dtype=np.int16) for f in resampled_frames])
+            np.concatenate([np.frombuffer(_valid_pcm(f), dtype=np.int16) for f in resampled_frames])
             if resampled_frames
             else np.array([], dtype=np.int16)
         )
@@ -73,7 +85,7 @@ def resample_to_track_format(pcm: bytes, sample_rate: int) -> list[av.AudioFrame
 def resample_frame_to_track_format(frame: av.AudioFrame) -> list[av.AudioFrame]:
     """Same as `resample_to_track_format`, starting from an already-decoded
     incoming frame — used by the echo fallback path in pipeline.py."""
-    pcm = bytes(frame.planes[0])
+    pcm = _valid_pcm(frame)
     return resample_to_track_format(pcm, frame.sample_rate)
 
 
@@ -205,7 +217,7 @@ class AudioFrameBuffer:
                 continue
 
             for resampled in self._resampler.resample(frame):
-                pcm = bytes(resampled.planes[0])
+                pcm = _valid_pcm(resampled)
                 samples = np.frombuffer(pcm, dtype=np.int16)
                 if samples.size == 0:
                     continue

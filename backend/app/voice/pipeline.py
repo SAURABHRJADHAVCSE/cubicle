@@ -11,6 +11,7 @@ import structlog
 
 from app.engines.registry import get_engine
 from app.models.agent import Agent
+from app.utils.time_context import current_date_line
 from app.voice.audio import (
     AudioFrameBuffer,
     AudioQueueTrack,
@@ -68,13 +69,41 @@ class CallAudioPipeline:
         # draining task means muted is checked frame-by-frame, live, which
         # is what actually makes it work — see AudioFrameBuffer.muted.
         buffer = AudioFrameBuffer()
-        queue: asyncio.Queue[bytes] = asyncio.Queue()
+        # maxsize=1, latest-wins, not an unbounded FIFO — a full STT->LLM->
+        # TTS turn takes real seconds, and if the user (hearing nothing
+        # back yet) says something else in the meantime, an unbounded
+        # queue keeps every utterance and answers them in order long after
+        # they're relevant. Confirmed live: 8 utterances detected in one
+        # call, only 3 ever transcribed, one answered 43 seconds late —
+        # each reply landing well after the conversation had moved on,
+        # looking exactly like "not hearing properly". Only the most
+        # recent thing the user said is ever worth responding to.
+        queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=1)
 
         async def _produce() -> None:
             async for pcm in buffer.utterances(incoming_track):
-                await queue.put(pcm)
+                if queue.full():
+                    stale = queue.get_nowait()
+                    logger.info(
+                        "voice_call_utterance_superseded",
+                        agent_id=str(self.agent.id), discarded_bytes=len(stale),
+                    )
+                queue.put_nowait(pcm)
 
         producer = asyncio.create_task(_produce())
+        # A full reply is spoken out loud in real time before the mic can
+        # be trusted again (see AudioFrameBuffer.muted), so *playback*
+        # must stay strictly serialized — but STT+LLM+TTS-synthesis for
+        # the *next* utterance is just request/response work with no audio
+        # output yet, and has no reason to wait for that. Confirmed live:
+        # turns were fully serialized end to end, so a 2-sentence reply
+        # (TTS speech time alone, plus STT+LLM+TTS-synthesis round trips)
+        # made the next utterance sit answered 15-20s after it was said.
+        # play_task runs the current reply's mute+send+drain in the
+        # background while the loop moves straight on to preparing the
+        # next one — by the time play_task finishes, the next reply is
+        # often already synthesized and ready to go.
+        play_task: asyncio.Task | None = None
         try:
             while not producer.done() or not queue.empty():
                 get_utterance = asyncio.ensure_future(queue.get())
@@ -88,18 +117,31 @@ class CallAudioPipeline:
                     continue  # producer finished (call ended) with nothing left queued
                 pcm = get_utterance.result()
                 try:
-                    await self._handle_utterance(pcm, buffer)
+                    reply_audio = await self._prepare_reply(pcm)
                 except Exception as exc:  # noqa: BLE001 - one bad turn must not silently end the whole call
                     logger.error(
                         "voice_call_turn_failed", agent_id=str(self.agent.id), error=str(exc)
                     )
-                    buffer.muted = False  # don't leave the mic muted if a turn blew up mid-reply
+                    continue
+                if reply_audio is None:
+                    continue  # empty transcript or no audio — nothing to play
+                if play_task is not None:
+                    await play_task
+                play_task = asyncio.create_task(self._play_reply(reply_audio, buffer))
         finally:
+            if play_task is not None:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await play_task
             producer.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await producer
 
-    async def _handle_utterance(self, pcm: bytes, buffer: AudioFrameBuffer) -> None:
+    async def _prepare_reply(self, pcm: bytes) -> tuple[bytes, int] | None:
+        """STT -> LLM -> TTS-synthesis for one utterance, with no audio
+        output side effect — safe to run while a previous reply is still
+        being played back (see _run_turns). Returns the synthesized
+        (audio_bytes, sample_rate) for _play_reply, or None if there's
+        nothing worth saying."""
         # Without this, STT defaults to language auto-detection — confirmed
         # live to sometimes guess wrong and transcribe nonsense as a
         # result. The agent's own configured language is a much stronger
@@ -114,7 +156,7 @@ class CallAudioPipeline:
             logger.info(
                 "voice_call_empty_transcript", agent_id=str(self.agent.id), pcm_bytes=len(pcm)
             )
-            return
+            return None
         logger.info("voice_call_transcribed", agent_id=str(self.agent.id), text=text)
         await self.emit_transcript("user", text)
 
@@ -124,19 +166,27 @@ class CallAudioPipeline:
         audio, rate = await self.tts.synthesize(
             reply, self.agent.voice_language, self.agent.voice_gender, self.agent.voice_pace
         )
-        if audio:
-            # Muted for the duration of our own reply (plus a settle
-            # margin) so the mic can't hear it played back through the
-            # peer's speakers and mistake it for the next thing the user
-            # said — see AudioFrameBuffer.muted's docstring.
-            buffer.muted = True
-            try:
-                await self.outgoing.enqueue_frames(resample_to_track_format(audio, rate))
-                await self.outgoing.wait_until_drained()
-            finally:
-                buffer.muted = False
-        else:
+        if not audio:
             logger.warning("voice_call_tts_returned_no_audio", agent_id=str(self.agent.id))
+            return None
+        return audio, rate
+
+    async def _play_reply(self, reply: tuple[bytes, int], buffer: AudioFrameBuffer) -> None:
+        """Sends a synthesized reply out over the call, muting the mic for
+        its duration — see AudioFrameBuffer.muted's docstring for why.
+        Runs as its own background task (see _run_turns), so nothing awaits
+        it until the *next* reply is ready to play — errors are therefore
+        handled internally rather than raised, so a failed playback can't
+        get silently dropped as an "unretrieved task exception"."""
+        audio, rate = reply
+        buffer.muted = True
+        try:
+            await self.outgoing.enqueue_frames(resample_to_track_format(audio, rate))
+            await self.outgoing.wait_until_drained()
+        except Exception as exc:  # noqa: BLE001 - one bad playback must not end the call
+            logger.error("voice_call_playback_failed", agent_id=str(self.agent.id), error=str(exc))
+        finally:
+            buffer.muted = False
 
     async def _llm_turn(self, user_text: str) -> str:
         try:
@@ -147,8 +197,23 @@ class CallAudioPipeline:
         personality = ", ".join(self.agent.personality_traits or []) or "professional"
         system_prompt = (
             f"You are {self.agent.name}, a {self.agent.role}. Personality: {personality}. "
+            f"{current_date_line()} "
             "You are on a live voice call. Keep replies short and conversational — "
-            "1-3 sentences, no markdown, no lists, as if speaking out loud."
+            "1-3 sentences, no markdown, no lists, as if speaking out loud. "
+            # Without this, the model free-associates a plausible-sounding
+            # assistant response and fabricates having taken a real action
+            # — confirmed live: asked to schedule a doctor's appointment,
+            # it invented a named doctor and a specific time; asked to
+            # create an HTML page, it claimed to have emailed it. No tools
+            # are wired into voice calls (engine.chat() is plain text
+            # generation, nothing else) — every "I've done X" is fiction.
+            "You have NO tools on this call: you cannot access a calendar, "
+            "send email, browse the web, or create/save/send any real file, "
+            "task, or reminder — nothing you say here has any real-world "
+            "effect. Never claim to have done one of these things. If asked "
+            "to do something like that, say plainly you can't do it on a "
+            "call and that they can ask you to actually do it in the chat "
+            "or task view instead."
         )
         try:
             reply = await engine.chat(

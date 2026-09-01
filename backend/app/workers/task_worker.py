@@ -29,6 +29,7 @@ from app.utils.inbox import format_inbox_context, read_and_archive_inbox, write_
 from app.utils.memory_search import get_relevant_memories
 from app.utils.push import notify_all_devices
 from app.utils.soul import read_soul
+from app.utils.time_context import current_date_line
 from app.workers import app as celery_app
 from app.workers.memory_worker import store_memory
 from app.workers.social_worker import generate_and_emit_dialogue
@@ -319,7 +320,7 @@ async def _run_task_execution(
         # knows, not the specific job at hand. get_relevant_memories
         # already fails soft internally (returns [] if embedding fails),
         # so no extra error handling is needed here.
-        system_prompt = f"You are {agent.name}, a {agent.role}."
+        system_prompt = f"You are {agent.name}, a {agent.role}. {current_date_line()}"
         soul = read_soul(agent)
         if soul:
             system_prompt += f"\n\n{soul}"
@@ -494,7 +495,8 @@ async def _route_task_async(task_id: uuid.UUID) -> None:
                 '"brief": "<what they should do>"}]'
             )
             orchestrator_system_prompt = (
-                f"You are {orchestrator.name}, a {orchestrator.role} who manages a team."
+                f"You are {orchestrator.name}, a {orchestrator.role} who manages a team. "
+                f"{current_date_line()}"
             )
             orchestrator_soul = read_soul(orchestrator)
             if orchestrator_soul:

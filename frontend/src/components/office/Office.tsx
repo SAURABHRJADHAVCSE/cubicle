@@ -33,6 +33,7 @@ const CAMERA_FILL = 1.03;
 const CAMERA_TARGET_Y = 0.65;
 const CAMERA_TARGET_Z = 0.45;
 const BACKGROUND_COLOR = "#eee8df";
+const MIN_WORKSTATIONS = 10;
 
 /* Three.js cameras are intentionally mutated by the render loop. Keeping the
  * exception around this rig avoids weakening immutability checks elsewhere. */
@@ -262,7 +263,7 @@ export function Office() {
 
   const agentCount = agents?.length ?? 0;
   const workstationCount = Math.max(
-    DESKS_PER_ROW,
+    MIN_WORKSTATIONS,
     Math.ceil((agentCount + 1) / DESKS_PER_ROW) * DESKS_PER_ROW,
   );
   const workstationSlots = useMemo(
