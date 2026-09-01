@@ -22,10 +22,17 @@ from app.config import get_settings
 from app.database import worker_session_factory
 from app.engines.base import ToolExecutor
 from app.engines.registry import get_engine
+from app.media.registry import get_image_generator, get_video_generator
 from app.models.agent import Agent
 from app.models.task import Task
-from app.utils.agent_tools import build_tools_for_agent
+from app.utils.agent_tools import (
+    GENERATE_IMAGE_TOOL,
+    GENERATE_VIDEO_TOOL,
+    build_agent_system_prompt,
+    build_tools_for_agent,
+)
 from app.utils.inbox import format_inbox_context, read_and_archive_inbox, write_delegation_notice
+from app.utils.media_storage import save_generated_media
 from app.utils.memory_search import get_relevant_memories
 from app.utils.push import notify_all_devices
 from app.utils.soul import read_soul
@@ -95,6 +102,14 @@ async def _maybe_complete_parent(session: AsyncSession, task: Task) -> None:
         **(parent.result_structured or {}),
         "children": children_summary,
     }
+    # A boss-routed child that generated media (see make_tool_executor's
+    # generate_image/generate_video branch, or its own further delegation)
+    # would otherwise leave that file invisible on the parent task the user
+    # is actually watching — result_structured already gets folded up here,
+    # result_files needs the same treatment.
+    children_files = [f for s in siblings if s.result_files for f in s.result_files]
+    if children_files:
+        parent.result_files = (parent.result_files or []) + children_files
     parent.status = "completed" if all(s.status == "completed" for s in siblings) else "failed"
     parent.completed_at = datetime.now(timezone.utc)
     await session.commit()
@@ -194,10 +209,57 @@ async def _execute_task_async(task_id: uuid.UUID) -> None:
         await _run_task_execution(session, task, agent, call_chain=[agent.id])
 
 
+async def handle_media_tool_call(
+    tool_name: str,
+    args: dict,
+    calling_task_id: uuid.UUID | None,
+    agent: Agent,
+    generated_files: list[str],
+    session_factory,
+) -> tuple[str, bool]:
+    """Runs a generate_image/generate_video tool call: resolve this agent's
+    media provider, generate, save to its workspace, record the path.
+    Shared by make_tool_executor (below, task/chat delegation) and voice's
+    own tool_executor (voice/pipeline.py) — voice needs its own executor for
+    delegate_to_* calls (non-blocking, see _make_voice_delegation_executor's
+    docstring) but media generation itself is identical either way, so it
+    isn't duplicated. Caller must have already confirmed
+    ``tool_name in (GENERATE_IMAGE_TOOL, GENERATE_VIDEO_TOOL)``.
+    """
+    prompt = (args or {}).get("prompt", "").strip()
+    if not prompt:
+        return "Missing required 'prompt' argument.", True
+
+    kind = "image" if tool_name == GENERATE_IMAGE_TOOL else "video"
+    get_generator = get_image_generator if tool_name == GENERATE_IMAGE_TOOL else get_video_generator
+    async with session_factory() as child_session:
+        # Re-fetch in this fresh session — parallel tool calls run
+        # concurrently, one AsyncSession can't be shared across coroutines.
+        fresh_agent = await child_session.get(Agent, agent.id)
+        if fresh_agent is None:
+            return "This agent no longer exists.", True
+
+        generator = await get_generator(fresh_agent, child_session)
+        if generator is None:
+            return f"No {kind} generation provider is configured for this agent.", True
+
+        # Raises on failure — litellm_engine.py's _call_tool already
+        # converts any exception raised here into a clean tool-error
+        # result the model sees, so no local try/except is needed.
+        media = await generator.generate(prompt)
+        relative_path = await save_generated_media(
+            fresh_agent, media, calling_task_id or uuid.uuid4()
+        )
+        generated_files.append(f"{fresh_agent.id}:{relative_path}")
+        return f"Generated {kind}, saved to the workspace at {relative_path}.", False
+
+
 def make_tool_executor(
     calling_task_id: uuid.UUID | None,
     tool_by_name: dict[str, uuid.UUID],
     call_chain: list[uuid.UUID],
+    agent: Agent,
+    generated_files: list[str],
     session_factory=None,
     on_delegation_start=None,
     on_delegation_end=None,
@@ -226,9 +288,27 @@ def make_tool_executor(
     AsyncSession isn't safe to use from more than one coroutine at a time.
     Re-fetching the target agent by id in that fresh session is the price
     of that safety; it's one extra cheap lookup per delegated call.
+
+    `agent` is the *calling* agent (whose own Gemini key/media provider a
+    generate_image/generate_video call resolves against — see
+    media/registry.py) — distinct from `tool_by_name`'s delegate targets.
+    `generated_files` is a caller-owned accumulator: both the media branch
+    and the delegate branch (which folds in `child.result_files`) append
+    "{agent_id}:{relative_path}" entries into it, so a generated file
+    bubbles up to whichever Task the caller actually persists — see
+    _run_task_execution's merge into `task.result_files` after
+    `engine.execute()` returns. Callers that have nowhere to put this
+    (api/chat.py, today) can pass a throwaway list and ignore it.
     """
 
     async def tool_executor(tool_name: str, args: dict) -> tuple[str, bool]:
+        factory = session_factory or worker_session_factory
+
+        if tool_name in (GENERATE_IMAGE_TOOL, GENERATE_VIDEO_TOOL):
+            return await handle_media_tool_call(
+                tool_name, args, calling_task_id, agent, generated_files, factory
+            )
+
         target_id = tool_by_name.get(tool_name)
         if target_id is None:
             return f"Unknown tool: {tool_name}", True
@@ -248,7 +328,6 @@ def make_tool_executor(
         if not brief:
             return "Missing required 'brief' argument.", True
 
-        factory = session_factory or worker_session_factory
         async with factory() as child_session:
             target = await child_session.get(Agent, target_id)
             if target is None:
@@ -273,6 +352,9 @@ def make_tool_executor(
 
             if on_delegation_end is not None:
                 await on_delegation_end(target, child)
+
+            if child.result_files:
+                generated_files.extend(child.result_files)
 
             if child.status == "completed":
                 return child.result_raw or "(no output)", False
@@ -320,25 +402,29 @@ async def _run_task_execution(
         # knows, not the specific job at hand. get_relevant_memories
         # already fails soft internally (returns [] if embedding fails),
         # so no extra error handling is needed here.
-        system_prompt = f"You are {agent.name}, a {agent.role}. {current_date_line()}"
-        soul = read_soul(agent)
-        if soul:
-            system_prompt += f"\n\n{soul}"
+        # Agents-as-tools: a non-empty roster (API-engine agents only, see
+        # agent_tools.py) turns this into a tool-calling turn instead of a
+        # single-shot completion — the engine's own tool loop (see
+        # litellm_engine.py) drives it.
+        tools, tool_agents_by_name = await build_tools_for_agent(session, agent)
+        # SOUL.md (identity/behavior, see app/utils/soul.py), the honesty
+        # guardrails, and relevant past memories all belong in system_prompt,
+        # not the task-brief text — they're about who the agent is and what
+        # it already knows, not the specific job at hand.
+        system_prompt = build_agent_system_prompt(agent, tools)
         memories = await get_relevant_memories(session, agent, task.brief)
         if memories:
             system_prompt += "\n\nRelevant past experience:\n" + "\n".join(
                 f"- {m}" for m in memories
             )
 
-        # Agents-as-tools: a non-empty roster (API-engine agents only, see
-        # agent_tools.py) turns this into a tool-calling turn instead of a
-        # single-shot completion — the engine's own tool loop (see
-        # litellm_engine.py) drives it.
-        tools, tool_agents_by_name = await build_tools_for_agent(session, agent)
+        generated_files: list[str] = []
         tool_executor = None
         if tools:
             tool_by_id = {name: a.id for name, a in tool_agents_by_name.items()}
-            tool_executor = make_tool_executor(task.id, tool_by_id, call_chain)
+            tool_executor = make_tool_executor(
+                task.id, tool_by_id, call_chain, agent, generated_files
+            )
 
         result = await engine.execute(
             inbox_context + task.brief,
@@ -357,7 +443,12 @@ async def _run_task_execution(
     task.status = "completed"
     task.result_raw = result.raw_output or result.output
     task.result_structured = result.structured
-    task.result_files = result.files_changed or None
+    # generated_files (this turn's own generate_image/generate_video calls,
+    # plus anything bubbled up from delegated subtasks — see
+    # make_tool_executor) merges with whatever the engine itself reported
+    # via files_changed (still unused by any engine today, kept for
+    # forward compatibility rather than dropped).
+    task.result_files = (result.files_changed or []) + generated_files or None
     task.tokens_used = result.tokens_used
     task.cost_usd = result.cost_usd
     task.completed_at = datetime.now(timezone.utc)

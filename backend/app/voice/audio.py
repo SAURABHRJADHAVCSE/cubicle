@@ -173,6 +173,22 @@ class AudioFrameBuffer:
     CALIBRATION_MS = 500  # initial window treated as pure ambient noise, not scanned for speech at all
     SILENCE_HANGOVER_MS = 600  # trailing silence before an utterance is "done"
     MIN_UTTERANCE_MS = 300  # reject noise blips shorter than this
+    # Sarvam's STT (like every Whisper-family ASR) exposes no confidence
+    # score at all — confirmed against its own API docs — so there's no
+    # principled way to detect a hallucinated transcript after the fact.
+    # Confirmed live: a call transcript showed the caller apparently saying
+    # "Bye" / "Thank you" that were never actually said — classic ASR
+    # behavior on ambiguous audio (a stray sound, a breath, room noise)
+    # that barely cleared the speech gate. An utterance that only weakly
+    # clears SPEECH_MARGIN is exactly that ambiguous case; one that clears
+    # it decisively is almost certainly real speech. So confidence is
+    # approximated from what this buffer already measures — how far above
+    # the noise floor the utterance actually got — and only marginal
+    # utterances are held to a stricter minimum length, rather than
+    # guessing at specific "hallucination-prone" words (which would just as
+    # easily throw out someone genuinely saying "bye").
+    CONFIDENT_MARGIN = 4.0  # peak RMS at least this many times the noise floor counts as decisive, not marginal
+    MIN_UTTERANCE_MS_MARGINAL = 700  # a marginal utterance needs this much length too, not just MIN_UTTERANCE_MS
 
     def __init__(self) -> None:
         self._resampler = av.AudioResampler(format="s16", layout="mono", rate=STT_SAMPLE_RATE)
@@ -196,6 +212,7 @@ class AudioFrameBuffer:
         noise_floor = 0.0
         calibrated_ms = 0.0
         calibration_samples: list[float] = []
+        peak_rms = 0.0  # loudest speech-classified frame in the current utterance
 
         while True:
             try:
@@ -214,6 +231,7 @@ class AudioFrameBuffer:
                     buffer = bytearray()
                     speaking = False
                     silence_ms = 0.0
+                    peak_rms = 0.0
                 continue
 
             for resampled in self._resampler.resample(frame):
@@ -238,20 +256,33 @@ class AudioFrameBuffer:
                     speaking = True
                     silence_ms = 0.0
                     buffer.extend(pcm)
+                    peak_rms = max(peak_rms, rms)
                 elif speaking:
                     silence_ms += frame_ms
                     buffer.extend(pcm)
                     if silence_ms >= self.SILENCE_HANGOVER_MS:
                         utterance_ms = (len(buffer) / 2 / STT_SAMPLE_RATE) * 1000
-                        if utterance_ms >= self.MIN_UTTERANCE_MS:
+                        margin = peak_rms / noise_floor if noise_floor > 0 else float("inf")
+                        required_ms = (
+                            self.MIN_UTTERANCE_MS
+                            if margin >= self.CONFIDENT_MARGIN
+                            else self.MIN_UTTERANCE_MS_MARGINAL
+                        )
+                        if utterance_ms >= required_ms:
                             logger.info(
                                 "voice_call_utterance_detected",
-                                utterance_ms=utterance_ms, noise_floor=noise_floor,
+                                utterance_ms=utterance_ms, noise_floor=noise_floor, margin=margin,
                             )
                             yield bytes(buffer)
+                        else:
+                            logger.info(
+                                "voice_call_utterance_rejected_marginal",
+                                utterance_ms=utterance_ms, noise_floor=noise_floor, margin=margin,
+                            )
                         buffer = bytearray()
                         speaking = False
                         silence_ms = 0.0
+                        peak_rms = 0.0
                         # The utterance that just ended proves the room is
                         # quiet again right now — snap the floor back to it
                         # instead of waiting for the slow EMA below to

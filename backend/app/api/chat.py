@@ -14,7 +14,7 @@ from app.engines.registry import get_engine
 from app.models.agent import Agent
 from app.models.conversation import Conversation
 from app.schemas.chat import ChatRequest, ConversationRead
-from app.utils.agent_tools import build_tools_for_agent
+from app.utils.agent_tools import build_agent_system_prompt, build_tools_for_agent
 from app.utils.memory_search import get_relevant_memories
 from app.workers.memory_worker import store_memory
 from app.workers.task_worker import make_tool_executor
@@ -88,6 +88,7 @@ async def send_chat_message(
     # only) since parallel tool calls run concurrently via asyncio.gather
     # inside the engine's tool loop.
     tools, tool_agents_by_name = await build_tools_for_agent(db, agent)
+    system_prompt = build_agent_system_prompt(agent, tools)
     tool_executor = None
     if tools:
         tool_by_id = {name: a.id for name, a in tool_agents_by_name.items()}
@@ -120,6 +121,13 @@ async def send_chat_message(
             calling_task_id=None,
             tool_by_name=tool_by_id,
             call_chain=[agent.id],
+            agent=agent,
+            # Live chat has no Task row to persist a result_files list onto
+            # (see make_tool_executor's docstring) — a generated file still
+            # gets created and saved for real, just not yet surfaced back
+            # into the chat UI. Tracked as explicit follow-up work, not
+            # silently dropped.
+            generated_files=[],
             session_factory=async_session_factory,
             on_delegation_start=_on_delegation_start,
             on_delegation_end=_on_delegation_end,
@@ -128,7 +136,11 @@ async def send_chat_message(
     full_reply = ""
     try:
         async for delta in engine.chat_stream(
-            augmented_message, history, tools=tools, tool_executor=tool_executor
+            augmented_message,
+            history,
+            tools=tools,
+            tool_executor=tool_executor,
+            system_prompt=system_prompt,
         ):
             full_reply += delta
             await sio.emit("chat_chunk", {"agent_id": str(agent.id), "delta": delta})

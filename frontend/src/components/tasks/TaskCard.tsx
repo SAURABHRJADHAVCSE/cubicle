@@ -1,9 +1,10 @@
 "use client";
 
-import { AlertCircle, Ban, CheckCircle2, Clock3, GitBranch, LoaderCircle } from "lucide-react";
+import { AlertCircle, Ban, CheckCircle2, Clock3, GitBranch, LoaderCircle, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { TaskResult } from "@/components/tasks/TaskResult";
 import { useAgents } from "@/hooks/useAgents";
-import { useTaskConfig, useUpdateTask } from "@/hooks/useTasks";
+import { useDeleteTask, useTaskConfig, useUpdateTask } from "@/hooks/useTasks";
 import { formatRelativeTime } from "@/lib/utils";
 import type { Task, TaskStatus } from "@/types/task";
 
@@ -109,7 +110,14 @@ interface TaskCardProps {
 export function TaskCard({ task, showStatusControl = false }: TaskCardProps) {
   const { data: agents } = useAgents();
   const updateTask = useUpdateTask();
+  const deleteTask = useDeleteTask();
   const status = STATUS_STYLES[task.status];
+  // Matches the backend's own _DELETABLE_STATUSES (api/tasks.py) — only a
+  // finished task (one way or the other) can be removed; a task still
+  // pending/assigned/in_progress/blocked/routed has (or will have) a
+  // Celery job pointed at this row, so deleting it out from under that
+  // job would orphan the work instead of actually cancelling it.
+  const isDeletable = task.status === "completed" || task.status === "failed";
   const assignedAgents = task.assigned_agents
     .map((id) => agents?.find((agent) => agent.id === id))
     .filter((agent): agent is NonNullable<typeof agent> => Boolean(agent));
@@ -137,34 +145,51 @@ export function TaskCard({ task, showStatusControl = false }: TaskCardProps) {
           </p>
           <ProgressTimer task={task} />
         </div>
-        {showStatusControl ? (
-          <Select
-            value={task.status}
-            onValueChange={(value) =>
-              value && updateTask.mutate({ id: task.id, payload: { status: value as TaskStatus } })
-            }
-            items={STATUS_OPTIONS}
-          >
-            <SelectTrigger
-              className={`stamp-badge h-auto shrink-0 gap-1 rounded border px-2 py-0.5 text-4xs font-bold uppercase ${status.className}`}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {showStatusControl ? (
+            <Select
+              value={task.status}
+              onValueChange={(value) =>
+                value && updateTask.mutate({ id: task.id, payload: { status: value as TaskStatus } })
+              }
+              items={STATUS_OPTIONS}
             >
+              <SelectTrigger
+                className={`stamp-badge h-auto shrink-0 gap-1 rounded border px-2 py-0.5 text-4xs font-bold uppercase ${status.className}`}
+              >
+                <StatusIcon status={task.status} />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(STATUS_OPTIONS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className={`stamp-badge inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-4xs font-bold uppercase ${status.className}`}>
               <StatusIcon status={task.status} />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(STATUS_OPTIONS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <span className={`stamp-badge inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-4xs font-bold uppercase ${status.className}`}>
-            <StatusIcon status={task.status} />
-            {status.label}
-          </span>
-        )}
+              {status.label}
+            </span>
+          )}
+          {isDeletable && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              aria-label={`Delete task "${task.title}"`}
+              onClick={(event) => {
+                event.stopPropagation();
+                deleteTask.mutate(task.id);
+              }}
+              disabled={deleteTask.isPending}
+            >
+              <Trash2 className="size-3" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="mt-2.5 flex items-center justify-between border-t border-border/60 pt-2">

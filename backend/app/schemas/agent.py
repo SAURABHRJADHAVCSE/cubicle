@@ -23,6 +23,9 @@ class AgentCreate(BaseModel):
     # only has_engine_api_key. Required for a bring-your-own API provider
     # (engine_provider outside {"ollama", "anthropic"}), validated in the route.
     engine_api_key: str | None = None
+    # Explicit opt-in for generate_image/generate_video (see
+    # media/registry.py) — not derived from engine_provider/key sharing.
+    is_media_specialist: bool = False
 
     personality_traits: list[str]
     personality_quirks: list[str] | None = None
@@ -51,6 +54,7 @@ class AgentUpdate(BaseModel):
     # "" to explicitly clear a stored key; omitted entirely (the default,
     # via exclude_unset) to leave whatever's already stored untouched.
     engine_api_key: str | None = None
+    is_media_specialist: bool | None = None
 
     personality_traits: list[str] | None = None
     personality_quirks: list[str] | None = None
@@ -84,6 +88,7 @@ class AgentRead(BaseModel):
     # Never the raw key — just whether one is configured (see
     # Agent.has_engine_api_key in models/agent.py).
     has_engine_api_key: bool
+    is_media_specialist: bool
     # Whether this agent is anyone's teammate (agent_collaborators) — not a
     # real column, set as a transient attribute by api/agents.py's
     # _mark_sub_agents() before serialization. Drives the frontend's "only

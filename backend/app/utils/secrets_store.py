@@ -8,6 +8,10 @@ from app.utils.encryption import decrypt_value, encrypt_value
 CLAUDE_OAUTH_TOKEN_KEY = "claude_code_oauth_token"
 ANTHROPIC_API_KEY_SETTING = "anthropic_api_key"
 SARVAM_API_KEY_SETTING = "sarvam_api_key"
+# Covers both image (Nano Banana) and video (Veo) generation — one Gemini
+# API key does both, see media/registry.py. Fallback only — an agent's own
+# Gemini key (Agent.engine_api_key_encrypted) is tried first.
+GEMINI_MEDIA_API_KEY_SETTING = "gemini_media_api_key"
 
 
 async def set_encrypted_setting(session: AsyncSession, key: str, value: str) -> None:

@@ -35,6 +35,12 @@ def emit_task_status(task_id: str, status: str) -> None:
     _emitter.emit("task_status", {"task_id": task_id, "status": status})
 
 
+def emit_task_deleted(task_id: str) -> None:
+    """Broadcast that a task was removed, so every other connected client
+    drops it from its own task feed instead of only the deleting client."""
+    _emitter.emit("task_deleted", {"task_id": task_id})
+
+
 def emit_celebration(agent_id: str) -> None:
     """Trigger a one-off celebration animation for an agent (task completed)."""
     _emitter.emit("celebration", {"agent_id": agent_id})

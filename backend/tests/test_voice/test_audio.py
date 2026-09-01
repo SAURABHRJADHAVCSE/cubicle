@@ -195,6 +195,42 @@ async def test_wait_until_drained_waits_for_recv_to_pull_everything() -> None:
     assert drained.is_set()
 
 
+async def test_marginal_burst_below_confident_margin_and_short_is_rejected() -> None:
+    # Regression coverage for a live report: a call transcript showed the
+    # caller apparently saying things ("Bye", "Thank you") they never said
+    # — Sarvam's STT (like every Whisper-family ASR) exposes no confidence
+    # score, so ambiguous audio that only weakly clears the speech gate can
+    # get filled in with plausible-sounding filler. A burst that clears
+    # SPEECH_MARGIN (2.5x the floor) but not CONFIDENT_MARGIN (4x) and
+    # stays under MIN_UTTERANCE_MS_MARGINAL must not be treated as a real
+    # utterance at all, even though it would have cleared the old flat
+    # MIN_UTTERANCE_MS floor.
+    frames = [
+        *_ms_of_frames(200, 500),  # calibrates the floor to ~200
+        *_ms_of_frames(200, 300),
+        *_ms_of_frames(700, 80),  # 3.5x the floor — clears SPEECH_MARGIN, not CONFIDENT_MARGIN; brief
+        *_ms_of_frames(200, 700),
+    ]
+    # The buffered utterance includes the trailing SILENCE_HANGOVER_MS
+    # (600ms) that closed it, so this is ~680ms total — under
+    # MIN_UTTERANCE_MS_MARGINAL (700) despite clearing the old flat
+    # MIN_UTTERANCE_MS (300) comfortably.
+    assert await _collect(frames) == []
+
+
+async def test_marginal_burst_long_enough_is_still_accepted() -> None:
+    # Same weak margin as above, but long enough to meet
+    # MIN_UTTERANCE_MS_MARGINAL — a sustained marginal sound is much less
+    # likely to be a stray blip than a brief one, so it's still accepted.
+    frames = [
+        *_ms_of_frames(200, 500),
+        *_ms_of_frames(200, 300),
+        *_ms_of_frames(700, 800),  # same 3.5x margin, but 800ms — clears MIN_UTTERANCE_MS_MARGINAL
+        *_ms_of_frames(200, 700),
+    ]
+    assert len(await _collect(frames)) == 1
+
+
 async def test_noisy_room_still_detects_speech_clearly_above_the_floor() -> None:
     # The old bug's exact scenario, but with real speech thrown in: even
     # with a noise floor near the old fixed threshold, a burst well above

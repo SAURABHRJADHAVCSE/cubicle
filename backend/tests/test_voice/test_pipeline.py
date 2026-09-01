@@ -395,10 +395,17 @@ async def test_llm_turn_delegates_instead_of_blocking(
     monkeypatch.setattr(pipeline_module, "dispatch_task", fake_dispatch_task)
 
     class _DelegatingEngine:
-        async def chat_stream(self, message: str, history: list[dict], tools=None, tool_executor=None):
+        async def chat_stream(self, message: str, history: list[dict], tools=None, tool_executor=None, system_prompt=None):
             assert tools, "delegation tool was never built/passed through"
-            tool_name = tools[0]["function"]["name"]
-            content, is_error = await tool_executor(tool_name, {"brief": "build the shoe store page"})
+            # Picks by description match rather than tools[0] — delegation is
+            # no longer scoped to a single curated collaborator (see
+            # get_delegation_candidates), so other agents may also be in the
+            # tools list; a real model would pick "Codey" by reading each
+            # tool's name/role description, same as here.
+            match = next(t for t in tools if "Codey" in t["function"]["description"])
+            content, is_error = await tool_executor(
+                match["function"]["name"], {"brief": "build the shoe store page"}
+            )
             assert is_error is False
             yield f"Sure — {content}"
 

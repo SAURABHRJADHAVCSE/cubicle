@@ -5,11 +5,13 @@ import uuid
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import get_db
+from app.media.base import EXT_TO_MIME
 from app.models.agent import Agent
 from app.models.agent_collaborator import AgentCollaborator
 from app.schemas.agent import AgentCreate, AgentRead, AgentUpdate
@@ -270,6 +272,33 @@ async def read_workspace_file(
         )
 
     return WorkspaceFileContent(path=resolved.relative, size=size, readable=True, content=text)
+
+
+@router.get("/{agent_id}/files/raw")
+async def read_workspace_file_raw(
+    agent_id: uuid.UUID, path: str, db: AsyncSession = Depends(get_db)
+) -> FileResponse:
+    """Serve a workspace file's actual bytes — the general-purpose
+    counterpart to files/content's text-only, size-capped preview. Needed
+    for anything that route can't handle: binary media in particular (an
+    image/video an agent generated, see media/gemini_image.py and
+    gemini_video.py) that's either non-UTF8 or bigger than
+    MAX_PREVIEW_BYTES. The frontend can't point an `<img>`/`<video>` tag
+    directly at this (this whole router requires a bearer token every
+    browser media tag omits) — it fetches this URL to a Blob and uses
+    `URL.createObjectURL()` instead (see useWorkspaceFile.ts).
+    """
+    agent = await _get_agent_or_404(agent_id, db)
+    try:
+        resolved = resolve_workspace_path(agent.working_directory, path)
+    except WorkspacePathError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    if not os.path.isfile(resolved.absolute):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="File not found.")
+
+    ext = os.path.splitext(resolved.absolute)[1].lstrip(".").lower()
+    return FileResponse(resolved.absolute, media_type=EXT_TO_MIME.get(ext, "application/octet-stream"))
 
 
 @router.put("/{agent_id}/soul", response_model=SoulRead)

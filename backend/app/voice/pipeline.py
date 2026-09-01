@@ -15,7 +15,7 @@ from app.engines.base import ToolExecutor
 from app.engines.registry import get_engine
 from app.models.agent import Agent
 from app.models.task import Task
-from app.utils.agent_tools import build_tools_for_agent
+from app.utils.agent_tools import GENERATE_IMAGE_TOOL, GENERATE_VIDEO_TOOL, build_tools_for_agent
 from app.utils.time_context import current_date_line
 from app.voice.audio import (
     AudioFrameBuffer,
@@ -25,7 +25,7 @@ from app.voice.audio import (
     resample_to_track_format,
 )
 from app.voice.registry import get_stt_provider, get_tts_provider
-from app.workers.task_worker import dispatch_task
+from app.workers.task_worker import dispatch_task, handle_media_tool_call
 
 logger = structlog.get_logger()
 
@@ -34,7 +34,9 @@ _NOT_CONFIGURED_MESSAGE = (
 )
 
 
-def _make_voice_delegation_executor(tool_by_name: dict[str, uuid.UUID]) -> ToolExecutor:
+def _make_voice_delegation_executor(
+    tool_by_name: dict[str, uuid.UUID], agent: Agent
+) -> ToolExecutor:
     """Delegation for a live voice call — same underlying Task/dispatch_task
     machinery as make_tool_executor (task_worker.py), used by task-based and
     chat-based delegation, but deliberately NOT the same blocking behavior:
@@ -46,9 +48,29 @@ def _make_voice_delegation_executor(tool_by_name: dict[str, uuid.UUID]) -> ToolE
     creates the task, dispatches it to Celery the normal way, and returns
     immediately — the model's own reply becomes the spoken acknowledgment,
     and the real work shows up in the task view like any other delegation.
+
+    generate_image/generate_video calls are routed to the shared
+    handle_media_tool_call (task_worker.py) instead — those aren't in
+    `tool_by_name` at all (build_tools_for_agent's delegate-name lookup
+    excludes them), so without this branch they fell through to "Unknown
+    tool" as an error. Confirmed live: an agent with its own Gemini key
+    calling generate_image directly on a voice call — a real, common path,
+    since a model prefers a direct tool over delegating when it has one —
+    always failed with that same "Unknown tool" error, which is exactly
+    what led the model to narrate a delegation afterward instead of ever
+    calling delegate_to_* for real. generate_files here is a throwaway
+    accumulator, same as api/chat.py's — no Task row exists on a voice call
+    to persist result_files onto (tracked as the same follow-up work noted
+    there).
     """
+    generated_files: list[str] = []
 
     async def tool_executor(tool_name: str, args: dict) -> tuple[str, bool]:
+        if tool_name in (GENERATE_IMAGE_TOOL, GENERATE_VIDEO_TOOL):
+            return await handle_media_tool_call(
+                tool_name, args, None, agent, generated_files, async_session_factory
+            )
+
         target_id = tool_by_name.get(tool_name)
         if target_id is None:
             return f"Unknown tool: {tool_name}", True
@@ -255,21 +277,34 @@ class CallAudioPipeline:
         async with async_session_factory() as session:
             tools, delegate_agents_by_name = await build_tools_for_agent(session, self.agent)
         tool_executor = (
-            _make_voice_delegation_executor({name: a.id for name, a in delegate_agents_by_name.items()})
+            _make_voice_delegation_executor(
+                {name: a.id for name, a in delegate_agents_by_name.items()}, self.agent
+            )
             if tools
             else None
         )
 
         personality = ", ".join(self.agent.personality_traits or []) or "professional"
         if delegate_agents_by_name:
-            teammates = ", ".join(a.name for a in delegate_agents_by_name.values())
+            # Named AND role — a name alone forces the model to guess fit;
+            # matches the tools list, which any other agent in the roster
+            # can now appear in (see get_delegation_candidates), not just a
+            # hand-picked collaborator, so this can't be a fixed one-liner.
+            teammates = ", ".join(
+                f"{a.name} ({a.role})" for a in delegate_agents_by_name.values()
+            )
             capability_note = (
                 f"You can delegate real work to your teammates on this call: {teammates}. "
-                "If asked to do something outside your own ability (like writing code), "
-                "delegate it to the right teammate instead of saying you can't, then tell "
-                "the caller it's underway and they can check progress in the task view. "
-                "Beyond an actual delegation, you still cannot access a calendar, send "
-                "email, or browse the web — nothing else you say has any real-world effect."
+                "If asked to do something outside your own ability, pick whichever "
+                "teammate is the actual domain expert for that specific request — not "
+                "just the first or most familiar name — and delegate it to them "
+                "immediately in the same turn, instead of saying you can't or asking "
+                "the caller for permission first; delegating is low-stakes and doesn't "
+                "need sign-off. Then tell the caller it's underway and they can "
+                "check progress in the task view. If none of them actually fit the "
+                "request, say so plainly instead of delegating to the closest-sounding "
+                "one anyway. Beyond an actual delegation, you still cannot access a "
+                "real-world effect."
             )
         else:
             # Without this, the model free-associates a plausible-sounding

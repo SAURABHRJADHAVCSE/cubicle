@@ -37,6 +37,7 @@ class AgentEngine(ABC):
         history: list[dict],
         tools: list[dict] | None = None,
         tool_executor: ToolExecutor | None = None,
+        system_prompt: str | None = None,
     ) -> AsyncIterator[str]:
         """Stream an interactive chat reply as incremental text deltas.
 
@@ -51,6 +52,12 @@ class AgentEngine(ABC):
         effect the caller's tool_executor performs (e.g. emitting websocket
         events), not a new item type in this stream. CLI engine overrides
         ignore these params — they have no tool-calling protocol to drive.
+
+        ``system_prompt`` (optional) gives the model the agent's identity,
+        SOUL.md, and tool-honesty guardrails — without it, the model has no
+        framing at all and free-associates (e.g. claiming to have delegated
+        a task without ever calling the delegate tool). CLI engine overrides
+        ignore it too — their own `execute()` builds CLI-specific framing.
         """
 
     async def chat(self, message: str, history: list[dict]) -> str:

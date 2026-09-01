@@ -113,6 +113,12 @@ export const api = {
       request<WorkspaceListing>(`/agents/${id}/files?path=${encodeURIComponent(path)}`),
     readFile: (id: string, path: string) =>
       request<WorkspaceFileContent>(`/agents/${id}/files/content?path=${encodeURIComponent(path)}`),
+    // Not routed through request() — this is consumed as a Blob, not JSON.
+    // Every route here requires a bearer token, which an <img>/<video> tag
+    // can't send, so callers fetch this URL themselves and build an object
+    // URL (see useWorkspaceFile.ts) instead of using it as a plain src.
+    rawFileUrl: (id: string, path: string) =>
+      `${getApiUrl()}/agents/${id}/files/raw?path=${encodeURIComponent(path)}`,
     writeSoul: (id: string, content: string) =>
       request<SoulRead>(`/agents/${id}/soul`, { method: "PUT", body: JSON.stringify({ content }) }),
     getCollaborators: (id: string) => request<CollaboratorsRead>(`/agents/${id}/collaborators`),
@@ -131,6 +137,7 @@ export const api = {
     execute: (id: string) => request<Task>(`/tasks/${id}/execute`, { method: "POST" }),
     update: (id: string, payload: TaskUpdate) =>
       request<Task>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+    remove: (id: string) => request<void>(`/tasks/${id}`, { method: "DELETE" }),
   },
   chat: {
     history: (agentId: string) =>

@@ -885,7 +885,9 @@ async def test_delegation_creates_and_completes_child_task(
 
 
 async def test_make_tool_executor_rejects_unknown_tool() -> None:
-    executor = task_worker_module.make_tool_executor(uuid.uuid4(), {}, [])
+    executor = task_worker_module.make_tool_executor(
+        uuid.uuid4(), {}, [], Agent(id=uuid.uuid4()), []
+    )
     content, is_error = await executor("delegate_to_ghost", {"brief": "x"})
     assert is_error is True
     assert "unknown tool" in content.lower()
@@ -894,7 +896,7 @@ async def test_make_tool_executor_rejects_unknown_tool() -> None:
 async def test_make_tool_executor_rejects_missing_brief() -> None:
     target_id = uuid.uuid4()
     executor = task_worker_module.make_tool_executor(
-        uuid.uuid4(), {"delegate_to_x": target_id}, []
+        uuid.uuid4(), {"delegate_to_x": target_id}, [], Agent(id=uuid.uuid4()), []
     )
     content, is_error = await executor("delegate_to_x", {})
     assert is_error is True
@@ -903,7 +905,11 @@ async def test_make_tool_executor_rejects_missing_brief() -> None:
 async def test_make_tool_executor_rejects_cycle() -> None:
     target_id = uuid.uuid4()
     executor = task_worker_module.make_tool_executor(
-        uuid.uuid4(), {"delegate_to_x": target_id}, call_chain=[target_id]
+        uuid.uuid4(),
+        {"delegate_to_x": target_id},
+        call_chain=[target_id],
+        agent=Agent(id=uuid.uuid4()),
+        generated_files=[],
     )
     content, is_error = await executor("delegate_to_x", {"brief": "do it"})
     assert is_error is True
@@ -915,7 +921,11 @@ async def test_make_tool_executor_rejects_depth_limit(monkeypatch: pytest.Monkey
     monkeypatch.setattr(task_worker_module, "get_settings", lambda: fake_settings)
     target_id = uuid.uuid4()
     executor = task_worker_module.make_tool_executor(
-        uuid.uuid4(), {"delegate_to_x": target_id}, call_chain=[uuid.uuid4(), uuid.uuid4()]
+        uuid.uuid4(),
+        {"delegate_to_x": target_id},
+        call_chain=[uuid.uuid4(), uuid.uuid4()],
+        agent=Agent(id=uuid.uuid4()),
+        generated_files=[],
     )
     content, is_error = await executor("delegate_to_x", {"brief": "do it"})
     assert is_error is True

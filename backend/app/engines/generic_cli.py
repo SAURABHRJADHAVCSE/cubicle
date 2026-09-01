@@ -138,9 +138,10 @@ class GenericCliEngine(AgentEngine):
         history: list[dict],
         tools: list[dict] | None = None,
         tool_executor: ToolExecutor | None = None,
+        system_prompt: str | None = None,
     ) -> AsyncIterator[str]:
-        # Accepts tools/tool_executor for signature parity with AgentEngine
-        # but ignores them — no structured tool-calling protocol here.
+        # Accepts tools/tool_executor/system_prompt for signature parity with
+        # AgentEngine but ignores them — no structured tool-calling protocol here.
         transcript = "\n".join(
             f"{'User' if turn['role'] == 'user' else 'You'}: {turn['content']}"
             for turn in history

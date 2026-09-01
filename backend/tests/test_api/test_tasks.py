@@ -228,6 +228,86 @@ async def test_blocked_task_auto_promotes_once_dependency_completes(
     assert dispatched == [dependent["id"]]
 
 
+# ---- DELETE /tasks/{task_id} -----------------------------------------------
+
+
+async def test_delete_completed_task_succeeds(client: AsyncClient) -> None:
+    agent_id = await _create_agent(client)
+    created = (
+        await client.post(
+            "/tasks", json={"title": "t", "brief": "do it", "assigned_agents": [agent_id]}
+        )
+    ).json()
+    await client.patch(f"/tasks/{created['id']}", json={"status": "completed"})
+
+    resp = await client.delete(f"/tasks/{created['id']}")
+    assert resp.status_code == 204
+
+    get_resp = await client.get(f"/tasks/{created['id']}")
+    assert get_resp.status_code == 404
+
+
+async def test_delete_failed_task_succeeds(client: AsyncClient) -> None:
+    agent_id = await _create_agent(client)
+    created = (
+        await client.post(
+            "/tasks", json={"title": "t", "brief": "do it", "assigned_agents": [agent_id]}
+        )
+    ).json()
+    await client.patch(f"/tasks/{created['id']}", json={"status": "failed"})
+
+    resp = await client.delete(f"/tasks/{created['id']}")
+    assert resp.status_code == 204
+
+
+async def test_delete_pending_task_rejected(client: AsyncClient) -> None:
+    # A pending/in-flight task still has (or will have) a Celery job pointed
+    # at this row -- deleting it out from under that job would orphan the
+    # work rather than actually cancel it, so only finished tasks qualify.
+    agent_id = await _create_agent(client)
+    created = (
+        await client.post(
+            "/tasks", json={"title": "t", "brief": "do it", "assigned_agents": [agent_id]}
+        )
+    ).json()
+
+    resp = await client.delete(f"/tasks/{created['id']}")
+    assert resp.status_code == 409
+
+    get_resp = await client.get(f"/tasks/{created['id']}")
+    assert get_resp.status_code == 200  # still there
+
+
+async def test_delete_nonexistent_task_404(client: AsyncClient) -> None:
+    resp = await client.delete(f"/tasks/{uuid.uuid4()}")
+    assert resp.status_code == 404
+
+
+async def test_delete_completed_task_cascades_to_subtasks(client: AsyncClient) -> None:
+    agent_id = await _create_agent(client)
+    parent = (
+        await client.post(
+            "/tasks", json={"title": "parent", "brief": "do it", "assigned_agents": [agent_id]}
+        )
+    ).json()
+    child = (
+        await client.post(
+            "/tasks",
+            json={
+                "title": "child", "brief": "delegated", "assigned_agents": [agent_id],
+                "parent_task_id": parent["id"],
+            },
+        )
+    ).json()
+    await client.patch(f"/tasks/{parent['id']}", json={"status": "completed"})
+
+    resp = await client.delete(f"/tasks/{parent['id']}")
+    assert resp.status_code == 204
+
+    child_resp = await client.get(f"/tasks/{child['id']}")
+    assert child_resp.status_code == 404
+
+
 class _RecordingDelayStub:
     def delay(self, *args: object) -> None:
         pass

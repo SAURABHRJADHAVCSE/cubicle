@@ -12,6 +12,10 @@ export interface TaskStatusEvent {
   status: string;
 }
 
+export interface TaskDeletedEvent {
+  task_id: string;
+}
+
 export interface CelebrationEvent {
   agent_id: string;
 }
@@ -103,6 +107,7 @@ export interface ClientToServerEvents {
 export interface ServerToClientEvents {
   agent_status: (payload: AgentStatusEvent) => void;
   task_status: (payload: TaskStatusEvent) => void;
+  task_deleted: (payload: TaskDeletedEvent) => void;
   chat_chunk: (payload: ChatChunkEvent) => void;
   chat_done: (payload: ChatDoneEvent) => void;
   chat_tool_call_started: (payload: ChatToolCallStartedEvent) => void;

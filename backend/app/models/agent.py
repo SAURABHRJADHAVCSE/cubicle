@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ARRAY, DateTime, ForeignKey, Integer, LargeBinary, String, func, text
+from sqlalchemy import ARRAY, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, func, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -47,6 +47,14 @@ class Agent(Base):
     # through the API; see the `has_engine_api_key` property below and
     # AgentRead in schemas/agent.py.
     engine_api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
+    # Explicit opt-in for generate_image/generate_video (see
+    # media/registry.py) — NOT derived from whether this agent happens to
+    # have a usable Gemini key. That implicit derivation let any
+    # Gemini-keyed agent (e.g. a personal assistant sharing a provider with
+    # the actual specialist) get its own media tool and call it directly
+    # instead of ever delegating to the intended specialist — confirmed
+    # live. Only an agent with this set True gets the tool at all.
+    is_media_specialist: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
     personality_traits: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)
     personality_quirks: Mapped[list[str] | None] = mapped_column(ARRAY(String))
@@ -61,7 +69,7 @@ class Agent(Base):
     status: Mapped[str] = mapped_column(String(20), server_default="idle")
     mood: Mapped[str] = mapped_column(String(20), server_default="neutral")
     current_task_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("tasks.id")
+        PG_UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="SET NULL")
     )
     # When `status` last changed — set explicitly wherever status is
     # reassigned (task_worker.py). Deliberately NOT `updated_at` reused for

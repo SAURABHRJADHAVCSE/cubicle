@@ -59,6 +59,23 @@ DESK_VISIT_CHANCE = 0.2
 # exactly on a minute boundary.
 WINDDOWN_HOUR = 18
 
+# Used as the canned fallback for a desk-visit line whenever the LLM call
+# fails (generate_dialogue never raises, see social/dialogue.py) — a single
+# generic "Hey {name}!" made every LLM hiccup read as flat and identical.
+# A varied pool, including some playful/flirty lines, keeps desk visits
+# feeling like actual office banter even on a fallback.
+_DESK_VISIT_FALLBACK_LINES = [
+    "Hey {target}, got a sec?",
+    "Well if it isn't {target}, my favorite coworker.",
+    "{target}! Just the person I wanted to see.",
+    "Don't mind me, just here to steal a bit of your time.",
+    "You always look sharp when you're focused like that.",
+    "Coffee run later? Just the two of us?",
+    "I was headed back to my desk, but then I saw you.",
+    "So, any big plans after this shift?",
+    "Okay don't tell anyone, but you're my favorite person in this office.",
+]
+
 
 @celery_app.task(name="detect_social_triggers")
 def detect_social_triggers() -> None:
@@ -102,10 +119,11 @@ async def _detect_social_triggers_async() -> None:
 
         if len(eligible) >= 2 and random.random() < DESK_VISIT_CHANCE:
             visitor, target = random.sample(eligible, 2)
+            fallback = random.choice(_DESK_VISIT_FALLBACK_LINES).format(target=target.name)
             dialogue = await generate_dialogue(
                 visitor,
                 f"stopping by {target.name}'s desk for a chat",
-                f"Hey {target.name}!",
+                fallback,
             )
             emit_social_event(str(visitor.id), "desk_visit", dialogue, str(target.id))
             visitor.last_social_trigger_at = now

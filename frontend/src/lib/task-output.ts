@@ -37,3 +37,19 @@ export function getTaskDisplaySummary(task: Task): TaskDisplayOutput {
 
   return { summary: null, isExtracted: false };
 }
+
+/** Splits a `task.result_files` entry ("{agent_id}:{relative_path}") back
+ * into its parts — self-describing because `task.assigned_agents[0]` isn't
+ * reliably the generating agent once delegation is involved, and the
+ * frontend needs to know which agent's workspace to fetch from (see
+ * backend/app/workers/task_worker.py's make_tool_executor). Returns null
+ * for a malformed entry rather than throwing — one bad entry shouldn't
+ * break rendering every other result file. */
+export function parseResultFileEntry(entry: string): { agentId: string; path: string } | null {
+  const separatorIndex = entry.indexOf(":");
+  if (separatorIndex <= 0 || separatorIndex === entry.length - 1) return null;
+  return {
+    agentId: entry.slice(0, separatorIndex),
+    path: entry.slice(separatorIndex + 1),
+  };
+}

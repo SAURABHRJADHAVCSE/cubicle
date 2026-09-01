@@ -8,6 +8,7 @@ import type { SocialEvent } from "@/types/events";
 
 export interface SpeechBubbleState {
   id: string;
+  agentId: string;
   agentName: string;
   accentColor: string;
   text: string;
@@ -44,6 +45,7 @@ export function useSpeechBubbles(): SpeechBubbleState[] {
 
       const bubble: SpeechBubbleState = {
         id: `${agent.id}-${Date.now()}`,
+        agentId: agent.id,
         agentName: agent.name,
         accentColor: agent.accent_color,
         text: payload.dialogue,

@@ -10,7 +10,7 @@ from app.api import chat as chat_module
 
 
 class _StubStreamEngine:
-    async def chat_stream(self, message, history, tools=None, tool_executor=None):
+    async def chat_stream(self, message, history, tools=None, tool_executor=None, system_prompt=None):
         for chunk in ["Hel", "lo!"]:
             yield chunk
 
@@ -95,12 +95,21 @@ class _NoCloseSessionCM:
 
 
 class _DelegatingEngine:
-    """Simulates an orchestrator LLM turn that calls exactly one tool."""
+    """Simulates an orchestrator LLM turn that calls exactly one tool —
+    picking whichever tool's description names `target_name`, mirroring how
+    a real model reads each delegate tool's description (name + role) to
+    pick the actual domain-fit teammate rather than just the first one
+    listed (delegation is no longer scoped to a single curated
+    collaborator, so the tools list may contain other agents too — see
+    build_tools_for_agent's get_delegation_candidates)."""
 
-    async def chat_stream(self, message, history, tools=None, tool_executor=None):
+    def __init__(self, target_name: str):
+        self.target_name = target_name
+
+    async def chat_stream(self, message, history, tools=None, tool_executor=None, system_prompt=None):
         if tools and tool_executor is not None:
-            tool_name = tools[0]["function"]["name"]
-            content, _is_error = await tool_executor(tool_name, {"brief": "draw a cat"})
+            match = next(t for t in tools if self.target_name in t["function"]["description"])
+            content, _is_error = await tool_executor(match["function"]["name"], {"brief": "draw a cat"})
             yield f"Done: {content}"
         else:
             yield "no tools available"
@@ -132,7 +141,7 @@ async def test_chat_delegates_to_teammate_and_emits_websocket_events(
     )
 
     def fake_get_engine(agent):
-        return _DelegatingEngine() if str(agent.id) == main_id else _TeammateEngine()
+        return _DelegatingEngine("Artist") if str(agent.id) == main_id else _TeammateEngine()
 
     monkeypatch.setattr(chat_module, "get_engine", fake_get_engine)
     monkeypatch.setattr(

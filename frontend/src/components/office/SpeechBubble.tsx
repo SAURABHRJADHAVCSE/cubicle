@@ -2,31 +2,33 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
-import type { SpeechBubbleState } from "@/hooks/useSpeechBubbles";
-
-export function SpeechBubbleOverlay({ bubbles }: { bubbles: SpeechBubbleState[] }) {
+/** A single agent's own speech bubble — rendered inside AgentAvatar.tsx via
+ * drei's <Html>, positioned above that specific character's head, comic-book
+ * style (rounded cloud + a small tail pointing down at the speaker) instead
+ * of the old fixed-position, screen-bottom-center overlay every agent's
+ * dialogue used to funnel through regardless of where they actually were.
+ * `bubbleKey` should change per new line (the bubble's own id) so
+ * AnimatePresence treats a new line as a fresh enter, not a text swap. */
+export function AgentSpeechBubble({ bubbleKey, text }: { bubbleKey: string; text: string }) {
   const reduceMotion = useReducedMotion();
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-12 z-10 flex flex-col items-center gap-2">
-      <AnimatePresence>
-        {bubbles.map((bubble) => (
-          <motion.div
-            key={bubble.id}
-            initial={{ opacity: 0, y: reduceMotion ? 0 : 8, scale: reduceMotion ? 1 : 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: reduceMotion ? 0 : -8, scale: reduceMotion ? 1 : 0.9 }}
-            transition={{ duration: 0.2 }}
-            className="flex items-center gap-2 rounded-full border border-white/15 bg-[#101827]/82 px-3.5 py-2 text-2xs text-white shadow-xl backdrop-blur-xl"
-          >
-            <span
-              className="size-2 rounded-full"
-              style={{ backgroundColor: bubble.accentColor }}
-            />
-            <span className="font-medium">{bubble.agentName}</span>
-            <span className="text-white/65">{bubble.text}</span>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </div>
+    <AnimatePresence>
+      <motion.div
+        key={bubbleKey}
+        initial={{ opacity: 0, y: reduceMotion ? 0 : 6, scale: reduceMotion ? 1 : 0.85 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, scale: reduceMotion ? 1 : 0.85 }}
+        transition={{ duration: 0.18 }}
+        className="pointer-events-none relative max-w-[150px] rounded-2xl border-2 border-[#292724] bg-[#fffdf8] px-2.5 py-1.5 text-center shadow-[0_4px_10px_rgba(38,35,31,0.25)]"
+      >
+        <span className="font-heading text-[10px] leading-snug break-words text-[#292724]">
+          {text}
+        </span>
+        {/* Comic-tail: a small rotated square, clipped by its own border
+            so only the bottom-left corner shows as a triangle pointing
+            down at the speaker's head. */}
+        <span className="absolute -bottom-[7px] left-1/2 size-3 -translate-x-1/2 rotate-45 border-r-2 border-b-2 border-[#292724] bg-[#fffdf8]" />
+      </motion.div>
+    </AnimatePresence>
   );
 }

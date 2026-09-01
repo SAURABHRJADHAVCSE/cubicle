@@ -5,6 +5,7 @@ import { Html, RoundedBox } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
+import { AgentSpeechBubble } from "@/components/office/SpeechBubble";
 import { useOfficeStore } from "@/stores/officeStore";
 import type { AgentMood, AgentStatus } from "@/types/agent";
 
@@ -87,6 +88,12 @@ interface AgentAvatarProps {
   targetRotationY: number;
   animationStateOverride?: "idle" | "working" | "walking" | "celebrating";
   restWhenIdle?: boolean;
+  /** The agent's current speech-bubble line, if any (see
+   * hooks/useSpeechBubbles.ts) — `bubbleId` should change per new line so
+   * AgentSpeechBubble's enter animation replays instead of the text just
+   * silently swapping. */
+  speechText?: string;
+  speechBubbleId?: string;
 }
 
 export function AgentAvatar({
@@ -95,6 +102,8 @@ export function AgentAvatar({
   targetRotationY,
   animationStateOverride,
   restWhenIdle = false,
+  speechText,
+  speechBubbleId,
 }: AgentAvatarProps) {
   const rootRef = useRef<THREE.Group>(null);
   const figureRef = useRef<THREE.Group>(null);
@@ -318,15 +327,21 @@ export function AgentAvatar({
     <group ref={rootRef} position={initialPosition}>
       {agent.name && (
         <Html position={[0, 1.78, FIGURE_Z]} center zIndexRange={[20, 0]}>
-          <div className="pointer-events-none flex min-w-max items-center gap-1.5 rounded-md border border-[#777166]/70 bg-[#fffdf8]/95 px-2 py-1 text-[#292724] shadow-[0_3px_10px_rgba(38,35,31,0.16)] backdrop-blur-sm">
-            <span className="size-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
-            <span className="text-[9px] font-extrabold uppercase leading-none tracking-[0.045em]">
+          <div className="pointer-events-none flex min-w-max items-center gap-1 rounded border border-[#777166]/70 bg-[#fffdf8]/95 px-1.5 py-0.5 text-[#292724] shadow-[0_2px_6px_rgba(38,35,31,0.16)] backdrop-blur-sm">
+            <span className="size-1 rounded-full" style={{ backgroundColor: statusColor }} />
+            <span className="text-[6.5px] font-extrabold uppercase leading-none tracking-[0.04em]">
               {agent.name}
             </span>
-            <span className="border-l border-[#b8b0a3] pl-1.5 text-[8px] font-bold capitalize text-[#6b655c]">
+            <span className="border-l border-[#b8b0a3] pl-1 text-[6px] font-bold capitalize leading-none text-[#6b655c]">
               {agent.status}
             </span>
           </div>
+        </Html>
+      )}
+
+      {speechText && (
+        <Html position={[0, 2.08, FIGURE_Z]} center zIndexRange={[21, 0]}>
+          <AgentSpeechBubble bubbleKey={speechBubbleId ?? speechText} text={speechText} />
         </Html>
       )}
 

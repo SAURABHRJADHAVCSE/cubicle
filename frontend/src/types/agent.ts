@@ -16,6 +16,9 @@ export interface Agent {
   allowed_tools: string[] | null;
   // Never the raw key — just whether a bring-your-own API key is configured.
   has_engine_api_key: boolean;
+  // Explicit opt-in for generate_image/generate_video tools — not derived
+  // from engine_provider/key sharing (see backend media/registry.py).
+  is_media_specialist: boolean;
   // Whether this agent is anyone's teammate (agent_collaborators) — drives
   // the "only chat with main agents" rule (see AgentCard.tsx).
   is_sub_agent: boolean;
@@ -51,6 +54,7 @@ export interface AgentCreate {
   // for a custom (bring-your-own) API provider, i.e. engine_provider
   // outside {"anthropic", "ollama"}.
   engine_api_key?: string | null;
+  is_media_specialist?: boolean;
   personality_traits: string[];
   personality_quirks?: string[] | null;
   voice_language?: string;
@@ -73,6 +77,7 @@ export interface AgentUpdate {
   // Same contract as AgentCreate's field: omit to leave untouched, "" to
   // clear, a value to rotate. Never present in any response.
   engine_api_key?: string | null;
+  is_media_specialist?: boolean;
   status?: AgentStatus;
   mood?: AgentMood;
   [key: string]: unknown;

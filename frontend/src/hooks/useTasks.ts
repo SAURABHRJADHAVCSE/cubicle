@@ -43,6 +43,14 @@ export function useUpdateTask() {
   });
 }
 
+export function useDeleteTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.tasks.remove(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+  });
+}
+
 export function useTaskConfig() {
   return useQuery({
     queryKey: ["tasks", "config"],

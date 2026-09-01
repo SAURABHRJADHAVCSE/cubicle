@@ -37,7 +37,7 @@ class AgentMemory(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(_EMBEDDING_DIM), nullable=False)
     source_task_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("tasks.id")
+        PG_UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="SET NULL")
     )
     memory_type: Mapped[str] = mapped_column(String(20), server_default="task")
 

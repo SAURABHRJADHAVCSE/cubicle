@@ -26,6 +26,7 @@ interface EditState {
   engineCommand: string;
   allowedTools: string;
   engineApiKey: string;
+  isMediaSpecialist: boolean;
 }
 
 const EMPTY_EDIT: EditState = {
@@ -34,6 +35,7 @@ const EMPTY_EDIT: EditState = {
   engineCommand: "",
   allowedTools: "",
   engineApiKey: "",
+  isMediaSpecialist: false,
 };
 
 interface NewAgentState {
@@ -108,6 +110,7 @@ export function AgentManagePanel() {
       engineCommand: agent.engine_command ?? "",
       allowedTools: (agent.allowed_tools ?? []).join(", "),
       engineApiKey: "",
+      isMediaSpecialist: agent.is_media_specialist,
     });
   }, [agent]);
 
@@ -158,6 +161,7 @@ export function AgentManagePanel() {
           allowed_tools: isCli && edit.allowedTools.trim()
             ? edit.allowedTools.split(",").map((t) => t.trim()).filter(Boolean)
             : null,
+          is_media_specialist: edit.isMediaSpecialist,
           // Omit entirely when blank so a blank field never clobbers an
           // already-stored key — only send it when the user actually typed
           // a new one.
@@ -308,6 +312,28 @@ export function AgentManagePanel() {
                 onApiKeyChange={(v) => setEdit((s) => ({ ...s, engineApiKey: v }))}
                 hasEngineApiKey={agent.has_engine_api_key}
               />
+              {!isCli && (
+                <label className="flex items-start gap-2.5 rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-xs">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-3.5 shrink-0 accent-primary"
+                    checked={edit.isMediaSpecialist}
+                    onChange={(e) =>
+                      setEdit((s) => ({ ...s, isMediaSpecialist: e.target.checked }))
+                    }
+                  />
+                  <span>
+                    <span className="font-semibold text-foreground">
+                      Handles image/video generation
+                    </span>
+                    <span className="mt-0.5 block text-3xs text-muted-foreground">
+                      Only an agent with this on gets generate_image/generate_video tools —
+                      other agents will delegate media requests to it instead of trying (and
+                      failing) to generate media themselves.
+                    </span>
+                  </span>
+                </label>
+              )}
               <Button
                 className="w-full rounded-full text-2xs font-bold"
                 onClick={saveConfig}

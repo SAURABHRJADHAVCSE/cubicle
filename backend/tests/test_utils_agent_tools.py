@@ -81,15 +81,24 @@ async def test_build_tools_for_agent_empty_for_cli_engine(db_session: AsyncSessi
     assert by_name == {}
 
 
-async def test_build_tools_for_agent_empty_when_no_collaborators(db_session: AsyncSession) -> None:
+async def test_build_tools_for_agent_includes_agents_with_no_curated_link(
+    db_session: AsyncSession,
+) -> None:
+    """Delegation is no longer scoped to the AgentCollaborator roster — an
+    API-engine agent should see a delegate tool for another agent even when
+    no AgentCollaborator row links them, so it can pick whichever teammate
+    actually fits the task rather than only ones manually checked in the
+    Team panel (see build_agent_system_prompt's tool-selection guardrail).
+    """
     main = _agent(name="Manager")
-    db_session.add(main)
+    stranger = _agent(name="Stranger", role="Copywriter")
+    db_session.add_all([main, stranger])
     await db_session.flush()
+    # Deliberately no AgentCollaborator row between them.
 
     tools, by_name = await build_tools_for_agent(db_session, main)
 
-    assert tools == []
-    assert by_name == {}
+    assert stranger.id in {a.id for a in by_name.values()}
 
 
 async def test_build_tools_for_agent_returns_schema_and_lookup(db_session: AsyncSession) -> None:
@@ -102,6 +111,7 @@ async def test_build_tools_for_agent_returns_schema_and_lookup(db_session: Async
 
     tools, by_name = await build_tools_for_agent(db_session, main)
 
-    assert len(tools) == 1
-    tool_name = tools[0]["function"]["name"]
-    assert by_name[tool_name].id == teammate.id
+    matching = [name for name, agent in by_name.items() if agent.id == teammate.id]
+    assert len(matching) == 1
+    schema = next(t for t in tools if t["function"]["name"] == matching[0])
+    assert "Artist" in schema["function"]["description"]

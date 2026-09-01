@@ -62,6 +62,39 @@ async def test_get_nonexistent_agent_404(client: AsyncClient) -> None:
     assert resp.status_code == 404
 
 
+async def test_files_raw_serves_binary_content_with_correct_mime(client: AsyncClient) -> None:
+    """Regression coverage for a live bug: files/content (text preview,
+    512KB cap) was the only way to view a workspace file, so a generated
+    image either failed as "not a text file" or "too large to preview"
+    depending on size. files/raw is the binary counterpart — used for
+    anything files/content can't handle."""
+    import os
+
+    created = (await client.post("/agents", json=_payload(name="Wanda"))).json()
+    fake_jpeg = b"\xff\xd8\xff\xe0not a real jpeg but binary enough"
+    with open(os.path.join(created["working_directory"], "picture.jpg"), "wb") as f:
+        f.write(fake_jpeg)
+
+    resp = await client.get(f"/agents/{created['id']}/files/raw", params={"path": "picture.jpg"})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/jpeg"
+    assert resp.content == fake_jpeg
+
+
+async def test_files_raw_404_on_missing_file(client: AsyncClient) -> None:
+    created = (await client.post("/agents", json=_payload(name="Ghost"))).json()
+    resp = await client.get(f"/agents/{created['id']}/files/raw", params={"path": "nope.jpg"})
+    assert resp.status_code == 404
+
+
+async def test_files_raw_rejects_path_traversal(client: AsyncClient) -> None:
+    created = (await client.post("/agents", json=_payload(name="Sneaky"))).json()
+    resp = await client.get(
+        f"/agents/{created['id']}/files/raw", params={"path": "../../../etc/passwd"}
+    )
+    assert resp.status_code == 400
+
+
 # ---- bring-your-own API provider -------------------------------------------
 
 

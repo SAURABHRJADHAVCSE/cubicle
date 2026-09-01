@@ -100,13 +100,17 @@ class LiteLLMEngine(AgentEngine):
         total_cost = 0.0
         response = None
         for _ in range(_MAX_TOOL_ROUNDS):
-            response = await litellm.acompletion(
-                model=self.model,
-                messages=messages,
-                api_base=self.api_base,
-                tools=tools or None,
-                **self._extra_call_kwargs(),
-            )
+            try:
+                response = await litellm.acompletion(
+                    model=self.model,
+                    messages=messages,
+                    api_base=self.api_base,
+                    tools=tools or None,
+                    **self._extra_call_kwargs(),
+                )
+            except Exception as exc:  # noqa: BLE001 - re-raised as a clearer message below
+                self._raise_if_tool_unsupported(exc, tools)
+                raise
             total_tokens += response.usage.total_tokens if response.usage else 0
             total_cost += self._safe_completion_cost(response)
 
@@ -145,6 +149,30 @@ class LiteLLMEngine(AgentEngine):
                 )
         return response, total_tokens, total_cost
 
+    def _raise_if_tool_unsupported(self, exc: Exception, tools: list[dict] | None) -> None:
+        """Turn a provider's raw "function calling not enabled" rejection
+        into an actionable message instead of a cryptic JSON blob.
+
+        Confirmed live: an agent configured with a model that can't do tool
+        calling at all (e.g. Gemini's image-generation-only variants, which
+        reject `tools` outright) hard-crashed the whole task with an opaque
+        litellm.BadRequestError the moment it had any delegate/media tool
+        available — which is now the common case, not an edge case, since
+        every API-engine agent gets delegate tools by default (see
+        agent_tools.py's get_delegation_candidates). Only fires when tools
+        were actually sent — the same provider error text should never
+        occur on a plain completion, so a false positive here isn't a
+        realistic concern.
+        """
+        if not tools:
+            return
+        if "function calling" in str(exc).lower():
+            raise RuntimeError(
+                f"This agent's model ({self.model}) doesn't support tool/function "
+                "calling, which delegation and media generation both need. Pick a "
+                "different model for it in Settings."
+            ) from exc
+
     async def _call_tool(
         self, tool_call_id: str, name: str, arguments_json: str, tool_executor: ToolExecutor
     ) -> tuple[str, str, bool]:
@@ -165,18 +193,27 @@ class LiteLLMEngine(AgentEngine):
         history: list[dict],
         tools: list[dict] | None = None,
         tool_executor: ToolExecutor | None = None,
+        system_prompt: str | None = None,
     ) -> AsyncIterator[str]:
         await self._resolve_api_key()
-        messages = [*history, {"role": "user", "content": message}]
+        messages = [
+            *([{"role": "system", "content": system_prompt}] if system_prompt else []),
+            *history,
+            {"role": "user", "content": message},
+        ]
         for _ in range(_MAX_TOOL_ROUNDS):
-            response = await litellm.acompletion(
-                model=self.model,
-                messages=messages,
-                api_base=self.api_base,
-                stream=True,
-                tools=tools or None,
-                **self._extra_call_kwargs(),
-            )
+            try:
+                response = await litellm.acompletion(
+                    model=self.model,
+                    messages=messages,
+                    api_base=self.api_base,
+                    stream=True,
+                    tools=tools or None,
+                    **self._extra_call_kwargs(),
+                )
+            except Exception as exc:  # noqa: BLE001 - re-raised as a clearer message below
+                self._raise_if_tool_unsupported(exc, tools)
+                raise
             assistant_text = ""
             # LiteLLM/OpenAI streaming shape: tool-call args arrive as
             # string fragments across multiple chunks, keyed by index —

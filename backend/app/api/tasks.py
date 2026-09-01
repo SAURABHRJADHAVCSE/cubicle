@@ -12,7 +12,7 @@ from app.database import get_db
 from app.models.task import Task
 from app.schemas.task import TaskConfigResponse, TaskCreate, TaskRead, TaskUpdate
 from app.workers.task_worker import dependencies_satisfied, dispatch_task
-from app.ws.events import emit_task_status
+from app.ws.events import emit_task_deleted, emit_task_status
 
 logger = structlog.get_logger()
 
@@ -55,6 +55,29 @@ async def task_config() -> TaskConfigResponse:
 async def get_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> Task:
     """Fetch a single task by id, including its result once available."""
     return await _get_task_or_404(task_id, db)
+
+
+# Only a task that's actually done — one way or the other — can be deleted.
+# A pending/assigned/in_progress/blocked/routed task still has (or will
+# have) a Celery job pointed at this row; deleting it out from under that
+# job would just orphan the work instead of actually cancelling it.
+_DELETABLE_STATUSES = {"completed", "failed"}
+
+
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> None:
+    """Delete a finished task (completed or failed) from the feed. Cascades
+    to any subtasks it delegated (Task.parent_task_id is ON DELETE CASCADE)."""
+    task = await _get_task_or_404(task_id, db)
+    if task.status not in _DELETABLE_STATUSES:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=f"Task is '{task.status}' — only completed or failed tasks can be deleted.",
+        )
+    await db.delete(task)
+    await db.commit()
+    logger.info("task_deleted", task_id=str(task_id))
+    emit_task_deleted(str(task_id))
 
 
 @router.post("/{task_id}/execute", response_model=TaskRead)

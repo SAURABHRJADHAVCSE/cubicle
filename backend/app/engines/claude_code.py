@@ -136,9 +136,10 @@ class ClaudeCodeEngine(AgentEngine):
         history: list[dict],
         tools: list[dict] | None = None,
         tool_executor: ToolExecutor | None = None,
+        system_prompt: str | None = None,
     ) -> AsyncIterator[str]:
-        # Accepts tools/tool_executor for signature parity with AgentEngine
-        # but ignores them — the CLI has no structured tool-calling protocol
+        # Accepts tools/tool_executor/system_prompt for signature parity with
+        # AgentEngine but ignores them — the CLI has no structured tool-calling protocol
         # Cubicle can drive (see base.py's chat_stream docstring).
         # `--print` is a stateless, single-shot invocation with no native
         # session resumption wired up yet, so recent turns are folded into

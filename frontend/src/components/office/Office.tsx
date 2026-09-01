@@ -10,6 +10,7 @@ import { ModernDesk } from "@/components/office/ModernDesk";
 import { WaitingArea } from "@/components/office/WaitingArea";
 import { useAgents } from "@/hooks/useAgents";
 import { useOfficeSocket } from "@/hooks/useOfficeSocket";
+import { useSpeechBubbles } from "@/hooks/useSpeechBubbles";
 import {
   computeDeskLayout,
   computeQueueLayout,
@@ -256,6 +257,12 @@ export function Office() {
   const { data: agents } = useAgents();
   const syncFromRoster = useOfficeStore((state) => state.syncFromRoster);
   useOfficeSocket();
+  // Speech bubbles render per-agent, above each character's own head (see
+  // AgentAvatar.tsx) instead of a single fixed screen-center overlay — one
+  // agent can only ever have one active line, so the most recent bubble
+  // for a given agentId wins if two somehow overlap.
+  const speechBubbles = useSpeechBubbles();
+  const bubbleByAgent = new Map(speechBubbles.map((b) => [b.agentId, b]));
 
   useEffect(() => {
     if (agents) syncFromRoster(agents);
@@ -326,6 +333,7 @@ export function Office() {
         const isWorking = agent.status === "working" || agent.status === "thinking";
         const waitingSlot = queueByAgent.get(agent.id);
         const destination = isWorking || !waitingSlot ? desk : waitingSlot;
+        const bubble = bubbleByAgent.get(agent.id);
 
         return (
           <AgentAvatar
@@ -334,6 +342,8 @@ export function Office() {
             targetPosition={destination.position}
             targetRotationY={destination.rotationY}
             restWhenIdle={!isWorking}
+            speechText={bubble?.text}
+            speechBubbleId={bubble?.id}
           />
         );
       })}
