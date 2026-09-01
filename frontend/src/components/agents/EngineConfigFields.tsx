@@ -3,6 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useApiKeysStatus } from "@/hooks/useApiKeys";
 import { API_PROVIDERS, BUILTIN_API_PROVIDERS, CLI_PROVIDERS, VERIFIED_CLI_PROVIDERS } from "@/lib/engineProviders";
 import type { EngineType } from "@/types/agent";
 
@@ -49,6 +50,14 @@ export function EngineConfigFields({
   const isCli = engineType === "cli";
   const isCustomApi = !isCli && !BUILTIN_API_PROVIDERS.has(provider);
   const providers = isCli ? CLI_PROVIDERS : API_PROVIDERS;
+  // Anthropic (and only Anthropic — Ollama needs no key at all) can fall
+  // back to a global key configured once in Settings -> API Keys, so an
+  // agent using it doesn't strictly need its own — without this, the field
+  // reads exactly like every other provider's "you must supply a key"
+  // BYOK field, which is misleading for the one provider that doesn't
+  // require that.
+  const { data: apiKeysStatus } = useApiKeysStatus();
+  const usesGlobalAnthropicFallback = provider === "anthropic" && !isCustomApi;
 
   return (
     <>
@@ -161,25 +170,36 @@ export function EngineConfigFields({
       {!isCli && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`${idPrefix}-api-key`} className="text-xs font-bold text-slate-700 dark:text-slate-300">
-            API Key {isCustomApi && hasEngineApiKey === undefined ? <span className="text-rose-500">*</span> : null}
+            API Key{" "}
+            {isCustomApi && hasEngineApiKey === undefined ? (
+              <span className="text-rose-500">*</span>
+            ) : usesGlobalAnthropicFallback ? (
+              <span className="font-normal text-slate-400 dark:text-slate-500">(optional)</span>
+            ) : null}
           </Label>
           <Input
             id={`${idPrefix}-api-key`}
             type="password"
             placeholder={
-              hasEngineApiKey === undefined
-                ? "sk-…"
-                : hasEngineApiKey
-                  ? "•••••••• (leave blank to keep current)"
-                  : "No key configured"
+              usesGlobalAnthropicFallback && apiKeysStatus?.has_anthropic_key
+                ? "Using the global key — leave blank"
+                : hasEngineApiKey === undefined
+                  ? "sk-…"
+                  : hasEngineApiKey
+                    ? "•••••••• (leave blank to keep current)"
+                    : "No key configured"
             }
             value={apiKey}
             onChange={(e) => onApiKeyChange(e.target.value)}
             className="font-mono text-sm"
           />
           <p className="text-3xs text-slate-500 dark:text-slate-400">
-            Stored encrypted — never shown once saved.
-            {hasEngineApiKey !== undefined && " Only entered here to rotate it."}
+            {usesGlobalAnthropicFallback
+              ? apiKeysStatus?.has_anthropic_key
+                ? "A global Anthropic key is already configured in Settings → API Keys — this agent will use it unless you set one here specifically."
+                : "Leave blank to configure one global Anthropic key for every agent instead, in Settings → API Keys."
+              : "Stored encrypted — never shown once saved."}
+            {!usesGlobalAnthropicFallback && hasEngineApiKey !== undefined && " Only entered here to rotate it."}
           </p>
         </div>
       )}

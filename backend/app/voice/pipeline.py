@@ -5,12 +5,17 @@ the transport works when no STT/TTS provider is configured yet.
 
 import asyncio
 import contextlib
+import uuid
 from collections.abc import Awaitable, Callable
 
 import structlog
 
+from app.database import async_session_factory
+from app.engines.base import ToolExecutor
 from app.engines.registry import get_engine
 from app.models.agent import Agent
+from app.models.task import Task
+from app.utils.agent_tools import build_tools_for_agent
 from app.utils.time_context import current_date_line
 from app.voice.audio import (
     AudioFrameBuffer,
@@ -20,12 +25,60 @@ from app.voice.audio import (
     resample_to_track_format,
 )
 from app.voice.registry import get_stt_provider, get_tts_provider
+from app.workers.task_worker import dispatch_task
 
 logger = structlog.get_logger()
 
 _NOT_CONFIGURED_MESSAGE = (
     "Voice provider not configured — playing a test tone and echoing your audio back."
 )
+
+
+def _make_voice_delegation_executor(tool_by_name: dict[str, uuid.UUID]) -> ToolExecutor:
+    """Delegation for a live voice call — same underlying Task/dispatch_task
+    machinery as make_tool_executor (task_worker.py), used by task-based and
+    chat-based delegation, but deliberately NOT the same blocking behavior:
+    that one awaits the delegated task to fully finish before returning,
+    which is fine for chat (a late reply is just late) but would sit a live
+    call in dead air for however long the delegated work actually takes —
+    seconds to minutes for a real coding task, exactly the kind of silence
+    this session already found and fixed once (see _run_turns). This
+    creates the task, dispatches it to Celery the normal way, and returns
+    immediately — the model's own reply becomes the spoken acknowledgment,
+    and the real work shows up in the task view like any other delegation.
+    """
+
+    async def tool_executor(tool_name: str, args: dict) -> tuple[str, bool]:
+        target_id = tool_by_name.get(tool_name)
+        if target_id is None:
+            return f"Unknown tool: {tool_name}", True
+        brief = (args or {}).get("brief", "").strip()
+        if not brief:
+            return "Missing required 'brief' argument.", True
+
+        async with async_session_factory() as session:
+            target = await session.get(Agent, target_id)
+            if target is None:
+                return "That teammate no longer exists.", True
+
+            child = Task(
+                title=f"Delegated to {target.name}",
+                brief=brief,
+                assigned_agents=[target.id],
+                status="pending",
+            )
+            session.add(child)
+            await session.flush()
+            await dispatch_task(session, child)
+            target_name = target.name
+
+        return (
+            f"Delegated to {target_name} — it's running in the background now; "
+            "tell the caller it's underway and they can check progress in the task view.",
+            False,
+        )
+
+    return tool_executor
 
 
 class CallAudioPipeline:
@@ -194,30 +247,62 @@ class CallAudioPipeline:
         except ValueError:
             return "I can't take calls with my current engine setup — check my configuration."
 
+        # Same agents-as-tools roster api/chat.py's live text chat already
+        # delegates through — an API-engine agent with configured
+        # teammates (AgentCollaborator rows) gets a real delegate_to_*
+        # tool per teammate; anyone else (CLI-engine agents, or an agent
+        # with no configured teammates) gets none, same as chat.py.
+        async with async_session_factory() as session:
+            tools, delegate_agents_by_name = await build_tools_for_agent(session, self.agent)
+        tool_executor = (
+            _make_voice_delegation_executor({name: a.id for name, a in delegate_agents_by_name.items()})
+            if tools
+            else None
+        )
+
         personality = ", ".join(self.agent.personality_traits or []) or "professional"
-        system_prompt = (
-            f"You are {self.agent.name}, a {self.agent.role}. Personality: {personality}. "
-            f"{current_date_line()} "
-            "You are on a live voice call. Keep replies short and conversational — "
-            "1-3 sentences, no markdown, no lists, as if speaking out loud. "
+        if delegate_agents_by_name:
+            teammates = ", ".join(a.name for a in delegate_agents_by_name.values())
+            capability_note = (
+                f"You can delegate real work to your teammates on this call: {teammates}. "
+                "If asked to do something outside your own ability (like writing code), "
+                "delegate it to the right teammate instead of saying you can't, then tell "
+                "the caller it's underway and they can check progress in the task view. "
+                "Beyond an actual delegation, you still cannot access a calendar, send "
+                "email, or browse the web — nothing else you say has any real-world effect."
+            )
+        else:
             # Without this, the model free-associates a plausible-sounding
             # assistant response and fabricates having taken a real action
             # — confirmed live: asked to schedule a doctor's appointment,
             # it invented a named doctor and a specific time; asked to
-            # create an HTML page, it claimed to have emailed it. No tools
-            # are wired into voice calls (engine.chat() is plain text
-            # generation, nothing else) — every "I've done X" is fiction.
-            "You have NO tools on this call: you cannot access a calendar, "
-            "send email, browse the web, or create/save/send any real file, "
-            "task, or reminder — nothing you say here has any real-world "
-            "effect. Never claim to have done one of these things. If asked "
-            "to do something like that, say plainly you can't do it on a "
-            "call and that they can ask you to actually do it in the chat "
-            "or task view instead."
+            # create an HTML page, it claimed to have emailed it.
+            capability_note = (
+                "You have NO tools on this call: you cannot access a calendar, "
+                "send email, browse the web, or create/save/send any real file, "
+                "task, or reminder — nothing you say here has any real-world "
+                "effect. Never claim to have done one of these things. If asked "
+                "to do something like that, say plainly you can't do it on a "
+                "call and that they can ask you to actually do it in the chat "
+                "or task view instead."
+            )
+        system_prompt = (
+            f"You are {self.agent.name}, a {self.agent.role}. Personality: {personality}. "
+            f"{current_date_line()} "
+            "You are on a live voice call. Keep replies short and conversational — "
+            f"1-3 sentences, no markdown, no lists, as if speaking out loud. {capability_note}"
         )
         try:
-            reply = await engine.chat(
-                user_text, [{"role": "system", "content": system_prompt}, *self.history]
+            reply = "".join(
+                [
+                    chunk
+                    async for chunk in engine.chat_stream(
+                        user_text,
+                        [{"role": "system", "content": system_prompt}, *self.history],
+                        tools=tools or None,
+                        tool_executor=tool_executor,
+                    )
+                ]
             )
         except Exception as exc:  # noqa: BLE001 - surface engine failures as a spoken reply
             logger.warning("voice_call_llm_turn_failed", agent_id=str(self.agent.id), error=str(exc))

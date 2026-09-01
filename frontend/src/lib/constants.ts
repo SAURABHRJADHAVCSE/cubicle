@@ -53,7 +53,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       "Walks to nearest agent's desk after every task",
       "Sends 'you okay?' when office is quiet too long",
     ],
-    accent_color: "#6366f1",
+    accent_color: "#453c82",
     engine_type: "api",
     engine_provider: "anthropic",
   },

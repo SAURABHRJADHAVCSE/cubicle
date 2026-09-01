@@ -34,6 +34,18 @@ uninterrupted step before the consumer ever gets scheduled at all, which
 would hide bug #2 entirely (every produced utterance would just pile up
 before anything could consume the first one) and not reflect how frames
 actually arrive in a real call.
+
+Also covers a real (not-yet-shipped-when-first-reported) gap: voice calls
+had zero delegation capability, so an agent asked to do something outside
+its own ability (e.g. "write me a page") could only ever say it can't —
+even when the exact same agent already has a configured teammate for
+that in text chat/tasks. _llm_turn now wires the same agents-as-tools
+roster chat.py uses, but through a voice-appropriate, non-blocking
+delegation executor (see test_llm_turn_delegates_instead_of_blocking) —
+the blocking one used by chat/tasks (task_worker.py's make_tool_executor)
+awaits the delegated task to *fully finish* before returning, which is
+fine for chat but would sit a live call in dead air for however long that
+takes.
 """
 
 import asyncio
@@ -41,8 +53,11 @@ import asyncio
 import av
 import numpy as np
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import Agent
+from app.models.agent_collaborator import AgentCollaborator
+from app.models.task import Task
 from app.voice import pipeline as pipeline_module
 from app.voice.audio import SAMPLE_RATE
 from app.voice.pipeline import CallAudioPipeline
@@ -109,8 +124,12 @@ class _StubTTS:
 
 
 class _StubEngine:
-    async def chat(self, message: str, history: list[dict]) -> str:
-        return f"reply to: {message}"
+    # _llm_turn calls chat_stream() directly (not the chat() convenience
+    # wrapper) so it can pass tools/tool_executor through for delegation —
+    # this stub mirrors a CLI-engine's chat_stream(): ignores tools/
+    # tool_executor and yields the whole reply as one chunk.
+    async def chat_stream(self, message: str, history: list[dict], tools=None, tool_executor=None):
+        yield f"reply to: {message}"
 
 
 def _agent() -> Agent:
@@ -182,7 +201,7 @@ async def test_run_turns_supersedes_stale_utterance_while_busy(
     calls: list[str] = []
 
     class _SlowFirstEngine:
-        async def chat(self, message: str, history: list[dict]) -> str:
+        async def chat_stream(self, message: str, history: list[dict], tools=None, tool_executor=None):
             calls.append(message)
             if message == "first":
                 # Real wall-clock delay — long enough for the producer
@@ -194,7 +213,7 @@ async def test_run_turns_supersedes_stale_utterance_while_busy(
                 # got processed before third ever arrived) — 250ms gives a
                 # comfortable margin to reach utterance 3 too.
                 await asyncio.sleep(0.25)
-            return f"reply to: {message}"
+            yield f"reply to: {message}"
 
     monkeypatch.setattr(pipeline_module, "get_engine", lambda agent: _SlowFirstEngine())
 
@@ -319,6 +338,87 @@ async def test_run_turns_overlaps_next_prepare_with_current_playback() -> None:
     # The second utterance's STT call must start while the first reply's
     # playback drain is still in flight, not after it finishes.
     assert drain_start < stt_calls[1] < drain_end
+
+
+class _NoCloseSessionCM:
+    """Wraps an existing AsyncSession so `async with ...` doesn't close it —
+    _llm_turn opens its own session via `async with async_session_factory()
+    as session`, which calls session.close() on exit; tests need the
+    shared, rollback-wrapped db_session fixture to stay open across that
+    call. Mirrors test_workers/test_task_worker.py's identical helper."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def __aenter__(self) -> AsyncSession:
+        return self._session
+
+    async def __aexit__(self, *exc_info: object) -> bool:
+        return False
+
+
+async def test_llm_turn_delegates_instead_of_blocking(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    """Regression coverage for "why can't it delegate to a coder like text
+    chat can" — Jarvis, asked to write code on a call, could previously
+    only say it can't, even with a real coder teammate configured, because
+    _llm_turn never built or passed any tools at all. This proves
+    delegation now actually happens (a real Task row gets created for the
+    teammate) AND that it doesn't block the call on the delegated work
+    finishing — task_worker.py's make_tool_executor (used by chat/tasks)
+    awaits the child task to fully complete, which could be seconds to
+    minutes for a real coding task; a live call can't sit in dead air that
+    long, so the voice-specific executor only creates+dispatches the task
+    and returns immediately, same as any other task-creation path
+    (dispatch_task, monkeypatched here to skip the real Celery hop)."""
+    jarvis = Agent(
+        name="Jarvis", role="Assistant", engine_type="api", engine_provider="anthropic",
+        personality_traits=[],
+    )
+    coder = Agent(
+        name="Codey", role="Coder", engine_type="api", engine_provider="anthropic",
+        personality_traits=[],
+    )
+    db_session.add_all([jarvis, coder])
+    await db_session.flush()
+    db_session.add(AgentCollaborator(agent_id=jarvis.id, collaborator_agent_id=coder.id))
+    await db_session.flush()
+
+    monkeypatch.setattr(pipeline_module, "async_session_factory", lambda: _NoCloseSessionCM(db_session))
+    dispatched: list[Task] = []
+
+    async def fake_dispatch_task(session, task: Task) -> None:
+        dispatched.append(task)
+        task.status = "assigned"  # mirrors dispatch_task's own real effect
+
+    monkeypatch.setattr(pipeline_module, "dispatch_task", fake_dispatch_task)
+
+    class _DelegatingEngine:
+        async def chat_stream(self, message: str, history: list[dict], tools=None, tool_executor=None):
+            assert tools, "delegation tool was never built/passed through"
+            tool_name = tools[0]["function"]["name"]
+            content, is_error = await tool_executor(tool_name, {"brief": "build the shoe store page"})
+            assert is_error is False
+            yield f"Sure — {content}"
+
+    monkeypatch.setattr(pipeline_module, "get_engine", lambda agent: _DelegatingEngine())
+
+    pipeline = CallAudioPipeline(
+        agent=jarvis,
+        outgoing=_FakeOutgoingTrack(),
+        emit_status=lambda message: _noop(),
+        emit_transcript=lambda role, text: _noop(),
+    )
+
+    reply = await pipeline._llm_turn("Can you build me a shoe store page?")
+
+    assert "Codey" in reply
+    assert len(dispatched) == 1
+    child = dispatched[0]
+    assert child.assigned_agents == [coder.id]
+    assert child.brief == "build the shoe store page"
+    assert child.status == "assigned"  # dispatched, not awaited to completion
 
 
 async def _noop() -> None:

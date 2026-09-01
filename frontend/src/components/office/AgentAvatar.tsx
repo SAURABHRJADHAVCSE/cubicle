@@ -128,7 +128,7 @@ export function AgentAvatar({
   const hairStyle = Math.floor(seed * 13) % 3;
 
   const materials = useMemo(() => {
-    const accent = new THREE.Color(agent.accent_color || "#4f46e5");
+    const accent = new THREE.Color(agent.accent_color || "#453c82");
     const jacket = accent.clone().offsetHSL(0, -0.08, -0.12);
     const trousers = accent.clone().offsetHSL(0, -0.32, -0.32);
     const skin = SKIN_TONES[Math.floor(seed * 7) % SKIN_TONES.length];

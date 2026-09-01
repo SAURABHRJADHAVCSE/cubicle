@@ -62,95 +62,109 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* "Office Stationery" palette: the 2D dashboard is deliberately styled as
-   the paperwork of the office rendered in 3D (ID badges, memo cards,
-   nameplates, rubber-stamp status labels) rather than a generic SaaS
-   glass-dashboard look. Ink is the existing brand indigo, deepened; every
-   neutral is warmed a few degrees toward paper/kraft instead of cool slate,
-   which is what actually sells the "paper" idea, not just the accent color. */
+/* "Office Stationery" palette, v2 — same idea as before (the 2D dashboard
+   is the paperwork of the office: ID badges, memo cards, nameplates,
+   rubber-stamp status labels, not a generic SaaS glass-dashboard) but
+   actually executed on: v1's "indigo" was a stock SaaS violet at very high
+   chroma (0.24 — near the OKLCH gamut edge), and its neutrals stayed cool
+   in dark mode (chroma 0.018, essentially grey) even though the 3D office
+   scene next to it is warm and doesn't itself change with the theme —
+   confirmed live via screenshot, dark mode reads as a cold charcoal shell
+   wrapped around a bright warm room, not one considered space.
+   ink: a real fountain-pen blue-black (hue ~272, chroma pulled way down
+   from 0.24 to ~0.13) replaces the SaaS violet as --primary.
+   brass: a warm desk-hardware gold (nameplates, paperclips, drawer pulls)
+   is the one deliberate accent — it reuses the --warning slot rather than
+   adding a new token, and is the signature color for "live"/highlight
+   moments so it doesn't get diluted by appearing everywhere.
+   Every neutral (paper, kraft, and especially dark mode's "walnut desk at
+   night" background) is warmed in hue and given real chroma instead of
+   defaulting toward grey — see lib/modernMaterials.ts for the matching fix
+   to the floor tile, which was the actual sage-green clashing with the
+   walls and desks. */
 :root {
   color-scheme: light;
-  --background: oklch(0.985 0.010 90);
-  --foreground: oklch(0.225 0.03 60);
-  --card: oklch(0.995 0.006 90);
-  --card-foreground: oklch(0.225 0.03 60);
-  --popover: oklch(0.995 0.006 90);
-  --popover-foreground: oklch(0.225 0.03 60);
-  --primary: oklch(0.47 0.24 275);
-  --primary-foreground: oklch(0.985 0.010 90);
-  --secondary: oklch(0.93 0.02 80);
-  --secondary-foreground: oklch(0.32 0.035 65);
-  --muted: oklch(0.94 0.018 80);
-  --muted-foreground: oklch(0.5 0.035 65);
-  --accent: oklch(0.93 0.045 275);
-  --accent-foreground: oklch(0.42 0.22 276);
-  --destructive: oklch(0.55 0.22 25);
-  --destructive-foreground: oklch(0.985 0.010 90);
-  --success: oklch(0.5 0.12 162);
-  --success-foreground: oklch(0.985 0.010 90);
-  --info: oklch(0.52 0.22 264);
-  --info-foreground: oklch(0.985 0.010 90);
-  --warning: oklch(0.68 0.18 58);
-  --warning-foreground: oklch(0.24 0.06 48);
-  --border: oklch(0.89 0.02 75);
-  --input: oklch(0.82 0.025 72);
-  --ring: oklch(0.6 0.2 276);
-  --chart-1: oklch(0.47 0.24 275);
-  --chart-2: oklch(0.58 0.24 292);
-  --chart-3: oklch(0.68 0.18 58);
-  --chart-4: oklch(0.52 0.22 264);
-  --chart-5: oklch(0.55 0.22 25);
+  --background: oklch(0.975 0.014 85);
+  --foreground: oklch(0.22 0.028 58);
+  --card: oklch(0.99 0.009 85);
+  --card-foreground: oklch(0.22 0.028 58);
+  --popover: oklch(0.99 0.009 85);
+  --popover-foreground: oklch(0.22 0.028 58);
+  --primary: oklch(0.38 0.13 272);
+  --primary-foreground: oklch(0.98 0.012 85);
+  --secondary: oklch(0.91 0.028 78);
+  --secondary-foreground: oklch(0.3 0.035 60);
+  --muted: oklch(0.93 0.022 78);
+  --muted-foreground: oklch(0.48 0.03 60);
+  --accent: oklch(0.91 0.05 272);
+  --accent-foreground: oklch(0.36 0.14 272);
+  --destructive: oklch(0.5 0.17 27);
+  --destructive-foreground: oklch(0.98 0.012 85);
+  --success: oklch(0.5 0.11 155);
+  --success-foreground: oklch(0.98 0.012 85);
+  --info: oklch(0.55 0.14 240);
+  --info-foreground: oklch(0.98 0.012 85);
+  --warning: oklch(0.7 0.14 70);
+  --warning-foreground: oklch(0.26 0.05 55);
+  --border: oklch(0.87 0.025 75);
+  --input: oklch(0.8 0.03 72);
+  --ring: oklch(0.5 0.15 272);
+  --chart-1: oklch(0.38 0.13 272);
+  --chart-2: oklch(0.55 0.15 290);
+  --chart-3: oklch(0.7 0.14 70);
+  --chart-4: oklch(0.55 0.14 240);
+  --chart-5: oklch(0.5 0.17 27);
   --radius: 0.375rem;
-  --sidebar: oklch(0.96 0.015 82);
-  --sidebar-foreground: oklch(0.225 0.03 60);
-  --sidebar-primary: oklch(0.47 0.24 275);
-  --sidebar-primary-foreground: oklch(0.985 0.010 90);
-  --sidebar-accent: oklch(0.93 0.045 275);
-  --sidebar-accent-foreground: oklch(0.42 0.22 276);
-  --sidebar-border: oklch(0.89 0.02 75);
-  --sidebar-ring: oklch(0.6 0.2 276);
+  --sidebar: oklch(0.94 0.02 80);
+  --sidebar-foreground: oklch(0.22 0.028 58);
+  --sidebar-primary: oklch(0.38 0.13 272);
+  --sidebar-primary-foreground: oklch(0.98 0.012 85);
+  --sidebar-accent: oklch(0.91 0.05 272);
+  --sidebar-accent-foreground: oklch(0.36 0.14 272);
+  --sidebar-border: oklch(0.87 0.025 75);
+  --sidebar-ring: oklch(0.5 0.15 272);
 }
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.19 0.018 70);
-  --foreground: oklch(0.96 0.012 85);
-  --card: oklch(0.235 0.02 68);
-  --card-foreground: oklch(0.96 0.012 85);
-  --popover: oklch(0.25 0.022 68);
-  --popover-foreground: oklch(0.96 0.012 85);
-  --primary: oklch(0.7 0.17 277);
-  --primary-foreground: oklch(0.22 0.08 281);
-  --secondary: oklch(0.32 0.022 65);
-  --secondary-foreground: oklch(0.96 0.012 85);
-  --muted: oklch(0.29 0.02 65);
-  --muted-foreground: oklch(0.72 0.03 75);
-  --accent: oklch(0.32 0.08 280);
-  --accent-foreground: oklch(0.87 0.065 274);
-  --destructive: oklch(0.72 0.18 20);
-  --destructive-foreground: oklch(0.96 0.012 85);
-  --success: oklch(0.76 0.17 163);
-  --success-foreground: oklch(0.18 0.055 166);
-  --info: oklch(0.71 0.16 255);
-  --info-foreground: oklch(0.18 0.05 265);
-  --warning: oklch(0.83 0.19 84);
-  --warning-foreground: oklch(0.22 0.055 48);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.7 0.17 277);
-  --chart-1: oklch(0.7 0.17 277);
-  --chart-2: oklch(0.71 0.18 293);
-  --chart-3: oklch(0.83 0.19 84);
-  --chart-4: oklch(0.71 0.16 255);
-  --chart-5: oklch(0.72 0.18 20);
-  --sidebar: oklch(0.165 0.018 68);
-  --sidebar-foreground: oklch(0.96 0.012 85);
-  --sidebar-primary: oklch(0.7 0.17 277);
-  --sidebar-primary-foreground: oklch(0.22 0.08 281);
-  --sidebar-accent: oklch(0.32 0.08 280);
-  --sidebar-accent-foreground: oklch(0.87 0.065 274);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.72 0.15 277);
+  --background: oklch(0.17 0.028 60);
+  --foreground: oklch(0.95 0.016 82);
+  --card: oklch(0.22 0.03 58);
+  --card-foreground: oklch(0.95 0.016 82);
+  --popover: oklch(0.24 0.032 58);
+  --popover-foreground: oklch(0.95 0.016 82);
+  --primary: oklch(0.72 0.12 272);
+  --primary-foreground: oklch(0.18 0.04 272);
+  --secondary: oklch(0.3 0.032 58);
+  --secondary-foreground: oklch(0.95 0.016 82);
+  --muted: oklch(0.27 0.03 58);
+  --muted-foreground: oklch(0.74 0.028 75);
+  --accent: oklch(0.3 0.09 272);
+  --accent-foreground: oklch(0.85 0.08 272);
+  --destructive: oklch(0.7 0.16 25);
+  --destructive-foreground: oklch(0.95 0.016 82);
+  --success: oklch(0.75 0.14 155);
+  --success-foreground: oklch(0.16 0.05 155);
+  --info: oklch(0.72 0.13 240);
+  --info-foreground: oklch(0.16 0.045 240);
+  --warning: oklch(0.8 0.15 75);
+  --warning-foreground: oklch(0.2 0.05 55);
+  --border: oklch(0.92 0.02 70 / 12%);
+  --input: oklch(0.92 0.02 70 / 16%);
+  --ring: oklch(0.72 0.12 272);
+  --chart-1: oklch(0.72 0.12 272);
+  --chart-2: oklch(0.68 0.14 290);
+  --chart-3: oklch(0.8 0.15 75);
+  --chart-4: oklch(0.72 0.13 240);
+  --chart-5: oklch(0.7 0.16 25);
+  --sidebar: oklch(0.15 0.026 58);
+  --sidebar-foreground: oklch(0.95 0.016 82);
+  --sidebar-primary: oklch(0.72 0.12 272);
+  --sidebar-primary-foreground: oklch(0.18 0.04 272);
+  --sidebar-accent: oklch(0.3 0.09 272);
+  --sidebar-accent-foreground: oklch(0.85 0.08 272);
+  --sidebar-border: oklch(0.92 0.02 70 / 12%);
+  --sidebar-ring: oklch(0.72 0.12 272);
 }
 
 @layer base {

@@ -17,14 +17,14 @@ function getOfficeTileTexture(): THREE.CanvasTexture {
   const context = canvas.getContext("2d")!;
   const tileSize = 32;
 
-  context.fillStyle = "#aebdb9";
+  context.fillStyle = "#cbb99c";
   context.fillRect(0, 0, canvas.width, canvas.height);
 
   for (let row = 0; row < 4; row += 1) {
     for (let column = 0; column < 4; column += 1) {
-      context.fillStyle = (row + column) % 2 === 0 ? "#aebdb9" : "#a5b5b1";
+      context.fillStyle = (row + column) % 2 === 0 ? "#cbb99c" : "#c0ac8a";
       context.fillRect(column * tileSize, row * tileSize, tileSize, tileSize);
-      context.strokeStyle = "rgba(69, 88, 88, 0.28)";
+      context.strokeStyle = "rgba(120, 96, 66, 0.28)";
       context.lineWidth = 2;
       context.strokeRect(column * tileSize, row * tileSize, tileSize, tileSize);
       context.fillStyle = "rgba(255, 255, 255, 0.09)";
@@ -51,13 +51,17 @@ function material(key: string, params: THREE.MeshStandardMaterialParameters): TH
 }
 
 // Restrained office-stationery palette, matching the 2D redesign's own ink
-// indigo / warm paper direction rather than introducing a third color
-// language for the 3D scene.
+// / brass / warm paper direction rather than introducing a third color
+// language for the 3D scene. workCarpet and the floor tile texture
+// (getOfficeTileTexture, above) used to be a cool sage-grey that fought
+// wallWarmGrey and deskWood's warm tones — confirmed live via screenshot,
+// it read as mismatched furniture-asset colors rather than one considered
+// room. Both are warm greige/kraft now, matching the walls and desks.
 export const modernMaterials = {
   floorWood: () => material("floorWood", { color: "#ffffff", map: getOfficeTileTexture(), roughness: 0.88, metalness: 0.0 }),
-  floorEdge: () => material("floorEdge", { color: "#353947", roughness: 0.62, metalness: 0.14 }),
-  workCarpet: () => material("workCarpet", { color: "#8fa19e", roughness: 0.97, metalness: 0.0 }),
-  zoneTrim: () => material("zoneTrim", { color: "#4f46e5", roughness: 0.65, metalness: 0.04 }),
+  floorEdge: () => material("floorEdge", { color: "#3d3628", roughness: 0.62, metalness: 0.14 }),
+  workCarpet: () => material("workCarpet", { color: "#b8a688", roughness: 0.97, metalness: 0.0 }),
+  zoneTrim: () => material("zoneTrim", { color: "#453c82", roughness: 0.65, metalness: 0.04 }),
   deskWood: () => material("deskWood", { color: "#a8764f", roughness: 0.5, metalness: 0.02 }),
   deskLegMetal: () => material("deskLegMetal", { color: "#596273", roughness: 0.42, metalness: 0.55 }),
   chairSlate: () => material("chairSlate", { color: "#3f485a", roughness: 0.72, metalness: 0.04 }),
@@ -70,7 +74,7 @@ export const modernMaterials = {
       color: "#151a24",
       roughness: 0.2,
       metalness: 0.1,
-      emissive: new THREE.Color("#5146e5"),
+      emissive: new THREE.Color("#5b4fb0"),
       emissiveIntensity: 0.3,
     }),
   wallWarmGrey: () => material("wallWarmGrey", { color: "#eee8df", roughness: 0.88, metalness: 0.0 }),
@@ -79,13 +83,13 @@ export const modernMaterials = {
     material("cabinGlass", { color: "#d8e7e6", roughness: 0.16, metalness: 0.02, transparent: true, opacity: 0.24, depthWrite: false }),
   cabinFrame: () => material("cabinFrame", { color: "#56606d", roughness: 0.42, metalness: 0.48 }),
   cabinDeskWood: () => material("cabinDeskWood", { color: "#845839", roughness: 0.42, metalness: 0.04 }),
-  cabinChairLeather: () => material("cabinChairLeather", { color: "#352f78", roughness: 0.5, metalness: 0.03 }),
+  cabinChairLeather: () => material("cabinChairLeather", { color: "#5c2a2e", roughness: 0.5, metalness: 0.03 }),
   sofaFabric: () => material("sofaFabric", { color: "#5f6680", roughness: 0.9, metalness: 0.0 }),
   sofaCushion: () => material("sofaCushion", { color: "#aab0c2", roughness: 0.92, metalness: 0.0 }),
   rug: () => material("rug", { color: "#bbb4a7", roughness: 0.98, metalness: 0.0 }),
   tableWood: () => material("tableWood", { color: "#946746", roughness: 0.52, metalness: 0.02 }),
   storageCabinet: () => material("storageCabinet", { color: "#4d5668", roughness: 0.58, metalness: 0.14 }),
-  wallArt: () => material("wallArt", { color: "#5146e5", roughness: 0.56, metalness: 0.05 }),
+  wallArt: () => material("wallArt", { color: "#b8873b", roughness: 0.56, metalness: 0.05 }),
   plantPot: () => material("plantPot", { color: "#6b5d4f", roughness: 0.7, metalness: 0.0 }),
   plantLeaf: () => material("plantLeaf", { color: "#4a6b4f", roughness: 0.7, metalness: 0.0 }),
 };

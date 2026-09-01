@@ -57,7 +57,7 @@ interface FormState {
 
 const DEFAULT_STATE: FormState = {
   name: "",
-  accentColor: "#6366f1",
+  accentColor: "#453c82",
   engineType: "api",
   engineProvider: "anthropic",
   engineModel: "",
@@ -105,7 +105,7 @@ later from the Command Center's file browser.`;
 }
 
 const COLOR_PRESETS = [
-  "#6366f1", // Indigo
+  "#453c82", // Ink
   "#3b82f6", // Blue
   "#06b6d4", // Cyan
   "#10b981", // Emerald
