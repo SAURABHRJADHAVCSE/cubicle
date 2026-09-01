@@ -49,10 +49,13 @@
   /* Micro-copy scale: this UI is dense with meta text (timestamps, status
      pills, badges) below Tailwind's own text-xs (12px) floor. Naming these
      instead of scattering text-[10px]/text-[11px] etc. keeps the smallest
-     tier of the app's typography intentional rather than copy-pasted. */
-  --text-2xs: 0.6875rem; /* 11px */
-  --text-3xs: 0.625rem; /* 10px */
-  --text-4xs: 0.5625rem; /* 9px */
+     tier of the app's typography intentional rather than copy-pasted.
+     Nudged up a notch (each tier +1px) — the app leans on this scale
+     everywhere (badges, labels, timestamps), so the original 9-11px range
+     read as too small across the board rather than just in one spot. */
+  --text-2xs: 0.75rem; /* 12px */
+  --text-3xs: 0.6875rem; /* 11px */
+  --text-4xs: 0.625rem; /* 10px */
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -125,45 +128,56 @@
   --sidebar-ring: oklch(0.5 0.15 272);
 }
 
+/* Dark mode, v3 — v2's "walnut desk at night" direction (chroma 0.028-0.032
+   on the neutrals) was still too much: confirmed live via a real
+   screenshot of the login screen (the one surface a fresh session
+   actually lands on, which the first pass never checked) — the app-bg
+   utility's radial glow mixes --primary into --background near the top
+   corner, and a lavender primary mixed into a genuinely brown background
+   produced a muddy maroon/rust wash, not a premium dark UI. Same hues,
+   much lower chroma (0.008-0.015, down from 0.026-0.032) — enough to read
+   as "warm-leaning near-black" the way most well-regarded dark UIs are,
+   not "brown." The lavender --primary itself is unchanged; it was never
+   the problem. */
 .dark {
   color-scheme: dark;
-  --background: oklch(0.17 0.028 60);
-  --foreground: oklch(0.95 0.016 82);
-  --card: oklch(0.22 0.03 58);
-  --card-foreground: oklch(0.95 0.016 82);
-  --popover: oklch(0.24 0.032 58);
-  --popover-foreground: oklch(0.95 0.016 82);
+  --background: oklch(0.16 0.012 55);
+  --foreground: oklch(0.95 0.008 75);
+  --card: oklch(0.2 0.014 55);
+  --card-foreground: oklch(0.95 0.008 75);
+  --popover: oklch(0.22 0.015 55);
+  --popover-foreground: oklch(0.95 0.008 75);
   --primary: oklch(0.72 0.12 272);
-  --primary-foreground: oklch(0.18 0.04 272);
-  --secondary: oklch(0.3 0.032 58);
-  --secondary-foreground: oklch(0.95 0.016 82);
-  --muted: oklch(0.27 0.03 58);
-  --muted-foreground: oklch(0.74 0.028 75);
-  --accent: oklch(0.3 0.09 272);
+  --primary-foreground: oklch(0.17 0.03 272);
+  --secondary: oklch(0.27 0.014 55);
+  --secondary-foreground: oklch(0.95 0.008 75);
+  --muted: oklch(0.24 0.013 55);
+  --muted-foreground: oklch(0.7 0.018 65);
+  --accent: oklch(0.28 0.08 272);
   --accent-foreground: oklch(0.85 0.08 272);
-  --destructive: oklch(0.7 0.16 25);
-  --destructive-foreground: oklch(0.95 0.016 82);
-  --success: oklch(0.75 0.14 155);
-  --success-foreground: oklch(0.16 0.05 155);
-  --info: oklch(0.72 0.13 240);
-  --info-foreground: oklch(0.16 0.045 240);
-  --warning: oklch(0.8 0.15 75);
-  --warning-foreground: oklch(0.2 0.05 55);
-  --border: oklch(0.92 0.02 70 / 12%);
-  --input: oklch(0.92 0.02 70 / 16%);
+  --destructive: oklch(0.68 0.16 25);
+  --destructive-foreground: oklch(0.95 0.008 75);
+  --success: oklch(0.73 0.13 155);
+  --success-foreground: oklch(0.15 0.04 155);
+  --info: oklch(0.71 0.12 240);
+  --info-foreground: oklch(0.15 0.035 240);
+  --warning: oklch(0.79 0.14 75);
+  --warning-foreground: oklch(0.19 0.045 55);
+  --border: oklch(0.9 0.012 65 / 10%);
+  --input: oklch(0.9 0.012 65 / 14%);
   --ring: oklch(0.72 0.12 272);
   --chart-1: oklch(0.72 0.12 272);
   --chart-2: oklch(0.68 0.14 290);
-  --chart-3: oklch(0.8 0.15 75);
-  --chart-4: oklch(0.72 0.13 240);
-  --chart-5: oklch(0.7 0.16 25);
-  --sidebar: oklch(0.15 0.026 58);
-  --sidebar-foreground: oklch(0.95 0.016 82);
+  --chart-3: oklch(0.79 0.14 75);
+  --chart-4: oklch(0.71 0.12 240);
+  --chart-5: oklch(0.68 0.16 25);
+  --sidebar: oklch(0.14 0.012 55);
+  --sidebar-foreground: oklch(0.95 0.008 75);
   --sidebar-primary: oklch(0.72 0.12 272);
-  --sidebar-primary-foreground: oklch(0.18 0.04 272);
-  --sidebar-accent: oklch(0.3 0.09 272);
+  --sidebar-primary-foreground: oklch(0.17 0.03 272);
+  --sidebar-accent: oklch(0.28 0.08 272);
   --sidebar-accent-foreground: oklch(0.85 0.08 272);
-  --sidebar-border: oklch(0.92 0.02 70 / 12%);
+  --sidebar-border: oklch(0.9 0.012 65 / 10%);
   --sidebar-ring: oklch(0.72 0.12 272);
 }
 

@@ -8,7 +8,19 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        // disabled:opacity-50 (below, shared across every variant) fades
+        // background and text by the same amount toward whatever's behind
+        // the button — fine for pairs that are already close in lightness,
+        // but bg-primary/text-primary-foreground are near-opposite ends of
+        // the scale (dark ink vs near-white), and blending both halfway
+        // toward a light page collapses them onto each other. Measured
+        // live: the resulting disabled "Next" button came out at a ~1.7:1
+        // contrast ratio, well under WCAG's 3:1 floor even for large text.
+        // disabled:opacity-100 cancels that fade for this variant only,
+        // swapping in the muted pair (already designed for contrast at
+        // full opacity) instead of dimming the primary one.
+        default:
+          "bg-primary text-primary-foreground hover:bg-primary/80 disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
