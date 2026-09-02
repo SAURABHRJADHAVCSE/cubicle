@@ -279,6 +279,18 @@ def build_agent_system_prompt(agent: Agent, tools: list[dict]) -> str:
             "delegating is a reversible, low-stakes action, not one that "
             "needs sign-off."
         )
+        if has_media_tool or has_search_tool:
+            # Without this, a teammate's role description (e.g. "Web Crawler
+            # & Researcher") reads as a stronger match than the model's own
+            # plain tool name, so it delegates a search/media request it
+            # could have done itself in one call — confirmed live (an agent
+            # with web_search delegated a search to a teammate anyway).
+            system_prompt += (
+                " If you already have a tool that can do this yourself "
+                "(generating media, searching the web, fetching a page), use "
+                "it directly instead of delegating — delegating is for work "
+                "outside your own toolset, not a default first move."
+            )
     if tools:
         # Without this, a model asked to do something it can't do directly
         # but *could* hand off (e.g. it has no media tool but has a teammate

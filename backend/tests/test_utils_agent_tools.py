@@ -189,3 +189,19 @@ def test_system_prompt_includes_delegate_instructions_alongside_fixed_tools() ->
 
     assert "pick whichever teammate" in prompt
     assert "web search isn't set up" not in prompt
+    assert "use it directly instead of delegating" in prompt
+
+
+def test_system_prompt_omits_prefer_own_tools_guidance_without_fixed_tools() -> None:
+    """The "use it directly" nudge only makes sense when the agent actually
+    has a fixed tool of its own to prefer — a delegate-only agent (no media/
+    search) has nothing to prefer over delegating, so the guidance is noise."""
+    agent = _agent(name="Jarvis")
+    delegate_schema = {
+        "type": "function",
+        "function": {"name": "delegate_to_wanda", "description": "Delegate a task to Wanda, a Artist."},
+    }
+    prompt = build_agent_system_prompt(agent, [delegate_schema])
+
+    assert "pick whichever teammate" in prompt
+    assert "use it directly instead of delegating" not in prompt
