@@ -130,9 +130,12 @@ async def create_agent(payload: AgentCreate, db: AsyncSession = Depends(get_db))
     )
     fields = payload.model_dump()
     engine_api_key = fields.pop("engine_api_key")
+    tavily_api_key = fields.pop("tavily_api_key")
     agent = Agent(**fields)
     if engine_api_key:
         agent.engine_api_key_encrypted = encrypt_value(engine_api_key)
+    if tavily_api_key:
+        agent.tavily_api_key_encrypted = encrypt_value(tavily_api_key)
     db.add(agent)
     # Flush (not commit) first so the DB-generated id is populated in time
     # to build the default workspace path below — working_directory is a
@@ -186,6 +189,8 @@ async def update_agent(
     # 1:1 to a real column (engine_api_key_encrypted, not engine_api_key).
     engine_api_key_sent = "engine_api_key" in fields
     engine_api_key = fields.pop("engine_api_key", None)
+    tavily_api_key_sent = "tavily_api_key" in fields
+    tavily_api_key = fields.pop("tavily_api_key", None)
 
     _validate_engine_config(
         fields.get("engine_type", agent.engine_type),
@@ -199,6 +204,8 @@ async def update_agent(
         setattr(agent, field, value)
     if engine_api_key_sent:
         agent.engine_api_key_encrypted = encrypt_value(engine_api_key) if engine_api_key else None
+    if tavily_api_key_sent:
+        agent.tavily_api_key_encrypted = encrypt_value(tavily_api_key) if tavily_api_key else None
     await db.commit()
     await db.refresh(agent)
     logger.info("agent_updated", agent_id=str(agent.id))

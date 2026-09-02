@@ -167,6 +167,46 @@ async def test_create_custom_provider_agent_round_trips_key(client: AsyncClient)
     assert "sk-my-gemini-key" not in resp.text
 
 
+async def test_create_agent_round_trips_own_tavily_key(client: AsyncClient) -> None:
+    """Mirrors test_create_custom_provider_agent_round_trips_key — an agent's
+    own Tavily key (separate from engine_api_key entirely) round-trips
+    through has_tavily_api_key, never echoed back raw."""
+    resp = await client.post(
+        "/agents", json=_payload(name="Jarvis", tavily_api_key="tvly-my-own-key"),
+    )
+    assert resp.status_code == 201
+    created = resp.json()
+    assert created["has_tavily_api_key"] is True
+    assert "tavily_api_key" not in created
+    assert "tvly-my-own-key" not in resp.text
+
+
+async def test_create_agent_defaults_has_tavily_api_key_false(client: AsyncClient) -> None:
+    created = (await client.post("/agents", json=_payload())).json()
+    assert created["has_tavily_api_key"] is False
+
+
+async def test_update_agent_rotates_and_clears_tavily_key(client: AsyncClient) -> None:
+    created = (
+        await client.post("/agents", json=_payload(name="Jarvis", tavily_api_key="tvly-first"))
+    ).json()
+
+    rotated = (
+        await client.patch(f"/agents/{created['id']}", json={"tavily_api_key": "tvly-second"})
+    ).json()
+    assert rotated["has_tavily_api_key"] is True
+
+    # Omitted entirely — untouched, still configured.
+    untouched = (await client.patch(f"/agents/{created['id']}", json={"name": "Jarvis 2"})).json()
+    assert untouched["has_tavily_api_key"] is True
+
+    # Explicit "" — clears it.
+    cleared = (
+        await client.patch(f"/agents/{created['id']}", json={"tavily_api_key": ""})
+    ).json()
+    assert cleared["has_tavily_api_key"] is False
+
+
 async def test_create_custom_provider_without_model_400(client: AsyncClient) -> None:
     resp = await client.post(
         "/agents",

@@ -55,6 +55,19 @@ class Agent(Base):
     # instead of ever delegating to the intended specialist — confirmed
     # live. Only an agent with this set True gets the tool at all.
     is_media_specialist: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    # Explicit opt-in for web_search/web_crawl (see search/registry.py) —
+    # same capability-gating principle as is_media_specialist (a resolved
+    # Tavily key alone is not sufficient), named for what it grants rather
+    # than a role identity since any agent might reasonably want this, not
+    # just one "specialist".
+    has_web_search: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    # An agent's own Tavily key, tried before the global Settings ->
+    # API Keys one (see search/registry.py's get_search_provider) — same
+    # "agent's own key first, global fallback" shape as media/registry.py's
+    # _resolve_gemini_key, just via a dedicated column rather than reusing
+    # engine_api_key_encrypted (Tavily is never a chat engine_provider, so
+    # it needs its own credential slot, not a repurposed one).
+    tavily_api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
 
     personality_traits: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)
     personality_quirks: Mapped[list[str] | None] = mapped_column(ARRAY(String))
@@ -95,3 +108,9 @@ class Agent(Base):
         """Whether a bring-your-own API key is configured, without exposing
         it — picked up automatically by AgentRead's from_attributes=True."""
         return self.engine_api_key_encrypted is not None
+
+    @property
+    def has_tavily_api_key(self) -> bool:
+        """Whether this agent has its own Tavily key, without exposing it —
+        picked up automatically by AgentRead's from_attributes=True."""
+        return self.tavily_api_key_encrypted is not None

@@ -4,7 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useApiKeysStatus } from "@/hooks/useApiKeys";
-import { API_PROVIDERS, BUILTIN_API_PROVIDERS, CLI_PROVIDERS, VERIFIED_CLI_PROVIDERS } from "@/lib/engineProviders";
+import {
+  API_MODEL_PLACEHOLDERS,
+  API_PROVIDERS,
+  BUILTIN_API_PROVIDERS,
+  CLI_PROVIDERS,
+  VERIFIED_CLI_PROVIDERS,
+} from "@/lib/engineProviders";
 import type { EngineType } from "@/types/agent";
 
 interface EngineConfigFieldsProps {
@@ -48,8 +54,17 @@ export function EngineConfigFields({
   hasEngineApiKey,
 }: EngineConfigFieldsProps) {
   const isCli = engineType === "cli";
+  // "Needs a model + API key" — true for a named preset (Groq/OpenRouter/
+  // GLM) exactly as much as a truly arbitrary custom provider, since none
+  // of them have a free global fallback the way Anthropic does.
   const isCustomApi = !isCli && !BUILTIN_API_PROVIDERS.has(provider);
   const providers = isCli ? CLI_PROVIDERS : API_PROVIDERS;
+  // "Show the free-text Provider Prefix box" — only when the provider isn't
+  // one of the named entries above (built-in or preset) at all. Narrower
+  // than isCustomApi: picking "Groq" from the dropdown already sets
+  // provider="groq" unambiguously, so no redundant free-text box is needed
+  // for it, even though it still needs model+key like any custom provider.
+  const isUnlistedProvider = isCustomApi && !providers.some((p) => p.value === provider);
   // Anthropic (and only Anthropic — Ollama needs no key at all) can fall
   // back to a global key configured once in Settings -> API Keys, so an
   // agent using it doesn't strictly need its own — without this, the field
@@ -66,7 +81,7 @@ export function EngineConfigFields({
           Engine Provider
         </Label>
         <Select
-          value={isCustomApi ? "custom" : provider}
+          value={isUnlistedProvider ? "custom" : provider}
           onValueChange={(v) => {
             if (!v) return;
             // "custom" is a UI-only pseudo-selection — provider is cleared
@@ -96,7 +111,7 @@ export function EngineConfigFields({
         </Select>
       </div>
 
-      {isCustomApi && (
+      {isUnlistedProvider && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`${idPrefix}-custom-provider`} className="text-xs font-bold text-slate-700 dark:text-slate-300">
             Provider Prefix <span className="text-rose-500">*</span>
@@ -122,11 +137,12 @@ export function EngineConfigFields({
         <Input
           id={`${idPrefix}-model`}
           placeholder={
-            isCustomApi
+            API_MODEL_PLACEHOLDERS[provider] ??
+            (isCustomApi
               ? "gemini-1.5-pro"
               : isCli
                 ? "claude-3-7-sonnet / gpt-4o"
-                : "claude-3-7-sonnet-20250219 / llama3.1:8b"
+                : "claude-3-7-sonnet-20250219 / llama3.1:8b")
           }
           value={model}
           onChange={(e) => onModelChange(e.target.value)}

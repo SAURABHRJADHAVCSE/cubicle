@@ -27,6 +27,8 @@ interface EditState {
   allowedTools: string;
   engineApiKey: string;
   isMediaSpecialist: boolean;
+  isWebSearch: boolean;
+  tavilyApiKey: string;
 }
 
 const EMPTY_EDIT: EditState = {
@@ -36,6 +38,8 @@ const EMPTY_EDIT: EditState = {
   allowedTools: "",
   engineApiKey: "",
   isMediaSpecialist: false,
+  isWebSearch: false,
+  tavilyApiKey: "",
 };
 
 interface NewAgentState {
@@ -111,6 +115,8 @@ export function AgentManagePanel() {
       allowedTools: (agent.allowed_tools ?? []).join(", "),
       engineApiKey: "",
       isMediaSpecialist: agent.is_media_specialist,
+      isWebSearch: agent.has_web_search,
+      tavilyApiKey: "",
     });
   }, [agent]);
 
@@ -162,13 +168,15 @@ export function AgentManagePanel() {
             ? edit.allowedTools.split(",").map((t) => t.trim()).filter(Boolean)
             : null,
           is_media_specialist: edit.isMediaSpecialist,
+          has_web_search: edit.isWebSearch,
           // Omit entirely when blank so a blank field never clobbers an
           // already-stored key — only send it when the user actually typed
           // a new one.
           ...(edit.engineApiKey.trim() ? { engine_api_key: edit.engineApiKey.trim() } : {}),
+          ...(edit.tavilyApiKey.trim() ? { tavily_api_key: edit.tavilyApiKey.trim() } : {}),
         },
       });
-      setEdit((e) => ({ ...e, engineApiKey: "" }));
+      setEdit((e) => ({ ...e, engineApiKey: "", tavilyApiKey: "" }));
       toast.success("Agent config updated");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Couldn't update agent config.");
@@ -333,6 +341,50 @@ export function AgentManagePanel() {
                     </span>
                   </span>
                 </label>
+              )}
+              {!isCli && (
+                <label className="flex items-start gap-2.5 rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-xs">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-3.5 shrink-0 accent-primary"
+                    checked={edit.isWebSearch}
+                    onChange={(e) =>
+                      setEdit((s) => ({ ...s, isWebSearch: e.target.checked }))
+                    }
+                  />
+                  <span>
+                    <span className="font-semibold text-foreground">Can search the web</span>
+                    <span className="mt-0.5 block text-3xs text-muted-foreground">
+                      Only an agent with this on gets web_search/web_crawl tools — other agents
+                      will say they can&apos;t look something up instead of guessing.
+                    </span>
+                  </span>
+                </label>
+              )}
+              {!isCli && edit.isWebSearch && (
+                <div className="flex flex-col gap-1.5 pl-1">
+                  <label
+                    htmlFor="manage-tavily-key"
+                    className="text-xs font-bold text-slate-700 dark:text-slate-300"
+                  >
+                    Tavily API Key{" "}
+                    <span className="font-normal text-slate-400 dark:text-slate-500">
+                      (optional — leave blank to use the global key from Settings)
+                    </span>
+                  </label>
+                  <Input
+                    id="manage-tavily-key"
+                    type="password"
+                    placeholder={
+                      agent.has_tavily_api_key
+                        ? "•••••••• (leave blank to keep current)"
+                        : "tvly-… (leave blank to use the global key)"
+                    }
+                    value={edit.tavilyApiKey}
+                    onChange={(e) => setEdit((s) => ({ ...s, tavilyApiKey: e.target.value }))}
+                    className="font-mono text-sm"
+                  />
+                </div>
               )}
               <Button
                 className="w-full rounded-full text-2xs font-bold"

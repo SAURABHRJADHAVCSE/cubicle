@@ -19,6 +19,12 @@ export interface Agent {
   // Explicit opt-in for generate_image/generate_video tools — not derived
   // from engine_provider/key sharing (see backend media/registry.py).
   is_media_specialist: boolean;
+  // Explicit opt-in for web_search/web_crawl tools (see backend
+  // search/registry.py).
+  has_web_search: boolean;
+  // Never the raw key — just whether this agent has its own Tavily key,
+  // tried before the global Settings one (see backend search/registry.py).
+  has_tavily_api_key: boolean;
   // Whether this agent is anyone's teammate (agent_collaborators) — drives
   // the "only chat with main agents" rule (see AgentCard.tsx).
   is_sub_agent: boolean;
@@ -55,6 +61,10 @@ export interface AgentCreate {
   // outside {"anthropic", "ollama"}.
   engine_api_key?: string | null;
   is_media_specialist?: boolean;
+  has_web_search?: boolean;
+  // Plaintext here only — encrypted server-side, never returned. Optional
+  // even when has_web_search is true: the global Settings key still covers it.
+  tavily_api_key?: string | null;
   personality_traits: string[];
   personality_quirks?: string[] | null;
   voice_language?: string;
@@ -78,6 +88,10 @@ export interface AgentUpdate {
   // clear, a value to rotate. Never present in any response.
   engine_api_key?: string | null;
   is_media_specialist?: boolean;
+  has_web_search?: boolean;
+  // Same contract as engine_api_key: omit to leave untouched, "" to clear,
+  // a value to rotate.
+  tavily_api_key?: string | null;
   status?: AgentStatus;
   mood?: AgentMood;
   [key: string]: unknown;

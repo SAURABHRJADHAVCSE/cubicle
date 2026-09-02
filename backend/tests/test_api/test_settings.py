@@ -112,34 +112,53 @@ async def test_api_keys_status_reports_unconfigured_after_clearing(client: Async
     # whatever's really configured — rolled back at teardown, so it
     # doesn't touch the real stored keys at all.
     await client.put(
-        "/settings/api-keys", json={"anthropic_api_key": "", "sarvam_api_key": ""}
+        "/settings/api-keys",
+        json={"anthropic_api_key": "", "sarvam_api_key": "", "tavily_api_key": ""},
     )
 
     resp = await client.get("/settings/api-keys")
     assert resp.status_code == 200
-    assert resp.json() == {"has_anthropic_key": False, "has_sarvam_key": False}
+    assert resp.json() == {
+        "has_anthropic_key": False, "has_sarvam_key": False, "has_tavily_key": False,
+    }
 
 
 async def test_api_keys_round_trip_and_never_echo_raw_value(client: AsyncClient) -> None:
     resp = await client.put(
         "/settings/api-keys",
-        json={"anthropic_api_key": "sk-ant-real-key", "sarvam_api_key": "sk-sarvam-real-key"},
+        json={
+            "anthropic_api_key": "sk-ant-real-key",
+            "sarvam_api_key": "sk-sarvam-real-key",
+            "tavily_api_key": "tvly-real-key",
+        },
     )
     assert resp.status_code == 200
-    assert resp.json() == {"has_anthropic_key": True, "has_sarvam_key": True}
+    assert resp.json() == {
+        "has_anthropic_key": True, "has_sarvam_key": True, "has_tavily_key": True,
+    }
     assert "sk-ant-real-key" not in resp.text
     assert "sk-sarvam-real-key" not in resp.text
+    assert "tvly-real-key" not in resp.text
 
     status_resp = await client.get("/settings/api-keys")
-    assert status_resp.json() == {"has_anthropic_key": True, "has_sarvam_key": True}
+    assert status_resp.json() == {
+        "has_anthropic_key": True, "has_sarvam_key": True, "has_tavily_key": True,
+    }
 
 
 async def test_api_keys_omitted_field_left_untouched(client: AsyncClient) -> None:
+    # Establishes a known tavily baseline the same way the "reports
+    # unconfigured after clearing" test does — this test's assertion below
+    # only cares about anthropic/sarvam, but a real Tavily key configured
+    # through the actual UI would otherwise make has_tavily_key flaky here.
+    await client.put("/settings/api-keys", json={"tavily_api_key": ""})
     await client.put("/settings/api-keys", json={"anthropic_api_key": "sk-ant-real-key"})
 
     resp = await client.put("/settings/api-keys", json={"sarvam_api_key": "sk-sarvam-real-key"})
 
-    assert resp.json() == {"has_anthropic_key": True, "has_sarvam_key": True}
+    assert resp.json() == {
+        "has_anthropic_key": True, "has_sarvam_key": True, "has_tavily_key": False,
+    }
 
 
 async def test_api_keys_empty_string_clears(client: AsyncClient) -> None:

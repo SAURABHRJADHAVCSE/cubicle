@@ -12,6 +12,9 @@ SARVAM_API_KEY_SETTING = "sarvam_api_key"
 # API key does both, see media/registry.py. Fallback only — an agent's own
 # Gemini key (Agent.engine_api_key_encrypted) is tried first.
 GEMINI_MEDIA_API_KEY_SETTING = "gemini_media_api_key"
+# See search/registry.py — gates web_search/web_crawl alongside
+# Agent.has_web_search.
+TAVILY_API_KEY_SETTING = "tavily_api_key"
 
 
 async def set_encrypted_setting(session: AsyncSession, key: str, value: str) -> None:

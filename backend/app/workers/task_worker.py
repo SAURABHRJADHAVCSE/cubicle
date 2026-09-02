@@ -25,9 +25,13 @@ from app.engines.registry import get_engine
 from app.media.registry import get_image_generator, get_video_generator
 from app.models.agent import Agent
 from app.models.task import Task
+from app.search.base import ExtractResponse, SearchResponse
+from app.search.registry import get_search_provider
 from app.utils.agent_tools import (
     GENERATE_IMAGE_TOOL,
     GENERATE_VIDEO_TOOL,
+    WEB_CRAWL_TOOL,
+    WEB_SEARCH_TOOL,
     build_agent_system_prompt,
     build_tools_for_agent,
 )
@@ -254,6 +258,74 @@ async def handle_media_tool_call(
         return f"Generated {kind}, saved to the workspace at {relative_path}.", False
 
 
+_SEARCH_RESULT_CONTENT_CHARS = 500  # per-result snippet cap in a web_search reply
+_CRAWL_CONTENT_CHARS = 8000  # a full page can be tens of thousands of tokens
+
+
+def _format_search_response(result: SearchResponse) -> str:
+    lines = [f"Answer: {result.answer}"] if result.answer else []
+    if not result.results:
+        lines.append("No results found.")
+    for r in result.results:
+        content = r.content[:_SEARCH_RESULT_CONTENT_CHARS]
+        if len(r.content) > _SEARCH_RESULT_CONTENT_CHARS:
+            content += "…"
+        lines.append(f"- {r.title}\n  {r.url}\n  {content}")
+    return "\n".join(lines)
+
+
+def _format_extract_response(result: ExtractResponse) -> str:
+    if not result.results:
+        return f"Couldn't fetch that page: {', '.join(result.failed_urls) or 'unknown error'}"
+    content = result.results[0].raw_content[:_CRAWL_CONTENT_CHARS]
+    if len(result.results[0].raw_content) > _CRAWL_CONTENT_CHARS:
+        content += "\n…[truncated]"
+    return content
+
+
+async def handle_search_tool_call(
+    tool_name: str,
+    args: dict,
+    agent: Agent,
+    session_factory,
+) -> tuple[str, bool]:
+    """Runs a web_search/web_crawl tool call: resolve this agent's search
+    provider, call it, format the result inline as the tool-result text.
+    Shared by make_tool_executor (below) and voice's own tool_executor
+    (voice/pipeline.py) for the same reason handle_media_tool_call is
+    shared. Unlike media generation, there's no file to save — the result
+    is transient, returned inline, never written to the agent's workspace
+    or task.result_files. Caller must have already confirmed
+    ``tool_name in (WEB_SEARCH_TOOL, WEB_CRAWL_TOOL)``.
+    """
+    async with session_factory() as child_session:
+        # Re-fetch in this fresh session — parallel tool calls run
+        # concurrently, one AsyncSession can't be shared across coroutines.
+        fresh_agent = await child_session.get(Agent, agent.id)
+        if fresh_agent is None:
+            return "This agent no longer exists.", True
+
+        provider = await get_search_provider(fresh_agent, child_session)
+        if provider is None:
+            return "No web search provider is configured for this agent.", True
+
+        if tool_name == WEB_SEARCH_TOOL:
+            query = (args or {}).get("query", "").strip()
+            if not query:
+                return "Missing required 'query' argument.", True
+            # Raises on failure — litellm_engine.py's _call_tool already
+            # converts any exception raised here into a clean tool-error
+            # result the model sees, so no local try/except is needed.
+            result = await provider.search(query)
+            return _format_search_response(result), False
+
+        url = (args or {}).get("url", "").strip()
+        if not url:
+            return "Missing required 'url' argument.", True
+        extracted = await provider.extract([url])
+        return _format_extract_response(extracted), False
+
+
 def make_tool_executor(
     calling_task_id: uuid.UUID | None,
     tool_by_name: dict[str, uuid.UUID],
@@ -308,6 +380,8 @@ def make_tool_executor(
             return await handle_media_tool_call(
                 tool_name, args, calling_task_id, agent, generated_files, factory
             )
+        if tool_name in (WEB_SEARCH_TOOL, WEB_CRAWL_TOOL):
+            return await handle_search_tool_call(tool_name, args, agent, factory)
 
         target_id = tool_by_name.get(tool_name)
         if target_id is None:

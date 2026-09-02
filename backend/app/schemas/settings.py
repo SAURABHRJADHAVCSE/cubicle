@@ -21,6 +21,7 @@ class ApiKeysStatus(BaseModel):
 
     has_anthropic_key: bool
     has_sarvam_key: bool
+    has_tavily_key: bool
 
 
 class ApiKeysUpdate(BaseModel):
@@ -30,3 +31,4 @@ class ApiKeysUpdate(BaseModel):
 
     anthropic_api_key: str | None = None
     sarvam_api_key: str | None = None
+    tavily_api_key: str | None = None

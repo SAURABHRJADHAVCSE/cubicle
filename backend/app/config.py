@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     redis_url: str
 
     anthropic_api_key: str | None = None
+    # Web search/crawl (see app/search/). DB-stored setting from Settings ->
+    # API Keys wins if both exist — same "env is a fallback" precedent as
+    # anthropic_api_key above.
+    tavily_api_key: str | None = None
     # Points at the host machine's own Ollama install via Docker Desktop's
     # host.docker.internal DNS name — not a Docker Compose "ollama" service
     # (none is defined; the user runs Ollama natively).

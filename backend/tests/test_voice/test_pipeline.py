@@ -61,6 +61,7 @@ from app.models.task import Task
 from app.voice import pipeline as pipeline_module
 from app.voice.audio import SAMPLE_RATE, AudioFrameBuffer
 from app.voice.pipeline import CallAudioPipeline
+from app.workers import task_worker as task_worker_module
 
 FRAME_MS = 20
 SAMPLES_PER_FRAME = SAMPLE_RATE * FRAME_MS // 1000
@@ -410,6 +411,69 @@ class _NoCloseSessionCM:
 
     async def __aexit__(self, *exc_info: object) -> bool:
         return False
+
+
+class _FakeSearchProvider:
+    async def search(self, query: str, **kwargs: object):
+        from app.search.base import SearchResponse, SearchResult
+
+        return SearchResponse(
+            query=query, answer="42",
+            results=[SearchResult(title="T", url="https://x.example", content="c", score=1.0)],
+        )
+
+    async def extract(self, urls: list[str], **kwargs: object):
+        from app.search.base import ExtractResponse, ExtractResult
+
+        return ExtractResponse(results=[ExtractResult(url=urls[0], raw_content="page body")])
+
+
+async def _fake_get_search_provider(agent: Agent, session: AsyncSession) -> _FakeSearchProvider:
+    return _FakeSearchProvider()
+
+
+async def test_voice_executor_routes_web_search_not_unknown_tool(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    """The exact regression this session already hit once for media tools:
+    calling generate_image on a voice call returned "Unknown tool" because
+    _make_voice_delegation_executor only knew about delegate_to_* names —
+    the same gap must not exist for web_search/web_crawl."""
+    agent = Agent(
+        name="Jarvis", role="Assistant", engine_type="api", engine_provider="anthropic",
+        personality_traits=[], has_web_search=True,
+    )
+    db_session.add(agent)
+    await db_session.flush()
+    monkeypatch.setattr(pipeline_module, "async_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "get_search_provider", _fake_get_search_provider)
+
+    executor = pipeline_module._make_voice_delegation_executor({}, agent)
+    content, is_error = await executor("web_search", {"query": "what is tavily"})
+
+    assert is_error is False
+    assert "unknown tool" not in content.lower()
+    assert "42" in content
+
+
+async def test_voice_executor_routes_web_crawl_not_unknown_tool(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    agent = Agent(
+        name="Jarvis", role="Assistant", engine_type="api", engine_provider="anthropic",
+        personality_traits=[], has_web_search=True,
+    )
+    db_session.add(agent)
+    await db_session.flush()
+    monkeypatch.setattr(pipeline_module, "async_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "get_search_provider", _fake_get_search_provider)
+
+    executor = pipeline_module._make_voice_delegation_executor({}, agent)
+    content, is_error = await executor("web_crawl", {"url": "https://x.example"})
+
+    assert is_error is False
+    assert "unknown tool" not in content.lower()
+    assert "page body" in content
 
 
 async def test_llm_turn_delegates_instead_of_blocking(

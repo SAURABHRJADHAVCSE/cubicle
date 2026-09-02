@@ -16,7 +16,13 @@ from app.engines.base import ToolExecutor
 from app.engines.registry import get_engine
 from app.models.agent import Agent
 from app.models.task import Task
-from app.utils.agent_tools import GENERATE_IMAGE_TOOL, GENERATE_VIDEO_TOOL, build_tools_for_agent
+from app.utils.agent_tools import (
+    GENERATE_IMAGE_TOOL,
+    GENERATE_VIDEO_TOOL,
+    WEB_CRAWL_TOOL,
+    WEB_SEARCH_TOOL,
+    build_tools_for_agent,
+)
 from app.utils.time_context import current_date_line
 from app.voice.audio import (
     AudioFrameBuffer,
@@ -26,7 +32,7 @@ from app.voice.audio import (
     resample_to_track_format,
 )
 from app.voice.registry import get_stt_provider, get_tts_provider
-from app.workers.task_worker import dispatch_task, handle_media_tool_call
+from app.workers.task_worker import dispatch_task, handle_media_tool_call, handle_search_tool_call
 
 logger = structlog.get_logger()
 
@@ -85,7 +91,9 @@ def _make_voice_delegation_executor(
     calling delegate_to_* for real. generate_files here is a throwaway
     accumulator, same as api/chat.py's — no Task row exists on a voice call
     to persist result_files onto (tracked as the same follow-up work noted
-    there).
+    there). web_search/web_crawl calls get the identical treatment via the
+    shared handle_search_tool_call — wired in from the start this time,
+    specifically to not repeat the media "Unknown tool" gap.
 
     `on_delegated(task_id, target_name)`, if given, fires right after a real
     delegation succeeds — a plain sync callback (just records state), not
@@ -102,6 +110,8 @@ def _make_voice_delegation_executor(
             return await handle_media_tool_call(
                 tool_name, args, None, agent, generated_files, async_session_factory
             )
+        if tool_name in (WEB_SEARCH_TOOL, WEB_CRAWL_TOOL):
+            return await handle_search_tool_call(tool_name, args, agent, async_session_factory)
 
         target_id = tool_by_name.get(tool_name)
         if target_id is None:

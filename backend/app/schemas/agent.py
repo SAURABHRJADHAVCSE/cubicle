@@ -26,6 +26,13 @@ class AgentCreate(BaseModel):
     # Explicit opt-in for generate_image/generate_video (see
     # media/registry.py) — not derived from engine_provider/key sharing.
     is_media_specialist: bool = False
+    # Explicit opt-in for web_search/web_crawl (see search/registry.py).
+    has_web_search: bool = False
+    # Plaintext in only, same contract as engine_api_key — an agent's own
+    # Tavily key, tried before the global Settings one (see
+    # search/registry.py's get_search_provider). Optional even when
+    # has_web_search is True: the global key still covers it.
+    tavily_api_key: str | None = None
 
     personality_traits: list[str]
     personality_quirks: list[str] | None = None
@@ -55,6 +62,10 @@ class AgentUpdate(BaseModel):
     # via exclude_unset) to leave whatever's already stored untouched.
     engine_api_key: str | None = None
     is_media_specialist: bool | None = None
+    has_web_search: bool | None = None
+    # Same tri-state contract as engine_api_key: omitted = untouched,
+    # "" = explicitly clear, a value = set/rotate.
+    tavily_api_key: str | None = None
 
     personality_traits: list[str] | None = None
     personality_quirks: list[str] | None = None
@@ -89,6 +100,10 @@ class AgentRead(BaseModel):
     # Agent.has_engine_api_key in models/agent.py).
     has_engine_api_key: bool
     is_media_specialist: bool
+    has_web_search: bool
+    # Never the raw key — just whether this agent has its own Tavily key
+    # (see Agent.has_tavily_api_key in models/agent.py).
+    has_tavily_api_key: bool
     # Whether this agent is anyone's teammate (agent_collaborators) — not a
     # real column, set as a transient attribute by api/agents.py's
     # _mark_sub_agents() before serialization. Drives the frontend's "only

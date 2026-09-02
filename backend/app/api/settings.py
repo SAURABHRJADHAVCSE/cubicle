@@ -23,6 +23,7 @@ from app.utils.secrets_store import (
     ANTHROPIC_API_KEY_SETTING,
     CLAUDE_OAUTH_TOKEN_KEY,
     SARVAM_API_KEY_SETTING,
+    TAVILY_API_KEY_SETTING,
     delete_setting,
     get_encrypted_setting,
     set_encrypted_setting,
@@ -80,16 +81,18 @@ async def _api_keys_status(db: AsyncSession) -> ApiKeysStatus:
     return ApiKeysStatus(
         has_anthropic_key=await get_encrypted_setting(db, ANTHROPIC_API_KEY_SETTING) is not None,
         has_sarvam_key=await get_encrypted_setting(db, SARVAM_API_KEY_SETTING) is not None,
+        has_tavily_key=await get_encrypted_setting(db, TAVILY_API_KEY_SETTING) is not None,
     )
 
 
 @api_keys_router.get("", response_model=ApiKeysStatus)
 async def get_api_keys(db: AsyncSession = Depends(get_db)) -> ApiKeysStatus:
-    """Whether a global Anthropic/Sarvam API key is configured from
+    """Whether a global Anthropic/Sarvam/Tavily API key is configured from
     Settings — the actual keys are never returned. Consumed by
-    engines/litellm_engine.py's _resolve_api_key and
-    voice/registry.py's _resolve_sarvam_key, which prefer these over the
-    ANTHROPIC_API_KEY/SARVAM_API_KEY env vars when set."""
+    engines/litellm_engine.py's _resolve_api_key, voice/registry.py's
+    _resolve_sarvam_key, and search/registry.py's get_search_provider,
+    which prefer these over the ANTHROPIC_API_KEY/SARVAM_API_KEY/
+    TAVILY_API_KEY env vars when set."""
     return await _api_keys_status(db)
 
 
@@ -104,6 +107,7 @@ async def update_api_keys(
     for field, key in (
         ("anthropic_api_key", ANTHROPIC_API_KEY_SETTING),
         ("sarvam_api_key", SARVAM_API_KEY_SETTING),
+        ("tavily_api_key", TAVILY_API_KEY_SETTING),
     ):
         if field not in fields_sent:
             continue

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.media.registry import get_image_generator, get_video_generator
 from app.models.agent import Agent
 from app.models.agent_collaborator import AgentCollaborator
+from app.search.registry import get_search_provider
 from app.utils.soul import read_soul
 from app.utils.time_context import current_date_line
 
@@ -26,6 +27,13 @@ _MAX_SLUG_LEN = 40
 # branches on these directly, checked before the delegate-name lookup.
 GENERATE_IMAGE_TOOL = "generate_image"
 GENERATE_VIDEO_TOOL = "generate_video"
+WEB_SEARCH_TOOL = "web_search"
+WEB_CRAWL_TOOL = "web_crawl"
+# Every fixed (non-delegate) tool name — used to exclude these from
+# delegate-specific logic (build_agent_system_prompt's delegate-tools
+# instruction block, in particular) so a media/search tool never gets
+# mistaken for a teammate to delegate to.
+_FIXED_TOOL_NAMES = {GENERATE_IMAGE_TOOL, GENERATE_VIDEO_TOOL, WEB_SEARCH_TOOL, WEB_CRAWL_TOOL}
 
 
 def _media_tool_schema(name: str, description: str) -> dict:
@@ -43,6 +51,44 @@ def _media_tool_schema(name: str, description: str) -> dict:
                     }
                 },
                 "required": ["prompt"],
+            },
+        },
+    }
+
+
+def _web_search_tool_schema() -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": WEB_SEARCH_TOOL,
+            "description": "Search the live web for current information and get a list of relevant results.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The search query."}
+                },
+                "required": ["query"],
+            },
+        },
+    }
+
+
+def _web_crawl_tool_schema() -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": WEB_CRAWL_TOOL,
+            "description": (
+                "Fetch and extract the readable content of a specific webpage by URL "
+                "(backed by Tavily's /extract endpoint) — use this to read a page you "
+                "already have the URL for, not to search."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "The URL to fetch and read."}
+                },
+                "required": ["url"],
             },
         },
     }
@@ -144,13 +190,14 @@ async def build_tools_for_agent(
     agent in the roster — see get_delegation_candidates) plus built-in
     generate_image/generate_video tools when a media provider actually
     resolves for this agent (see media/registry.py — an agent's own Gemini
-    key or the global setting). Returns ([], {}) for CLI-engine agents,
-    which have no structured tool-calling protocol Cubicle can hook into at
-    all. The second return value is only the delegate-name -> Agent lookup;
-    media tool names are fixed constants (GENERATE_IMAGE_TOOL/
-    GENERATE_VIDEO_TOOL above), not per-agent, so they don't need one — the
-    tool-loop never activates for an agent alone in the roster with no
-    configured media provider either.
+    key or the global setting), plus web_search/web_crawl when a search
+    provider resolves (see search/registry.py — Agent.has_web_search gated).
+    Returns ([], {}) for CLI-engine agents, which have no structured
+    tool-calling protocol Cubicle can hook into at all. The second return
+    value is only the delegate-name -> Agent lookup; fixed tool names
+    (_FIXED_TOOL_NAMES above) are constants, not per-agent, so they don't
+    need one — the tool-loop never activates for an agent alone in the
+    roster with none of these configured either.
     """
     if agent.engine_type != "api":
         return [], {}
@@ -169,6 +216,9 @@ async def build_tools_for_agent(
                 GENERATE_VIDEO_TOOL, "Generate a short video from a text description."
             )
         )
+    if await get_search_provider(agent, session) is not None:
+        tools.append(_web_search_tool_schema())
+        tools.append(_web_crawl_tool_schema())
 
     return tools, by_name
 
@@ -196,9 +246,20 @@ def build_agent_system_prompt(agent: Agent, tools: list[dict]) -> str:
             "other media file right now — never claim to have created one. If "
             "asked, say plainly that media generation isn't set up for you."
         )
-    delegate_tools = [
-        t for t in tools if t["function"]["name"] not in (GENERATE_IMAGE_TOOL, GENERATE_VIDEO_TOOL)
-    ]
+    has_search_tool = any(
+        t["function"]["name"] in (WEB_SEARCH_TOOL, WEB_CRAWL_TOOL) for t in tools
+    )
+    if not has_search_tool:
+        # Same failure mode as media generation, arguably worse: a
+        # fabricated image is obviously fake once you look for the file; a
+        # model confidently answering from stale training data while
+        # implying it looked something up live is not obviously wrong.
+        system_prompt += (
+            "\n\nYou have no way to search the web or fetch live pages right "
+            "now — never claim to have looked something up or browsed a "
+            "page. If asked, say plainly that web search isn't set up for you."
+        )
+    delegate_tools = [t for t in tools if t["function"]["name"] not in _FIXED_TOOL_NAMES]
     if delegate_tools:
         # Each delegate_to_* tool's description names the teammate and their
         # role (see build_tool_schema) — the model has everything it needs

@@ -63,6 +63,7 @@ export function ApiKeysCard() {
 
   const [anthropicKey, setAnthropicKey] = useState("");
   const [sarvamKey, setSarvamKey] = useState("");
+  const [tavilyKey, setTavilyKey] = useState("");
 
   async function save() {
     // Only send fields the user actually typed into — omitted fields
@@ -71,6 +72,7 @@ export function ApiKeysCard() {
     const payload: Record<string, string> = {};
     if (anthropicKey.trim()) payload.anthropic_api_key = anthropicKey.trim();
     if (sarvamKey.trim()) payload.sarvam_api_key = sarvamKey.trim();
+    if (tavilyKey.trim()) payload.tavily_api_key = tavilyKey.trim();
     if (Object.keys(payload).length === 0) {
       toast.error("Type a key into at least one field first");
       return;
@@ -79,6 +81,7 @@ export function ApiKeysCard() {
       await updateKeys.mutateAsync(payload);
       setAnthropicKey("");
       setSarvamKey("");
+      setTavilyKey("");
       toast.success("API keys updated");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Couldn't update API keys");
@@ -93,7 +96,8 @@ export function ApiKeysCard() {
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         Configure these from here instead of editing .env — no restart needed. Anthropic powers
         API-engine agents on the built-in Anthropic preset; Sarvam powers real speech-to-text and
-        text-to-speech on voice calls.
+        text-to-speech on voice calls; Tavily powers the web_search/web_crawl tools for any agent
+        with &ldquo;Can search the web&rdquo; turned on.
       </p>
 
       <div className="mt-3 flex flex-col gap-3">
@@ -110,6 +114,13 @@ export function ApiKeysCard() {
           configured={Boolean(status?.has_sarvam_key)}
           value={sarvamKey}
           onChange={setSarvamKey}
+        />
+        <KeyField
+          id="api-key-tavily"
+          label="Tavily API Key"
+          configured={Boolean(status?.has_tavily_key)}
+          value={tavilyKey}
+          onChange={setTavilyKey}
         />
         <Button
           size="sm"

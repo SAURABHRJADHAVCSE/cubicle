@@ -48,6 +48,10 @@ export const ROLE_PRESETS = [
     description: "Researches competitors, summarizes findings, and tracks industry trends.",
   },
   {
+    title: "Web Crawler & Researcher",
+    description: "Searches the live web and reads specific pages to pull in current information.",
+  },
+  {
     title: "Sales & Outreach Specialist",
     description: "Drafts outreach emails, qualifies leads, and follows up on prospects.",
   },

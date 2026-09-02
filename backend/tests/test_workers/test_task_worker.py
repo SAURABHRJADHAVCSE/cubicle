@@ -988,6 +988,90 @@ async def test_make_tool_executor_rejects_depth_limit(monkeypatch: pytest.Monkey
     assert "depth" in content.lower()
 
 
+class _FakeSearchProvider:
+    """Stands in for a real TavilyProvider — dispatch-order regression
+    coverage only cares that make_tool_executor routes to the right
+    handler, not Tavily's own request/response shape (see
+    tests/test_search/test_tavily.py for that)."""
+
+    async def search(self, query: str, **kwargs: object):
+        from app.search.base import SearchResponse, SearchResult
+
+        return SearchResponse(
+            query=query, answer="42",
+            results=[SearchResult(title="T", url="https://x.example", content="c", score=1.0)],
+        )
+
+    async def extract(self, urls: list[str], **kwargs: object):
+        from app.search.base import ExtractResponse, ExtractResult
+
+        return ExtractResponse(results=[ExtractResult(url=urls[0], raw_content="page body")])
+
+
+async def _fake_get_search_provider(agent: Agent, session: AsyncSession) -> _FakeSearchProvider:
+    return _FakeSearchProvider()
+
+
+async def test_make_tool_executor_routes_web_search_before_delegate_lookup(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    """Regression coverage mirroring the media dispatch branch: web_search
+    isn't a delegate name, so it must be handled by its own branch before
+    falling through to "Unknown tool"."""
+    agent = Agent(
+        name="Jarvis", role="Assistant", engine_type="api", engine_provider="anthropic",
+        personality_traits=[], has_web_search=True,
+    )
+    db_session.add(agent)
+    await db_session.flush()
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "get_search_provider", _fake_get_search_provider)
+
+    executor = task_worker_module.make_tool_executor(uuid.uuid4(), {}, [], agent, [])
+    content, is_error = await executor("web_search", {"query": "what is tavily"})
+
+    assert is_error is False
+    assert "42" in content
+    assert "x.example" in content
+
+
+async def test_make_tool_executor_routes_web_crawl_before_delegate_lookup(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    agent = Agent(
+        name="Jarvis", role="Assistant", engine_type="api", engine_provider="anthropic",
+        personality_traits=[], has_web_search=True,
+    )
+    db_session.add(agent)
+    await db_session.flush()
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "get_search_provider", _fake_get_search_provider)
+
+    executor = task_worker_module.make_tool_executor(uuid.uuid4(), {}, [], agent, [])
+    content, is_error = await executor("web_crawl", {"url": "https://x.example"})
+
+    assert is_error is False
+    assert "page body" in content
+
+
+async def test_make_tool_executor_web_search_reports_when_not_configured(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    agent = Agent(
+        name="Jarvis", role="Assistant", engine_type="api", engine_provider="anthropic",
+        personality_traits=[], has_web_search=False,
+    )
+    db_session.add(agent)
+    await db_session.flush()
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+
+    executor = task_worker_module.make_tool_executor(uuid.uuid4(), {}, [], agent, [])
+    content, is_error = await executor("web_search", {"query": "anything"})
+
+    assert is_error is True
+    assert "no web search provider" in content.lower()
+
+
 async def test_route_task_missing_orchestrator_agent_marks_failed(
     monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:
