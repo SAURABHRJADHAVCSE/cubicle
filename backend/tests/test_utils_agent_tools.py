@@ -189,7 +189,11 @@ def test_system_prompt_includes_delegate_instructions_alongside_fixed_tools() ->
 
     assert "pick whichever teammate" in prompt
     assert "web search isn't set up" not in prompt
-    assert "use it directly instead of delegating" in prompt
+    assert "must not delegate it" in prompt
+    # The own-tools gate must appear before the general delegate-selection
+    # guidance — primacy is the whole point of this ordering (see
+    # build_agent_system_prompt).
+    assert prompt.index("must not delegate it") < prompt.index("pick whichever teammate")
 
 
 def test_system_prompt_omits_prefer_own_tools_guidance_without_fixed_tools() -> None:
@@ -204,4 +208,4 @@ def test_system_prompt_omits_prefer_own_tools_guidance_without_fixed_tools() -> 
     prompt = build_agent_system_prompt(agent, [delegate_schema])
 
     assert "pick whichever teammate" in prompt
-    assert "use it directly instead of delegating" not in prompt
+    assert "must not delegate it" not in prompt

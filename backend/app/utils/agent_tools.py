@@ -261,6 +261,22 @@ def build_agent_system_prompt(agent: Agent, tools: list[dict]) -> str:
         )
     delegate_tools = [t for t in tools if t["function"]["name"] not in _FIXED_TOOL_NAMES]
     if delegate_tools:
+        if has_media_tool or has_search_tool:
+            # Given first and as a hard gate — appended after the general
+            # delegate-selection guidance below, it loses to "pick the
+            # domain expert" often enough to matter: confirmed live, an
+            # agent with its own web_search tool still delegated a plain
+            # search request to a teammate on some runs (not all — this is
+            # instruction-following variance, not a missing check; giving
+            # this rule primacy and an explicit "before delegating anything"
+            # framing measurably reduces how often that happens).
+            system_prompt += (
+                "\n\nBefore delegating anything, check whether one of your "
+                "own tools already covers the request — generating media, "
+                "searching the web, fetching a page. If it does, you must "
+                "use that tool yourself and must not delegate it. Delegating "
+                "is only for work outside your own toolset."
+            )
         # Each delegate_to_* tool's description names the teammate and their
         # role (see build_tool_schema) — the model has everything it needs
         # to judge fit, but without an explicit instruction to actually
@@ -268,8 +284,9 @@ def build_agent_system_prompt(agent: Agent, tools: list[dict]) -> str:
         # most recently, or the first one listed, rather than the teammate
         # who's actually the domain expert for the specific request.
         system_prompt += (
-            "\n\nYou can delegate to any teammate listed among your tools — "
-            "read each one's description (their name and role) and pick "
+            "\n\nFor anything left over — outside your own toolset — you "
+            "can delegate to any teammate listed among your tools: read "
+            "each one's description (their name and role) and pick "
             "whichever teammate is the actual domain expert for what's being "
             "asked, not just the first or most familiar option. If none of "
             "them fit the request, say so plainly instead of delegating to "
@@ -279,18 +296,6 @@ def build_agent_system_prompt(agent: Agent, tools: list[dict]) -> str:
             "delegating is a reversible, low-stakes action, not one that "
             "needs sign-off."
         )
-        if has_media_tool or has_search_tool:
-            # Without this, a teammate's role description (e.g. "Web Crawler
-            # & Researcher") reads as a stronger match than the model's own
-            # plain tool name, so it delegates a search/media request it
-            # could have done itself in one call — confirmed live (an agent
-            # with web_search delegated a search to a teammate anyway).
-            system_prompt += (
-                " If you already have a tool that can do this yourself "
-                "(generating media, searching the web, fetching a page), use "
-                "it directly instead of delegating — delegating is for work "
-                "outside your own toolset, not a default first move."
-            )
     if tools:
         # Without this, a model asked to do something it can't do directly
         # but *could* hand off (e.g. it has no media tool but has a teammate

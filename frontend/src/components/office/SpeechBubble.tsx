@@ -11,6 +11,12 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
  * AnimatePresence treats a new line as a fresh enter, not a text swap. */
 export function AgentSpeechBubble({ bubbleKey, text }: { bubbleKey: string; text: string }) {
   const reduceMotion = useReducedMotion();
+  // Drei's centred <Html> wrapper is absolutely positioned and therefore
+  // shrink-to-fit. A max-width alone lets it collapse to the min-content
+  // width (often one word), which stacks dialogue into a vertical strip.
+  // Collapse model-added newlines as well so the browser controls wrapping.
+  const displayText = text.replace(/\s+/g, " ").trim();
+
   return (
     <AnimatePresence>
       <motion.div
@@ -19,10 +25,10 @@ export function AgentSpeechBubble({ bubbleKey, text }: { bubbleKey: string; text
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, scale: reduceMotion ? 1 : 0.85 }}
         transition={{ duration: 0.18 }}
-        className="pointer-events-none relative max-w-[150px] rounded-2xl border-2 border-[#292724] bg-[#fffdf8] px-2.5 py-1.5 text-center shadow-[0_4px_10px_rgba(38,35,31,0.25)]"
+        className="pointer-events-none relative w-max min-w-24 max-w-[min(15rem,70vw)] rounded-2xl border-2 border-[#292724] bg-[#fffdf8] px-3 py-2 text-center shadow-[0_4px_10px_rgba(38,35,31,0.25)]"
       >
-        <span className="font-heading text-[10px] leading-snug break-words text-[#292724]">
-          {text}
+        <span className="block whitespace-normal break-words font-heading text-[10px] leading-[1.35] text-[#292724] [overflow-wrap:anywhere]">
+          {displayText}
         </span>
         {/* Comic-tail: a small rotated square, clipped by its own border
             so only the bottom-left corner shows as a triangle pointing

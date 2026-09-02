@@ -307,6 +307,7 @@ async def handle_search_tool_call(
 
         provider = await get_search_provider(fresh_agent, child_session)
         if provider is None:
+            logger.warning("web_search_tool_no_provider", agent_id=str(agent.id), tool=tool_name)
             return "No web search provider is configured for this agent.", True
 
         if tool_name == WEB_SEARCH_TOOL:
@@ -317,12 +318,20 @@ async def handle_search_tool_call(
             # converts any exception raised here into a clean tool-error
             # result the model sees, so no local try/except is needed.
             result = await provider.search(query)
+            logger.info(
+                "web_search_tool_called", agent_id=str(agent.id), query=query,
+                result_count=len(result.results),
+            )
             return _format_search_response(result), False
 
         url = (args or {}).get("url", "").strip()
         if not url:
             return "Missing required 'url' argument.", True
         extracted = await provider.extract([url])
+        logger.info(
+            "web_crawl_tool_called", agent_id=str(agent.id), url=url,
+            result_count=len(extracted.results),
+        )
         return _format_extract_response(extracted), False
 
 
