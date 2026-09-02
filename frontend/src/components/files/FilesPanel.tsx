@@ -4,8 +4,10 @@ import {
   BookHeart,
   ChevronRight,
   Copy,
+  Download,
   ExternalLink,
   File,
+  FileWarning,
   Folder,
   FolderOpen,
   Loader2,
@@ -19,7 +21,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAgents } from "@/hooks/useAgents";
+import { useWorkspaceFile } from "@/hooks/useWorkspaceFile";
+import { getAuthToken } from "@/lib/authToken";
 import { ApiError, api } from "@/lib/api";
+import { getMediaKind } from "@/lib/mediaKind";
 import { useUIStore } from "@/stores/uiStore";
 import type { WorkspaceEntry, WorkspaceFileContent } from "@/types/agent";
 
@@ -37,6 +42,37 @@ function formatSize(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Full-size image/video preview for the file browser — routed through the
+ * raw-bytes/blob-URL fetch (useWorkspaceFile) instead of files/content's
+ * text-only, size-capped preview endpoint, which can't render binary
+ * content at all and previously showed "File too large to preview" or "Not
+ * a text file" for any generated image/video. */
+function MediaFilePreview({ agentId, path }: { agentId: string; path: string }) {
+  const { objectUrl, loading, error } = useWorkspaceFile(agentId, path);
+  const kind = getMediaKind(path);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" /> Loading…
+      </div>
+    );
+  }
+  if (error || !objectUrl) {
+    return (
+      <div className="mx-auto mt-6 flex max-w-[260px] items-center gap-1.5 text-center text-xs text-muted-foreground">
+        <FileWarning className="size-3.5 shrink-0" />
+        {error ?? "Couldn't load file"}
+      </div>
+    );
+  }
+  if (kind === "video") {
+    return <video src={objectUrl} controls className="max-h-full max-w-full rounded-lg border border-border" />;
+  }
+  // eslint-disable-next-line @next/next/no-img-element -- object URL, next/image can't optimize it
+  return <img src={objectUrl} alt={path} className="max-h-full max-w-full rounded-lg border border-border object-contain" />;
+}
+
 export function FilesPanel() {
   const activeFilesAgentId = useUIStore((state) => state.activeFilesAgentId);
   const selectFilesAgent = useUIStore((state) => state.selectFilesAgent);
@@ -48,11 +84,13 @@ export function FilesPanel() {
   const [hostPath, setHostPath] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [openFile, setOpenFile] = useState<WorkspaceFileContent | null>(null);
+  const [openMediaEntry, setOpenMediaEntry] = useState<WorkspaceEntry | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [editingSoul, setEditingSoul] = useState(false);
   const [draftContent, setDraftContent] = useState("");
   const [savingSoul, setSavingSoul] = useState(false);
+  const [downloadingZip, setDownloadingZip] = useState(false);
 
   // No reset-on-agent-change effect needed: page.tsx mounts this with
   // `key={activeFilesAgentId}`, so switching agents fully remounts the
@@ -102,6 +140,37 @@ export function FilesPanel() {
     }
   }
 
+  // A real local download, not routed through api.ts's request() — that
+  // always parses JSON, and a zip tag can't carry the bearer token this
+  // router requires, so fetch it directly and save the Blob (same
+  // authed-fetch pattern as useWorkspaceFile.ts's image/video preview).
+  async function downloadZip() {
+    if (!activeFilesAgentId) return;
+    setDownloadingZip(true);
+    try {
+      const token = getAuthToken();
+      const response = await fetch(api.agents.zipUrl(activeFilesAgentId, currentPath), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error(`Download failed (${response.status})`);
+      const blob = await response.blob();
+      const filenameMatch = response.headers
+        .get("content-disposition")
+        ?.match(/filename="([^"]+)"/);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filenameMatch?.[1] ?? `${agent?.name ?? "workspace"}.zip`;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+      toast.success("Download started");
+    } catch {
+      toast.error("Couldn't download this folder as a zip");
+    } finally {
+      setDownloadingZip(false);
+    }
+  }
+
   function openEntry(entry: WorkspaceEntry) {
     if (entry.type === "dir") {
       setCurrentPath(entry.path);
@@ -110,7 +179,15 @@ export function FilesPanel() {
     if (!activeFilesAgentId) return;
     setFileError(null);
     setOpenFile(null);
+    setOpenMediaEntry(null);
     setEditingSoul(false);
+    // Media files skip files/content entirely — that endpoint is text-only
+    // and size-capped, so it can't render an image/video at all. No fetch
+    // needed here either: the listing already has name/size.
+    if (getMediaKind(entry.path)) {
+      setOpenMediaEntry(entry);
+      return;
+    }
     api.agents
       .readFile(activeFilesAgentId, entry.path)
       .then(setOpenFile)
@@ -119,6 +196,7 @@ export function FilesPanel() {
 
   function backToFolder() {
     setOpenFile(null);
+    setOpenMediaEntry(null);
     setEditingSoul(false);
   }
 
@@ -195,6 +273,21 @@ export function FilesPanel() {
           variant="ghost"
           size="icon-xs"
           className="rounded-full bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground"
+          onClick={downloadZip}
+          disabled={downloadingZip}
+          aria-label={currentPath ? "Download this folder as a zip" : "Download workspace as a zip"}
+          title={currentPath ? "Download this folder as a zip" : "Download workspace as a zip"}
+        >
+          {downloadingZip ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Download className="size-3.5" />
+          )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="rounded-full bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground"
           onClick={close}
           aria-label="Close file browser"
         >
@@ -202,7 +295,7 @@ export function FilesPanel() {
         </Button>
       </div>
 
-      {openFile ? (
+      {openFile || openMediaEntry ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2">
             <button
@@ -212,8 +305,10 @@ export function FilesPanel() {
             >
               <ChevronRight className="size-3 rotate-180" /> Back to folder
             </button>
-            <span className="ml-auto font-mono text-3xs text-muted-foreground">{formatSize(openFile.size)}</span>
-            {openFile.path === SOUL_FILENAME && openFile.readable && (
+            <span className="ml-auto font-mono text-3xs text-muted-foreground">
+              {formatSize(openFile?.size ?? openMediaEntry?.size ?? null)}
+            </span>
+            {openFile?.path === SOUL_FILENAME && openFile.readable && (
               editingSoul ? (
                 <div className="flex items-center gap-1.5">
                   <Button
@@ -250,19 +345,25 @@ export function FilesPanel() {
             )}
           </div>
           <div className="min-h-0 flex-1 overflow-auto soft-scrollbar p-4">
-            {editingSoul ? (
+            {openMediaEntry ? (
+              activeFilesAgentId && (
+                <div className="flex h-full items-center justify-center">
+                  <MediaFilePreview agentId={activeFilesAgentId} path={openMediaEntry.path} />
+                </div>
+              )
+            ) : editingSoul ? (
               <Textarea
                 autoFocus
                 value={draftContent}
                 onChange={(e) => setDraftContent(e.target.value)}
                 className="h-full min-h-full resize-none font-mono text-2xs leading-relaxed"
               />
-            ) : openFile.readable ? (
+            ) : openFile?.readable ? (
               <pre className="paper-grain whitespace-pre-wrap break-words rounded-lg border border-border bg-card p-3 font-mono text-2xs leading-relaxed text-foreground">
                 {openFile.content}
               </pre>
             ) : (
-              <p className="text-xs text-muted-foreground">{openFile.reason}</p>
+              <p className="text-xs text-muted-foreground">{openFile?.reason}</p>
             )}
           </div>
         </div>

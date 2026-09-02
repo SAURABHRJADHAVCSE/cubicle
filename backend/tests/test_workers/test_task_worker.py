@@ -177,6 +177,62 @@ async def test_execute_task_folds_soul_and_memory_into_system_prompt(
     assert "Once forgot to handle the empty-list case." in system_prompt
 
 
+async def test_execute_task_tells_cli_agents_to_verify_the_build(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    """Regression coverage for a live bug: a delegated "create a website"
+    task came back marked completed, but the user hit a real eslint version
+    conflict the moment they actually cloned and ran it — the agent wrote
+    code but never verified it installs/builds cleanly. CLI-engine agents
+    (the ones with real Bash/project access) must be told to actually
+    verify this before finishing."""
+    agent, task = await _make_agent_and_task(db_session)  # engine_type="cli"
+
+    stub = _StubEngine(result=EngineResult(output="ok", tokens_used=1, cost_usd=0.0))
+    monkeypatch.setattr(task_worker_module, "get_engine", lambda a: stub)
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "emit_celebration", lambda *_: None)
+    monkeypatch.setattr(task_worker_module, "generate_and_emit_dialogue", _RecordingDelay())
+    monkeypatch.setattr(task_worker_module, "store_memory", _RecordingDelay())
+
+    await task_worker_module._execute_task_async(task.id)
+
+    assert stub.captured_context is not None
+    system_prompt = stub.captured_context["system_prompt"]
+    assert "install its dependencies and run its build" in system_prompt
+
+
+async def test_execute_task_omits_build_instruction_for_api_agents(
+    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
+) -> None:
+    """An API-engine agent (e.g. an image generator) has no Bash/project
+    access at all — the build-verification instruction would be pure noise
+    for it, so it must stay CLI-only."""
+    task = Task(title="t", brief="do it", assigned_agents=[])
+    db_session.add(task)
+    await db_session.flush()
+    agent = Agent(
+        name="Wanda", role="Image Generator", engine_type="api", engine_provider="anthropic",
+        personality_traits=[],
+    )
+    db_session.add(agent)
+    await db_session.flush()
+    task.assigned_agents = [agent.id]
+    await db_session.flush()
+
+    stub = _StubEngine(result=EngineResult(output="ok", tokens_used=1, cost_usd=0.0))
+    monkeypatch.setattr(task_worker_module, "get_engine", lambda a: stub)
+    monkeypatch.setattr(task_worker_module, "worker_session_factory", lambda: _NoCloseSessionCM(db_session))
+    monkeypatch.setattr(task_worker_module, "emit_celebration", lambda *_: None)
+    monkeypatch.setattr(task_worker_module, "generate_and_emit_dialogue", _RecordingDelay())
+    monkeypatch.setattr(task_worker_module, "store_memory", _RecordingDelay())
+
+    await task_worker_module._execute_task_async(task.id)
+
+    assert stub.captured_context is not None
+    assert "install its dependencies" not in stub.captured_context["system_prompt"]
+
+
 async def test_execute_task_engine_failure_marks_task_failed(
     monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:

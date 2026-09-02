@@ -76,6 +76,14 @@ class ClaudeCodeEngine(AgentEngine):
             cmd += ["--allowedTools", ",".join(self.allowed_tools)]
         if self.model:
             cmd += ["--model", self.model]
+        system_prompt = context.get("system_prompt")
+        if system_prompt:
+            # Confirmed via `claude --help`: "Append a system prompt to the
+            # default system prompt." Without this, task_worker.py's whole
+            # system_prompt build (agent identity, SOUL.md, honesty
+            # guardrails) never reached this engine at all — only the raw
+            # task brief did, via -p below.
+            cmd += ["--append-system-prompt", system_prompt]
         cmd += ["-p", prompt]
 
         # See class docstring: ANTHROPIC_API_KEY is intentionally excluded

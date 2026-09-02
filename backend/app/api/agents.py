@@ -1,11 +1,14 @@
 """Agent CRUD API routes."""
 
+import io
 import os
+import re
 import uuid
+import zipfile
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +34,16 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 # into memory and JSON-encoded whole — this is a text-preview endpoint, not
 # a general file server.
 MAX_PREVIEW_BYTES = 512_000
+
+# Skipped when zipping a workspace folder for download — vendor/build
+# output an agent (or the user, after cloning) regenerates locally anyway
+# (`npm install`, `next build`, ...), not something worth shipping in the
+# download itself. Mirrors what a real project's own .gitignore would
+# already exclude, even though workspaces here aren't necessarily git repos.
+_ZIP_EXCLUDED_DIRS = {
+    "node_modules", ".git", ".next", "dist", "build", "__pycache__",
+    ".venv", "venv", ".turbo", ".cache",
+}
 
 # Mirrors engines/registry.py's own if/elif — anything else is a
 # bring-your-own LiteLLM provider prefix the user typed directly.
@@ -299,6 +312,49 @@ async def read_workspace_file_raw(
 
     ext = os.path.splitext(resolved.absolute)[1].lstrip(".").lower()
     return FileResponse(resolved.absolute, media_type=EXT_TO_MIME.get(ext, "application/octet-stream"))
+
+
+@router.get("/{agent_id}/files/zip")
+async def download_workspace_zip(
+    agent_id: uuid.UUID, path: str = "", db: AsyncSession = Depends(get_db)
+) -> StreamingResponse:
+    """Zips a workspace directory (default: the whole workspace root) for a
+    real local download. The practical fix for "vscode:// doesn't open
+    anything" reports — that deep link (see host_path above) only resolves
+    when VS Code and this workspace's actual filesystem mount are on the
+    same machine at the same path, which isn't reliably true for every
+    setup (e.g. the backend running in a container/remote host). A zip
+    download has no such assumption — it always works.
+    """
+    agent = await _get_agent_or_404(agent_id, db)
+    try:
+        resolved = resolve_workspace_path(agent.working_directory, path)
+    except WorkspacePathError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    if not os.path.isdir(resolved.absolute):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="That path isn't a directory.")
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for root, dirs, files in os.walk(resolved.absolute):
+            dirs[:] = [d for d in dirs if d not in _ZIP_EXCLUDED_DIRS]
+            for filename in files:
+                file_path = os.path.join(root, filename)
+                arcname = os.path.relpath(file_path, resolved.absolute)
+                zip_file.write(file_path, arcname)
+    buffer.seek(0)
+
+    folder_name = os.path.basename(resolved.absolute) if resolved.relative else "workspace"
+    # Content-Disposition filename is attacker-controlled (the agent's own
+    # name) if left raw — strip anything but the safe characters a real
+    # filename needs.
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", f"{agent.name}-{folder_name}").strip("-") or "workspace"
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.zip"'},
+    )
 
 
 @router.put("/{agent_id}/soul", response_model=SoulRead)

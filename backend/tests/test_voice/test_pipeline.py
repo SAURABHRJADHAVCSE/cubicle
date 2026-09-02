@@ -59,7 +59,7 @@ from app.models.agent import Agent
 from app.models.agent_collaborator import AgentCollaborator
 from app.models.task import Task
 from app.voice import pipeline as pipeline_module
-from app.voice.audio import SAMPLE_RATE
+from app.voice.audio import SAMPLE_RATE, AudioFrameBuffer
 from app.voice.pipeline import CallAudioPipeline
 
 FRAME_MS = 20
@@ -182,6 +182,61 @@ async def test_run_turns_handles_two_separate_utterances(
     ]
     # Both replies actually got synthesized and sent out, not dropped.
     assert len(outgoing.enqueued) == 2
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["cough", "Cough.", "  COUGH  ", "sneeze", "laughter", "background noise", "inaudible"],
+)
+def test_is_non_speech_sound_label_matches_known_descriptors(text: str) -> None:
+    assert pipeline_module._is_non_speech_sound_label(text) is True
+
+
+@pytest.mark.parametrize(
+    "text", ["bye", "yes", "no", "good", "I have a cough", "cough syrup", ""],
+)
+def test_is_non_speech_sound_label_leaves_real_speech_alone(text: str) -> None:
+    """Narrow, exact-match only — a real reply that happens to contain one
+    of these words (not equal to it) must never be filtered."""
+    assert pipeline_module._is_non_speech_sound_label(text) is False
+
+
+async def test_run_turns_treats_non_speech_sound_transcript_as_nothing_to_say(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression coverage for a live bug: an actual cough came back from
+    Sarvam as the literal transcript "cough" — loud and long enough to be a
+    perfectly confident, non-marginal "utterance" by every RMS/duration
+    measure (see audio.py's CONFIDENT_MARGIN), so it wasn't caught there.
+    The agent must not respond to it at all, same as an empty transcript."""
+    monkeypatch.setattr(pipeline_module, "get_engine", lambda agent: _StubEngine())
+
+    transcripts: list[tuple[str, str]] = []
+
+    async def emit_transcript(role: str, text: str) -> None:
+        transcripts.append((role, text))
+
+    async def emit_status(message: str) -> None:
+        pass
+
+    outgoing = _FakeOutgoingTrack()
+    pipeline = CallAudioPipeline(
+        agent=_agent(), outgoing=outgoing, emit_status=emit_status, emit_transcript=emit_transcript
+    )
+    pipeline.stt = _StubSTT(["cough"])
+    pipeline.tts = _StubTTS()
+
+    frames = [
+        *_ms_of_frames(50, 600),
+        *_ms_of_frames(50, 400),
+        *_ms_of_frames(20000, 500),
+        *_ms_of_frames(50, 700),
+    ]
+
+    await pipeline._run_turns(_FakeIncomingTrack(frames))
+
+    assert transcripts == []
+    assert outgoing.enqueued == []
 
 
 async def test_run_turns_supersedes_stale_utterance_while_busy(
@@ -426,6 +481,63 @@ async def test_llm_turn_delegates_instead_of_blocking(
     assert child.assigned_agents == [coder.id]
     assert child.brief == "build the shoe store page"
     assert child.status == "assigned"  # dispatched, not awaited to completion
+
+
+async def test_play_reply_emits_delegated_only_after_playback_drains(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression coverage for "it should close the call and redirect me to
+    the task view once a task has started" — the redirect signal must fire
+    once the agent's spoken acknowledgment has actually finished playing,
+    not the instant the delegate tool call returns (which happens mid-turn,
+    well before TTS synthesis/playback even starts) — emitting it that
+    early would tell the frontend to hang up and navigate away while the
+    agent is still mid-sentence."""
+    monkeypatch.setattr(
+        pipeline_module, "resample_to_track_format", lambda audio, rate: [b"frame"]
+    )
+    emitted: list[tuple[str, str]] = []
+
+    async def emit_delegated(task_id: str, target_name: str) -> None:
+        emitted.append((task_id, target_name))
+
+    pipeline = CallAudioPipeline(
+        agent=Agent(name="Jarvis", role="Assistant", engine_type="api", engine_provider="anthropic", personality_traits=[]),
+        outgoing=_FakeOutgoingTrack(),
+        emit_status=lambda message: _noop(),
+        emit_transcript=lambda role, text: _noop(),
+        emit_delegated=emit_delegated,
+    )
+    pipeline._pending_delegation = ("task-123", "Wanda")
+
+    await pipeline._play_reply((b"audio bytes", 16000), AudioFrameBuffer())
+
+    assert emitted == [("task-123", "Wanda")]
+    assert pipeline._pending_delegation is None
+
+
+async def test_play_reply_emits_nothing_when_no_delegation_happened(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        pipeline_module, "resample_to_track_format", lambda audio, rate: [b"frame"]
+    )
+    emitted: list[tuple[str, str]] = []
+
+    async def emit_delegated(task_id: str, target_name: str) -> None:
+        emitted.append((task_id, target_name))
+
+    pipeline = CallAudioPipeline(
+        agent=Agent(name="Jarvis", role="Assistant", engine_type="api", engine_provider="anthropic", personality_traits=[]),
+        outgoing=_FakeOutgoingTrack(),
+        emit_status=lambda message: _noop(),
+        emit_transcript=lambda role, text: _noop(),
+        emit_delegated=emit_delegated,
+    )
+
+    await pipeline._play_reply((b"audio bytes", 16000), AudioFrameBuffer())
+
+    assert emitted == []
 
 
 async def _noop() -> None:

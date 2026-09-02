@@ -234,11 +234,12 @@ async def test_marginal_burst_long_enough_is_still_accepted() -> None:
 async def test_noisy_room_still_detects_speech_clearly_above_the_floor() -> None:
     # The old bug's exact scenario, but with real speech thrown in: even
     # with a noise floor near the old fixed threshold, a burst well above
-    # SPEECH_MARGIN times that floor must still register.
+    # both SPEECH_MARGIN and CONFIDENT_MARGIN times that floor must still
+    # register as a real, non-marginal utterance.
     frames = [
         *_ms_of_frames(3710, 500),  # calibrates the floor to the noisy level
         *_ms_of_frames(3710, 300),
-        *_ms_of_frames(15000, 500),  # clearly louder than 2.5x the floor
+        *_ms_of_frames(32000, 500),  # ~8.6x the floor — clears CONFIDENT_MARGIN, not just SPEECH_MARGIN
         *_ms_of_frames(3710, 700),
     ]
     assert len(await _collect(frames)) == 1

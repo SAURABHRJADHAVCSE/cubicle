@@ -83,6 +83,14 @@ async def _emit_transcript(call_id: str, sid: str, role: str, text: str) -> None
     await sio.emit("call:transcript", {"call_id": call_id, "role": role, "text": text}, room=sid)
 
 
+async def _emit_delegated(call_id: str, sid: str, task_id: str, target_agent_name: str) -> None:
+    await sio.emit(
+        "call:delegated",
+        {"call_id": call_id, "task_id": task_id, "target_agent_name": target_agent_name},
+        room=sid,
+    )
+
+
 async def _cleanup(call_id: str, reason: str) -> None:
     session = _active_calls.pop(call_id, None)
     if session is None:
@@ -134,6 +142,9 @@ async def call_offer(sid: str, data: dict) -> None:
             outgoing=outgoing,
             emit_status=lambda msg: _emit_status(call_id, sid, msg),
             emit_transcript=lambda role, text: _emit_transcript(call_id, sid, role, text),
+            emit_delegated=lambda task_id, target_name: _emit_delegated(
+                call_id, sid, task_id, target_name
+            ),
         )
         session.pipeline_task = asyncio.create_task(pipeline.start(session.incoming_track))
 

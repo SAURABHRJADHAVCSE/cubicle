@@ -190,6 +190,50 @@ async def test_execute_kills_process_on_timeout(
     assert hanging.waited is True
 
 
+async def test_execute_appends_system_prompt_when_given(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Regression coverage for a real gap: context["system_prompt"] (agent
+    identity, SOUL.md, honesty guardrails — see task_worker.py) was built
+    but never actually reached this engine at all, only the raw task brief
+    did via -p. --append-system-prompt is a real, `claude --help`-confirmed
+    flag for this."""
+    payload = json.dumps({"result": "done!"})
+    captured_cmd = {}
+
+    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr, env=None):
+        captured_cmd["cmd"] = cmd
+        return _FakeProcess(returncode=0, stdout=payload.encode())
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    engine = ClaudeCodeEngine(working_dir=str(tmp_path))
+    await engine.execute("say hi", context={"system_prompt": "You are Jarvis, a Developer."})
+
+    cmd = captured_cmd["cmd"]
+    assert "--append-system-prompt" in cmd
+    assert cmd[cmd.index("--append-system-prompt") + 1] == "You are Jarvis, a Developer."
+
+
+async def test_execute_omits_append_system_prompt_when_blank(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    payload = json.dumps({"result": "done!"})
+    captured_cmd = {}
+
+    async def fake_create_subprocess_exec(*cmd, cwd, stdout, stderr, env=None):
+        captured_cmd["cmd"] = cmd
+        return _FakeProcess(returncode=0, stdout=payload.encode())
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    engine = ClaudeCodeEngine(working_dir=str(tmp_path))
+    await engine.execute("say hi", context={"system_prompt": ""})
+    await engine.execute("say hi", context={})
+
+    assert "--append-system-prompt" not in captured_cmd["cmd"]
+
+
 async def test_is_available_checks_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(claude_code_module.shutil, "which", lambda name: "/usr/bin/claude")
     assert await ClaudeCodeEngine().is_available() is True

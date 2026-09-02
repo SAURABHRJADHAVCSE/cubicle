@@ -13,6 +13,12 @@ interface UIState {
   setTaskViewMode: (mode: "list" | "board") => void;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
+  // Which top-level panel a mobile viewport shows (desktop shows both side
+  // by side, see page.tsx) — lifted out of page.tsx's local state so
+  // CallPanel can jump to the task feed itself once a call delegates (see
+  // CallPanel's call:delegated handling), not just close its own overlay.
+  mobileTab: "agents" | "office";
+  setMobileTab: (tab: "agents" | "office") => void;
 }
 
 /** Which agent's chat panel (or voice call, workspace file browser, or
@@ -37,4 +43,6 @@ export const useUIStore = create<UIState>((set) => ({
   // not just the header's own gear button.
   settingsOpen: false,
   setSettingsOpen: (open) => set({ settingsOpen: open }),
+  mobileTab: "agents",
+  setMobileTab: (tab) => set({ mobileTab: tab }),
 }));

@@ -186,8 +186,17 @@ class AudioFrameBuffer:
     # the noise floor the utterance actually got — and only marginal
     # utterances are held to a stricter minimum length, rather than
     # guessing at specific "hallucination-prone" words (which would just as
-    # easily throw out someone genuinely saying "bye").
-    CONFIDENT_MARGIN = 4.0  # peak RMS at least this many times the noise floor counts as decisive, not marginal
+    # easily throw out someone genuinely saying "bye"). This margin proxy
+    # is imperfect, not a real substitute for actual VAD: confirmed live,
+    # a 640ms/6.6x-margin blip (not loud enough to be "decisive" under the
+    # original 4.0 cutoff, but not far off either) still got transcribed as
+    # a phantom "Good" — raised from 4.0 after that, to push cases like it
+    # into the stricter length bar instead of narrowly passing as
+    # "confident". A separate, unrelated failure mode — Sarvam transcribing
+    # the literal word "cough" for an actual cough (509x margin, 820ms,
+    # nowhere near marginal by any RMS measure) — can't be caught by this
+    # mechanism at all; see pipeline.py's _NON_SPEECH_SOUND_LABELS filter.
+    CONFIDENT_MARGIN = 8.0  # peak RMS at least this many times the noise floor counts as decisive, not marginal
     MIN_UTTERANCE_MS_MARGINAL = 700  # a marginal utterance needs this much length too, not just MIN_UTTERANCE_MS
 
     def __init__(self) -> None:

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 from collections.abc import AsyncIterator
 
 import litellm
@@ -24,6 +25,51 @@ _ANTHROPIC_CATALOG = ["claude-opus-4-6", "claude-sonnet-4-5", "claude-haiku-4-5"
 # how deep an A-calls-B-calls-C chain may recurse, not how many rounds one
 # agent's own turn takes.
 _MAX_TOOL_ROUNDS = 8
+
+# Confirmed live, repeatedly: despite an explicit system-prompt instruction
+# to call the delegate tool immediately rather than describe doing so (see
+# agent_tools.py's build_agent_system_prompt), a model sometimes still just
+# narrates a delegation in plain text with zero tool_calls — no task ever
+# gets created. Prompt wording alone hasn't reliably fixed this. This is a
+# bounded, one-shot safety net: if a turn ends with no tool call at all but
+# the text names an available delegate target (and a delegate tool was
+# actually available), force exactly one retry round with
+# tool_choice="required" — confirmed live via a direct litellm/Gemini call
+# that this reliably produces the real tool call the model just described.
+#
+# Detection is keyed on the *teammate's name*, not the verb — an earlier
+# version matched only the literal word "delegat[e]", which caught "I'll
+# delegate this to Wanda" but missed "I'll assign this to Jarvis" (confirmed
+# live: a real reported miss). Verb phrasing is unbounded ("assign",
+# "hand this off to", "get X to do it", "X will handle this", ...); the
+# object — which of the actually-available teammates got named — is not,
+# since it has to be one of the delegate_to_* tools this turn was given.
+_DELEGATE_TARGET_NAME_RE = re.compile(r"^Delegate a task to ([^,]+), a ")
+_DELEGATION_RETRY_NUDGE = (
+    "You just described delegating without actually calling a delegate_to_* "
+    "tool. Call the correct one now instead of describing it in text."
+)
+
+
+def _extract_delegate_target_names(tools: list[dict] | None) -> list[str]:
+    names = []
+    for t in tools or []:
+        fn = t.get("function", {})
+        if not fn.get("name", "").startswith("delegate_to_"):
+            continue
+        match = _DELEGATE_TARGET_NAME_RE.match(fn.get("description", ""))
+        if match:
+            names.append(match.group(1))
+    return names
+
+
+def _claims_delegation_without_calling(text: str | None, tools: list[dict] | None) -> bool:
+    if not text:
+        return False
+    return any(
+        re.search(rf"\b{re.escape(name)}\b", text, re.IGNORECASE)
+        for name in _extract_delegate_target_names(tools)
+    )
 
 
 class LiteLLMEngine(AgentEngine):
@@ -99,6 +145,8 @@ class LiteLLMEngine(AgentEngine):
         total_tokens = 0
         total_cost = 0.0
         response = None
+        force_tool_choice = False
+        forced_retry_used = False
         for _ in range(_MAX_TOOL_ROUNDS):
             try:
                 response = await litellm.acompletion(
@@ -106,17 +154,30 @@ class LiteLLMEngine(AgentEngine):
                     messages=messages,
                     api_base=self.api_base,
                     tools=tools or None,
+                    **({"tool_choice": "required"} if force_tool_choice else {}),
                     **self._extra_call_kwargs(),
                 )
             except Exception as exc:  # noqa: BLE001 - re-raised as a clearer message below
                 self._raise_if_tool_unsupported(exc, tools)
                 raise
+            force_tool_choice = False
             total_tokens += response.usage.total_tokens if response.usage else 0
             total_cost += self._safe_completion_cost(response)
 
             message = response.choices[0].message
             tool_calls = getattr(message, "tool_calls", None)
             if not tool_calls or not tool_executor:
+                if (
+                    not tool_calls
+                    and tool_executor
+                    and not forced_retry_used
+                    and _claims_delegation_without_calling(message.content, tools)
+                ):
+                    forced_retry_used = True
+                    force_tool_choice = True
+                    messages.append({"role": "assistant", "content": message.content})
+                    messages.append({"role": "user", "content": _DELEGATION_RETRY_NUDGE})
+                    continue
                 return response, total_tokens, total_cost
 
             messages.append(
@@ -201,6 +262,8 @@ class LiteLLMEngine(AgentEngine):
             *history,
             {"role": "user", "content": message},
         ]
+        force_tool_choice = False
+        forced_retry_used = False
         for _ in range(_MAX_TOOL_ROUNDS):
             try:
                 response = await litellm.acompletion(
@@ -209,11 +272,13 @@ class LiteLLMEngine(AgentEngine):
                     api_base=self.api_base,
                     stream=True,
                     tools=tools or None,
+                    **({"tool_choice": "required"} if force_tool_choice else {}),
                     **self._extra_call_kwargs(),
                 )
             except Exception as exc:  # noqa: BLE001 - re-raised as a clearer message below
                 self._raise_if_tool_unsupported(exc, tools)
                 raise
+            force_tool_choice = False
             assistant_text = ""
             # LiteLLM/OpenAI streaming shape: tool-call args arrive as
             # string fragments across multiple chunks, keyed by index —
@@ -236,6 +301,17 @@ class LiteLLMEngine(AgentEngine):
                         entry["arguments"] += tc_delta.function.arguments
 
             if not collected or not tool_executor:
+                if (
+                    not collected
+                    and tool_executor
+                    and not forced_retry_used
+                    and _claims_delegation_without_calling(assistant_text, tools)
+                ):
+                    forced_retry_used = True
+                    force_tool_choice = True
+                    messages.append({"role": "assistant", "content": assistant_text or None})
+                    messages.append({"role": "user", "content": _DELEGATION_RETRY_NUDGE})
+                    continue
                 return
 
             messages.append(

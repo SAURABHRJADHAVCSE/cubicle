@@ -93,13 +93,18 @@ export function TaskHistory() {
                 No tasks yet. Create a new task to get started.
               </div>
             )}
-            {/* Same auto-fill/minmax reflow as AgentList — 1 column when
-                narrow, a proper grid once there's width to spare.
+            {/* auto-fit (not auto-fill) — auto-fill reserves a column
+                track for every width-380px slot the container could hold
+                even when there aren't enough cards to fill them, leaving a
+                large empty dead zone next to a handful of cards. auto-fit
+                collapses those unused tracks and lets the real cards grow
+                into the freed space instead, capped at 480px so a lone
+                card in a wide panel doesn't stretch absurdly wide.
                 items-start keeps each card at its own natural height
                 instead of stretching short cards to match a taller
                 neighbor in the same row. */}
             {sorted.length > 0 && (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(380px,1fr))] items-start gap-2.5">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(380px,480px))] items-start gap-2.5">
                 {sorted.map((task) => (
                   <TaskCard key={task.id} task={task} />
                 ))}

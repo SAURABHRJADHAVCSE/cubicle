@@ -9,11 +9,9 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useWorkspaceFile } from "@/hooks/useWorkspaceFile";
+import { getMediaKind } from "@/lib/mediaKind";
 import { getTaskDisplaySummary, parseResultFileEntry } from "@/lib/task-output";
 import type { Task } from "@/types/task";
-
-const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
-const VIDEO_EXTENSIONS = new Set(["mp4", "webm"]);
 
 /** Renders one task.result_files entry — an image/video inline (the only
  * kinds media generation ever produces, see backend media/base.py's
@@ -25,7 +23,7 @@ function ResultFileEntry({ entry }: { entry: string }) {
   const { objectUrl, loading, error } = useWorkspaceFile(parsed?.agentId ?? "", parsed?.path ?? "");
 
   if (!parsed) return null;
-  const ext = parsed.path.split(".").pop()?.toLowerCase() ?? "";
+  const kind = getMediaKind(parsed.path);
 
   if (loading) {
     return (
@@ -42,7 +40,7 @@ function ResultFileEntry({ entry }: { entry: string }) {
       </div>
     );
   }
-  if (IMAGE_EXTENSIONS.has(ext)) {
+  if (kind === "image") {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- object URL, next/image can't optimize it
       <img
@@ -52,7 +50,7 @@ function ResultFileEntry({ entry }: { entry: string }) {
       />
     );
   }
-  if (VIDEO_EXTENSIONS.has(ext)) {
+  if (kind === "video") {
     return (
       <video
         src={objectUrl}

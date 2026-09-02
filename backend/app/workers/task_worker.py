@@ -412,6 +412,26 @@ async def _run_task_execution(
         # not the task-brief text — they're about who the agent is and what
         # it already knows, not the specific job at hand.
         system_prompt = build_agent_system_prompt(agent, tools)
+        if agent.engine_type == "cli":
+            # Confirmed live: a delegated "create a website" task came back
+            # marked completed, but the user hit real errors (an eslint
+            # version conflict) the moment they actually cloned and ran it
+            # — the agent had written code but never verified it actually
+            # installs/builds cleanly from scratch. This only applies to
+            # CLI-engine agents (Claude Code, OpenCode, ...) — they're the
+            # ones with real Bash/file access to a project, unlike an
+            # API-engine agent like an image generator.
+            system_prompt += (
+                "\n\nWhen your work involves creating or modifying a real "
+                "software project (not just a snippet or a single file "
+                "edit): before considering the task done, install its "
+                "dependencies and run its build (and lint/typecheck, if "
+                "configured) in the project's own directory, and fix any "
+                "errors that surface. A task isn't actually complete until "
+                "what you built runs cleanly from a fresh install — not "
+                "just looks correct — since the user will clone and run it "
+                "exactly that way."
+            )
         memories = await get_relevant_memories(session, agent, task.brief)
         if memories:
             system_prompt += "\n\nRelevant past experience:\n" + "\n".join(

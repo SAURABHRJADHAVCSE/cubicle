@@ -47,13 +47,17 @@ export function AgentList() {
               No agents yet. Click &quot;Add agent&quot; to bring your office live.
             </div>
           )}
-          {/* auto-fill + minmax: as many ~380px-wide cards per row as the
-              panel's actual width allows — 1 column in the narrow split
-              view (identical to the old stacked list), several side by
-              side once there's room (fullscreen), with no separate
-              breakpoint or fullscreen-specific logic needed. */}
+          {/* auto-fit (not auto-fill) + minmax: as many ~380px-wide cards
+              per row as the panel's actual width allows — 1 column in the
+              narrow split view (identical to the old stacked list),
+              several side by side once there's room (fullscreen), with no
+              separate breakpoint or fullscreen-specific logic needed.
+              auto-fit (rather than auto-fill) collapses empty column
+              tracks and lets the real cards grow into that space (capped
+              at 480px) instead of leaving a dead zone next to a handful
+              of cards in a wide panel. */}
           {agents && agents.length > 0 && (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(380px,1fr))] items-start gap-2">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(380px,480px))] items-start gap-2">
               {agents.map((agent) => <AgentCard key={agent.id} agent={agent} />)}
             </div>
           )}

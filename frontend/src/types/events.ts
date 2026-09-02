@@ -79,6 +79,16 @@ export interface CallEndedEvent {
   reason: "hangup" | "error" | "disconnected";
 }
 
+/** Fired once a real delegation happens on a call AND the agent's spoken
+ * acknowledgment has finished playing (see backend voice/pipeline.py's
+ * _play_reply) — the frontend's cue to end the call and jump to the task
+ * view, since the actual work is now tracked as a real Task there. */
+export interface CallDelegatedEvent {
+  call_id: string;
+  task_id: string;
+  target_agent_name: string;
+}
+
 export interface CallErrorEvent {
   call_id: string | null;
   message: string;
@@ -120,4 +130,5 @@ export interface ServerToClientEvents {
   "call:transcript": (payload: CallTranscriptEvent) => void;
   "call:ended": (payload: CallEndedEvent) => void;
   "call:error": (payload: CallErrorEvent) => void;
+  "call:delegated": (payload: CallDelegatedEvent) => void;
 }

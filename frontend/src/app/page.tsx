@@ -52,7 +52,8 @@ export default function Home() {
   const commandCenterRef = useRef<HTMLDivElement>(null);
   const [isCommandCenterFullscreen, setIsCommandCenterFullscreen] = useState(false);
   const isMobile = useIsMobileViewport();
-  const [mobileTab, setMobileTab] = useState<"agents" | "office">("agents");
+  const mobileTab = useUIStore((s) => s.mobileTab);
+  const setMobileTab = useUIStore((s) => s.setMobileTab);
   const showOffice = !isMobile || mobileTab === "office";
   const showCommandCenter = !isMobile || mobileTab === "agents";
   const onlineAgents = agents?.filter((agent) => agent.status !== "offline").length ?? 0;

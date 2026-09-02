@@ -119,6 +119,11 @@ export const api = {
     // URL (see useWorkspaceFile.ts) instead of using it as a plain src.
     rawFileUrl: (id: string, path: string) =>
       `${getApiUrl()}/agents/${id}/files/raw?path=${encodeURIComponent(path)}`,
+    // Same not-routed-through-request() reasoning as rawFileUrl — the
+    // caller fetches this with the bearer token and saves the resulting
+    // Blob itself (see FilesPanel.tsx's downloadZip).
+    zipUrl: (id: string, path = "") =>
+      `${getApiUrl()}/agents/${id}/files/zip?path=${encodeURIComponent(path)}`,
     writeSoul: (id: string, content: string) =>
       request<SoulRead>(`/agents/${id}/soul`, { method: "PUT", body: JSON.stringify({ content }) }),
     getCollaborators: (id: string) => request<CollaboratorsRead>(`/agents/${id}/collaborators`),

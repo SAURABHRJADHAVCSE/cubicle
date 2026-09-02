@@ -370,6 +370,201 @@ async def test_execute_tool_loop_caps_rounds(monkeypatch: pytest.MonkeyPatch) ->
     assert call_count == litellm_engine_module._MAX_TOOL_ROUNDS
 
 
+def _delegate_tool(name: str, role: str) -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": f"delegate_to_{name.lower()}",
+            "description": f"Delegate a task to {name}, a {role}.",
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I'll delegate this to Jarvis.",
+        "I'll assign this to Jarvis.",
+        "Jarvis will handle this for you.",
+        "Let me get Jarvis to build that.",
+        "Handing this off to Jarvis now.",
+    ],
+)
+def test_claims_delegation_catches_varied_phrasings_naming_the_target(text: str) -> None:
+    """The detection is keyed on the named teammate, not a fixed verb —
+    verb phrasing is unbounded (confirmed live: "assign" was missed by an
+    earlier version that only matched the literal word "delegate")."""
+    tools = [_delegate_tool("Jarvis", "Developer")]
+    assert litellm_engine_module._claims_delegation_without_calling(text, tools) is True
+
+
+def test_claims_delegation_false_when_no_target_name_mentioned() -> None:
+    tools = [_delegate_tool("Jarvis", "Developer")]
+    text = "Sure, I can help with that myself."
+    assert litellm_engine_module._claims_delegation_without_calling(text, tools) is False
+
+
+def test_claims_delegation_false_when_no_tools_available() -> None:
+    text = "I'll assign this to Jarvis."
+    assert litellm_engine_module._claims_delegation_without_calling(text, None) is False
+    assert litellm_engine_module._claims_delegation_without_calling(text, []) is False
+
+
+async def test_execute_forces_retry_when_model_claims_delegation_without_calling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression coverage for a live bug: a model repeatedly replied "I'll
+    assign this to Jarvis" (or "delegate this to Wanda") as plain text with
+    zero tool_calls — no task ever got created. Uses "assign" specifically
+    here (not "delegate") since an earlier, narrower verb-matching version
+    of this detection caught the "delegate" phrasing but missed "assign" —
+    confirmed live as a real, separate miss. Detection is keyed on the
+    named teammate, not the verb, so any phrasing naming an available
+    delegate target with no tool call must force exactly one retry round
+    with tool_choice="required"."""
+    seen_tool_choices: list[str | None] = []
+    responses = [
+        _fake_response("I'll assign this to Jarvis, he's our developer.", total_tokens=8),
+        _tool_call_response([_tool_call("call_1", "delegate_to_jarvis", '{"brief": "do it"}')]),
+        _fake_response("Assigned — check the task view.", total_tokens=6),
+    ]
+
+    async def fake_acompletion(**kwargs):
+        seen_tool_choices.append(kwargs.get("tool_choice"))
+        return responses.pop(0)
+
+    async def tool_executor(name: str, args: dict) -> tuple[str, bool]:
+        return "delegated result", False
+
+    monkeypatch.setattr(litellm_engine_module.litellm, "acompletion", fake_acompletion)
+    monkeypatch.setattr(litellm_engine_module.litellm, "completion_cost", lambda r: 0.0)
+
+    engine = LiteLLMEngine(model="claude-sonnet-4-5")
+    result = await engine.execute(
+        "create a website",
+        context={
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "delegate_to_jarvis",
+                        "description": "Delegate a task to Jarvis, a Developer.",
+                    },
+                }
+            ],
+            "tool_executor": tool_executor,
+        },
+    )
+
+    assert seen_tool_choices == [None, "required", None]
+    assert result.output == "Assigned — check the task view."
+
+
+async def test_execute_does_not_retry_a_normal_reply_with_no_tool_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A plain reply that never mentions delegating must return immediately
+    — the retry is a narrow safety net, not a general "always use a tool"
+    forcing mechanism."""
+    call_count = 0
+
+    async def fake_acompletion(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        assert kwargs.get("tool_choice") is None
+        return _fake_response("Sure, here's the answer to your question.")
+
+    monkeypatch.setattr(litellm_engine_module.litellm, "acompletion", fake_acompletion)
+    monkeypatch.setattr(litellm_engine_module.litellm, "completion_cost", lambda r: 0.0)
+
+    engine = LiteLLMEngine(model="claude-sonnet-4-5")
+    result = await engine.execute(
+        "what's 2+2",
+        context={
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "delegate_to_wanda",
+                        "description": "Delegate a task to Wanda, a Image & Visual Generator.",
+                    },
+                }
+            ],
+            "tool_executor": lambda *a, **kw: ("unused", False),
+        },
+    )
+
+    assert call_count == 1
+    assert result.output == "Sure, here's the answer to your question."
+
+
+async def test_chat_stream_forces_retry_when_model_claims_delegation_without_calling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Streaming counterpart of the execute() regression above — the same
+    live bug (a narrated-but-never-called delegation) happens on the
+    chat/voice path too, which streams through chat_stream() instead."""
+
+    async def claim_only_stream():
+        for content in ["I'll assign ", "this to Jarvis."]:
+            yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=content))])
+
+    async def tool_call_stream():
+        yield SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    delta=SimpleNamespace(
+                        content=None,
+                        tool_calls=[
+                            SimpleNamespace(
+                                index=0,
+                                id="call_1",
+                                function=SimpleNamespace(name="delegate_to_jarvis", arguments='{"brief": "go"}'),
+                            )
+                        ],
+                    )
+                )
+            ]
+        )
+
+    async def final_stream():
+        yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="Done!"))])
+
+    streams = [claim_only_stream(), tool_call_stream(), final_stream()]
+    seen_tool_choices: list[str | None] = []
+
+    async def fake_acompletion(**kwargs):
+        seen_tool_choices.append(kwargs.get("tool_choice"))
+        return streams.pop(0)
+
+    async def tool_executor(name: str, args: dict) -> tuple[str, bool]:
+        return "delegated result", False
+
+    monkeypatch.setattr(litellm_engine_module.litellm, "acompletion", fake_acompletion)
+
+    engine = LiteLLMEngine(model="claude-sonnet-4-5")
+    deltas = [
+        d
+        async for d in engine.chat_stream(
+            "create a website",
+            history=[],
+            tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "delegate_to_jarvis",
+                        "description": "Delegate a task to Jarvis, a Developer.",
+                    },
+                }
+            ],
+            tool_executor=tool_executor,
+        )
+    ]
+
+    assert seen_tool_choices == [None, "required", None]
+    assert deltas == ["I'll assign ", "this to Jarvis.", "Done!"]
+
+
 async def test_chat_stream_runs_tool_loop_then_continues_streaming(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

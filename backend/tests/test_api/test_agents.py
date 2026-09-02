@@ -95,6 +95,55 @@ async def test_files_raw_rejects_path_traversal(client: AsyncClient) -> None:
     assert resp.status_code == 400
 
 
+async def test_files_zip_downloads_workspace_contents(client: AsyncClient) -> None:
+    """Regression coverage for a live report: the vscode:// deep link
+    ("Open in VS Code") doesn't resolve to anything usable when VS Code and
+    the workspace's actual filesystem mount aren't on the same machine — a
+    plain zip download has no such assumption."""
+    import io
+    import os
+    import zipfile
+
+    created = (await client.post("/agents", json=_payload(name="Jarvis"))).json()
+    working_dir = created["working_directory"]
+    os.makedirs(os.path.join(working_dir, "src"), exist_ok=True)
+    with open(os.path.join(working_dir, "package.json"), "w") as f:
+        f.write('{"name": "shoe-store"}')
+    with open(os.path.join(working_dir, "src", "index.ts"), "w") as f:
+        f.write("export {};")
+    # Should never end up in the zip.
+    os.makedirs(os.path.join(working_dir, "node_modules", "react"), exist_ok=True)
+    with open(os.path.join(working_dir, "node_modules", "react", "index.js"), "w") as f:
+        f.write("module.exports = {};")
+
+    resp = await client.get(f"/agents/{created['id']}/files/zip")
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/zip"
+    assert "attachment" in resp.headers["content-disposition"]
+    assert "Jarvis" in resp.headers["content-disposition"]
+
+    with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+        names = set(zf.namelist())
+    assert "package.json" in names
+    assert os.path.join("src", "index.ts").replace(os.sep, "/") in {n.replace("\\", "/") for n in names}
+    assert not any("node_modules" in n for n in names)
+
+
+async def test_files_zip_400s_on_a_file_path(client: AsyncClient) -> None:
+    created = (await client.post("/agents", json=_payload(name="NotADir"))).json()
+    resp = await client.get(f"/agents/{created['id']}/files/zip", params={"path": "SOUL.md"})
+    assert resp.status_code == 400
+
+
+async def test_files_zip_rejects_path_traversal(client: AsyncClient) -> None:
+    created = (await client.post("/agents", json=_payload(name="SneakyZip"))).json()
+    resp = await client.get(
+        f"/agents/{created['id']}/files/zip", params={"path": "../../../etc"}
+    )
+    assert resp.status_code == 400
+
+
 # ---- bring-your-own API provider -------------------------------------------
 
 

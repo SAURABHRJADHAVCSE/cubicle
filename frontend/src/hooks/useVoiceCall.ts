@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import type {
   CallAnswerEvent,
+  CallDelegatedEvent,
   CallEndedEvent,
   CallErrorEvent,
   CallIceCandidateEvent,
@@ -27,6 +28,10 @@ export function useVoiceCall(agentId: string | null) {
   const [state, setState] = useState<CallState>("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
+  // Set once a real delegation happens on this call and its spoken
+  // acknowledgment has finished playing (see call:delegated's docstring) —
+  // CallPanel watches this to end the call and jump to the task view.
+  const [delegation, setDelegation] = useState<CallDelegatedEvent | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -56,6 +61,7 @@ export function useVoiceCall(agentId: string | null) {
     setState("connecting");
     setStatusMessage(null);
     setTranscripts([]);
+    setDelegation(null);
 
     try {
       const [config, mic] = await Promise.all([
@@ -151,12 +157,18 @@ export function useVoiceCall(agentId: string | null) {
       setStatusMessage(payload.message);
     };
 
+    const onDelegated = (payload: CallDelegatedEvent) => {
+      if (payload.call_id !== callIdRef.current) return;
+      setDelegation(payload);
+    };
+
     socket.on("call:answer", onAnswer);
     socket.on("call:ice_candidate", onIceCandidate);
     socket.on("call:status", onStatus);
     socket.on("call:transcript", onTranscript);
     socket.on("call:ended", onEnded);
     socket.on("call:error", onError);
+    socket.on("call:delegated", onDelegated);
     return () => {
       socket.off("call:answer", onAnswer);
       socket.off("call:ice_candidate", onIceCandidate);
@@ -164,6 +176,7 @@ export function useVoiceCall(agentId: string | null) {
       socket.off("call:transcript", onTranscript);
       socket.off("call:ended", onEnded);
       socket.off("call:error", onError);
+      socket.off("call:delegated", onDelegated);
     };
   }, [cleanup]);
 
@@ -171,5 +184,5 @@ export function useVoiceCall(agentId: string | null) {
   // (e.g. the user navigates away) rather than leaking mic access.
   useEffect(() => () => cleanup(), [cleanup]);
 
-  return { state, statusMessage, transcripts, remoteAudioRef, startCall, hangUp };
+  return { state, statusMessage, transcripts, delegation, remoteAudioRef, startCall, hangUp };
 }

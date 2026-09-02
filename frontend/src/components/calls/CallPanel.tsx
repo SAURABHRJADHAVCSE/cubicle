@@ -2,6 +2,7 @@
 
 import { Phone, PhoneOff, Settings } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -35,10 +36,11 @@ export function CallPanel() {
   const activeCallAgentId = useUIStore((state) => state.activeCallAgentId);
   const selectCallAgent = useUIStore((state) => state.selectCallAgent);
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
+  const setMobileTab = useUIStore((state) => state.setMobileTab);
   const { data: agents } = useAgents();
   const agent = agents?.find((item) => item.id === activeCallAgentId);
 
-  const { state, statusMessage, transcripts, remoteAudioRef, startCall, hangUp } =
+  const { state, statusMessage, transcripts, delegation, remoteAudioRef, startCall, hangUp } =
     useVoiceCall(activeCallAgentId);
   const startedRef = useRef<string | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -55,6 +57,20 @@ export function CallPanel() {
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [transcripts]);
+
+  // Once a delegation's spoken acknowledgment has actually finished
+  // playing (see call:delegated's docstring — this never fires mid-
+  // sentence), the call has done its job: end it and surface the task
+  // feed, where the real work is now trackable, instead of leaving the
+  // caller sitting in a now-pointless connected call.
+  useEffect(() => {
+    if (!delegation) return;
+    toast.success(`Delegated to ${delegation.target_agent_name} — check the task view`);
+    hangUp();
+    selectCallAgent(null);
+    setMobileTab("agents");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [delegation]);
 
   if (!activeCallAgentId) return null;
 

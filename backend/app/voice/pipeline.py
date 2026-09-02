@@ -5,6 +5,7 @@ the transport works when no STT/TTS provider is configured yet.
 
 import asyncio
 import contextlib
+import re
 import uuid
 from collections.abc import Awaitable, Callable
 
@@ -33,9 +34,32 @@ _NOT_CONFIGURED_MESSAGE = (
     "Voice provider not configured — playing a test tone and echoing your audio back."
 )
 
+# Sarvam's STT (like other caption-trained ASR models) sometimes transcribes
+# a non-speech sound as its literal descriptor word rather than refusing to
+# transcribe it — confirmed live: an actual cough came back as the transcript
+# "cough" (820ms, ~509x the noise floor — nowhere near marginal by any
+# volume/duration measure, see audio.py's CONFIDENT_MARGIN comment, so this
+# can't be caught there at all). Narrow and exact-match only, not a general
+# short-reply blocklist: real replies like "yes"/"no"/"bye" stay untouched,
+# only literal sound descriptors a caller would essentially never actually
+# say as their entire utterance are filtered.
+_NON_SPEECH_SOUND_LABELS = {
+    "cough", "coughing", "sneeze", "sneezing", "sigh", "sighing",
+    "laughter", "laughing", "clears throat", "throat clearing",
+    "background noise", "music", "applause", "silence", "inaudible", "unintelligible",
+}
+_TRAILING_PUNCTUATION_RE = re.compile(r"[.!?,;:]+$")
+
+
+def _is_non_speech_sound_label(text: str) -> bool:
+    normalized = _TRAILING_PUNCTUATION_RE.sub("", text.strip().lower())
+    return normalized in _NON_SPEECH_SOUND_LABELS
+
 
 def _make_voice_delegation_executor(
-    tool_by_name: dict[str, uuid.UUID], agent: Agent
+    tool_by_name: dict[str, uuid.UUID],
+    agent: Agent,
+    on_delegated: Callable[[str, str], None] | None = None,
 ) -> ToolExecutor:
     """Delegation for a live voice call — same underlying Task/dispatch_task
     machinery as make_tool_executor (task_worker.py), used by task-based and
@@ -62,6 +86,14 @@ def _make_voice_delegation_executor(
     accumulator, same as api/chat.py's — no Task row exists on a voice call
     to persist result_files onto (tracked as the same follow-up work noted
     there).
+
+    `on_delegated(task_id, target_name)`, if given, fires right after a real
+    delegation succeeds — a plain sync callback (just records state), not
+    something this function awaits or emits over the socket itself: the
+    caller (CallAudioPipeline) only wants the actual redirect-to-task-view
+    signal sent once the spoken acknowledgment has *finished playing*, not
+    the instant the tool call returns, so it stashes this on itself and
+    emits it later from _play_reply once playback has actually drained.
     """
     generated_files: list[str] = []
 
@@ -93,6 +125,10 @@ def _make_voice_delegation_executor(
             await session.flush()
             await dispatch_task(session, child)
             target_name = target.name
+            child_id = str(child.id)
+
+        if on_delegated is not None:
+            on_delegated(child_id, target_name)
 
         return (
             f"Delegated to {target_name} — it's running in the background now; "
@@ -110,12 +146,20 @@ class CallAudioPipeline:
         outgoing: AudioQueueTrack,
         emit_status: Callable[[str], Awaitable[None]],
         emit_transcript: Callable[[str, str], Awaitable[None]],
+        emit_delegated: Callable[[str, str], Awaitable[None]] | None = None,
     ) -> None:
         self.agent = agent
         self.outgoing = outgoing
         self.emit_status = emit_status
         self.emit_transcript = emit_transcript
+        self.emit_delegated = emit_delegated
         self.history: list[dict] = []  # in-memory only, never persisted
+        # Set by _make_voice_delegation_executor's on_delegated callback
+        # mid-turn, consumed by _play_reply once that turn's spoken
+        # acknowledgment has actually finished playing — see
+        # _make_voice_delegation_executor's on_delegated docstring for why
+        # this isn't just emitted immediately.
+        self._pending_delegation: tuple[str, str] | None = None
 
     async def start(self, incoming_track) -> None:
         logger.info("voice_call_pipeline_started", agent_id=str(self.agent.id))
@@ -232,6 +276,14 @@ class CallAudioPipeline:
                 "voice_call_empty_transcript", agent_id=str(self.agent.id), pcm_bytes=len(pcm)
             )
             return None
+        if _is_non_speech_sound_label(text):
+            # See _NON_SPEECH_SOUND_LABELS — the STT transcribed a sound
+            # (a cough, background noise, ...), not actual words. Treated
+            # the same as an empty transcript: nothing worth responding to.
+            logger.info(
+                "voice_call_non_speech_sound_filtered", agent_id=str(self.agent.id), text=text
+            )
+            return None
         logger.info("voice_call_transcribed", agent_id=str(self.agent.id), text=text)
         await self.emit_transcript("user", text)
 
@@ -263,6 +315,16 @@ class CallAudioPipeline:
         finally:
             buffer.muted = False
 
+        # Only after the acknowledgment has actually finished playing —
+        # emitting this the moment the tool call returns (mid-turn, well
+        # before TTS synthesis/playback even starts) would tell the
+        # frontend to hang up and navigate away while the agent is still
+        # mid-sentence.
+        if self._pending_delegation is not None and self.emit_delegated is not None:
+            task_id, target_name = self._pending_delegation
+            self._pending_delegation = None
+            await self.emit_delegated(task_id, target_name)
+
     async def _llm_turn(self, user_text: str) -> str:
         try:
             engine = get_engine(self.agent)
@@ -276,9 +338,14 @@ class CallAudioPipeline:
         # with no configured teammates) gets none, same as chat.py.
         async with async_session_factory() as session:
             tools, delegate_agents_by_name = await build_tools_for_agent(session, self.agent)
+        def _on_delegated(task_id: str, target_name: str) -> None:
+            self._pending_delegation = (task_id, target_name)
+
         tool_executor = (
             _make_voice_delegation_executor(
-                {name: a.id for name, a in delegate_agents_by_name.items()}, self.agent
+                {name: a.id for name, a in delegate_agents_by_name.items()},
+                self.agent,
+                on_delegated=_on_delegated,
             )
             if tools
             else None
