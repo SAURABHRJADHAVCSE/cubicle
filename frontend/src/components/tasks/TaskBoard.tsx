@@ -1,6 +1,7 @@
 "use client";
 
 import { TaskCard } from "@/components/tasks/TaskCard";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTasks } from "@/hooks/useTasks";
 import type { Task, TaskStatus } from "@/types/task";
 
@@ -44,12 +45,15 @@ export function TaskBoard() {
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden soft-scrollbar">
+    <ScrollArea orientation="horizontal" className="min-h-0 flex-1">
       <div className="flex h-full gap-2.5 pb-2">
         {nonEmptyColumns.map((col) => {
           const columnTasks = byStatus.get(col.status) ?? [];
           return (
-            <div key={col.status} className="flex w-64 shrink-0 flex-col gap-2 overflow-y-auto">
+            <div
+              key={col.status}
+              className="flex w-64 shrink-0 flex-col gap-2 overflow-y-auto soft-scrollbar"
+            >
               <div className="flex items-center gap-1.5 px-0.5 shrink-0">
                 <h4 className="text-3xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   {col.label}
@@ -67,6 +71,6 @@ export function TaskBoard() {
           );
         })}
       </div>
-    </div>
+    </ScrollArea>
   );
 }

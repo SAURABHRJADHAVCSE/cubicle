@@ -177,6 +177,15 @@ def test_system_prompt_adds_search_guardrail_when_absent() -> None:
     prompt = build_agent_system_prompt(agent, [])
 
     assert "web search isn't set up" in prompt
+    assert "cite your sources" not in prompt
+
+
+def test_system_prompt_adds_citation_instruction_when_search_tool_present() -> None:
+    agent = _agent(name="Jarvis")
+    prompt = build_agent_system_prompt(agent, [_web_search_schema()])
+
+    assert "cite your sources" in prompt
+    assert "web search isn't set up" not in prompt
 
 
 def test_system_prompt_includes_delegate_instructions_alongside_fixed_tools() -> None:

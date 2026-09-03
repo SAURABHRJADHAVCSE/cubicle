@@ -8,8 +8,19 @@ import { cn } from "@/lib/utils"
 function ScrollArea({
   className,
   children,
+  orientation = "vertical",
   ...props
-}: ScrollAreaPrimitive.Root.Props) {
+}: ScrollAreaPrimitive.Root.Props & {
+  /** Which custom scrollbar(s) to render — "vertical" (the original,
+   * unchanged default so every existing call site keeps its current
+   * scrollbar) up through "both". A container that only ever scrolls
+   * horizontally (TaskBoard's column row) should pass "horizontal" — the
+   * plain-div `overflow-x-auto` + soft-scrollbar CSS alternative falls back
+   * to the browser's native scrollbar, which renders full-size/opaque
+   * (not the app's thin overlay look) in at least Chromium — confirmed
+   * live, not just in theory. */
+  orientation?: "vertical" | "horizontal" | "both"
+}) {
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
@@ -22,7 +33,8 @@ function ScrollArea({
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
-      <ScrollBar />
+      {orientation !== "horizontal" && <ScrollBar orientation="vertical" />}
+      {orientation !== "vertical" && <ScrollBar orientation="horizontal" />}
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   )

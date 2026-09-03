@@ -259,6 +259,17 @@ def build_agent_system_prompt(agent: Agent, tools: list[dict]) -> str:
             "now — never claim to have looked something up or browsed a "
             "page. If asked, say plainly that web search isn't set up for you."
         )
+    else:
+        # Without this, a search-backed reply reads exactly like an
+        # unsourced guess — confirmed live, a real web_search call came
+        # back with titles and URLs but the final reply cited none of it,
+        # leaving no way to tell it apart from a fabricated answer.
+        system_prompt += (
+            "\n\nWhen you answer using web_search or web_crawl results, cite "
+            "your sources — for each fact or item you use, include its title "
+            "and URL (e.g. \"Title — https://...\"), not just a bare list of "
+            "claims with nothing to check them against."
+        )
     delegate_tools = [t for t in tools if t["function"]["name"] not in _FIXED_TOOL_NAMES]
     if delegate_tools:
         if has_media_tool or has_search_tool:

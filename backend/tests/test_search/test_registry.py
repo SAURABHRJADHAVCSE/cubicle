@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.agent import Agent
 from app.search.registry import _resolve_tavily_key, get_search_provider
 from app.utils.encryption import encrypt_value
-from app.utils.secrets_store import TAVILY_API_KEY_SETTING, set_encrypted_setting
+from app.utils.secrets_store import TAVILY_API_KEY_SETTING, delete_setting, set_encrypted_setting
 
 
 def _agent(**overrides) -> Agent:
@@ -30,6 +30,11 @@ async def test_flag_off_returns_none_even_with_key_configured(db_session: AsyncS
 
 
 async def test_flag_on_no_key_anywhere_returns_none(db_session: AsyncSession) -> None:
+    # This suite runs against the real shared dev DB (see conftest.py) — a
+    # global Tavily key may genuinely be configured there already, so a
+    # "no key anywhere" baseline has to be established explicitly rather
+    # than assumed.
+    await delete_setting(db_session, TAVILY_API_KEY_SETTING)
     agent = _agent(has_web_search=True)
     assert await get_search_provider(agent, db_session) is None
 
